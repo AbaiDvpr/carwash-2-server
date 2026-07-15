@@ -5,18 +5,29 @@ import { BOT_REPLIES, QUICK_REPLIES, formatTime } from "./useChatbot.constants";
 export type { ChatMessage } from "./useChatbot.types";
 export { QUICK_REPLIES } from "./useChatbot.constants";
 
+const WELCOME_MESSAGE: ChatMessage = {
+  id: "welcome",
+  role: "bot",
+  text: "Здравствуйте! Я помощник CarWash. Помогу с оплатой, мойками и промокодами.",
+  time: "",
+};
+
 export function useChatbot() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "bot",
-      text: "Здравствуйте! Я помощник CarWash. Помогу с оплатой, мойками и промокодами.",
-      time: formatTime(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
+
+  // Время только на клиенте — иначе timezone SSR ≠ браузер → hydration mismatch
+  useEffect(() => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === "welcome" && !message.time
+          ? { ...message, time: formatTime() }
+          : message,
+      ),
+    );
+  }, []);
 
   useEffect(() => {
     const el = messagesRef.current;

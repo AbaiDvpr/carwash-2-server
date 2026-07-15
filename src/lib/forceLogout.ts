@@ -21,7 +21,11 @@ async function revokeServerToken(token: string): Promise<void> {
         Accept: "application/json",
         Authorization: `Bearer ${token}`,
       },
+
     });
+    
+    console.log("revokeServerToken----------------------------------");
+    console.log("token", token);
   } catch {
     // continue local logout
   }

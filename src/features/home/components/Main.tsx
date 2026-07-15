@@ -4,7 +4,6 @@ import Link from "next/link";
 import type { Station } from "@/data/stations";
 import { useCwStations } from "@/hooks/useCwStations";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
-import HomeHeader from "./HomeHeader";
 
 function StationCard({ station }: { station: Station }) {
   const isOpen = station.status === "Открыто";
@@ -88,8 +87,6 @@ export default function Main() {
 
   return (
     <div className="pb-10">
-      <HomeHeader city="Астана" />
-
       <section className="mx-auto max-w-5xl px-4 pt-6">
         <div className="mb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-400">
