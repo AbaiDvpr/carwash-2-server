@@ -1,5 +1,6 @@
-import type { Station } from "@/data/stations";
+import type { Station, StationKind } from "@/data/stations";
 import { apiFetch } from "@/lib/api";
+import { formatOpenHoursLabel } from "@/lib/openHours";
 
 export type CwWasher = {
   id: number;
@@ -28,6 +29,9 @@ export type CwLocation = {
   washers_total: number;
   free_slots: number;
   washers: CwWasher[];
+  /** Опционально с бэка; без поля считаем мойкой */
+  kind?: StationKind | "carwash" | "ev" | "charging" | null;
+  type?: string | null;
 };
 
 type LocationsResponse = {
@@ -49,8 +53,22 @@ export function toDisplayWasherStatus(status: string | null): {
   if (status === "busy") {
     return { status: "busy", statusLabel: "Занят" };
   }
-  // offline, maintenance и прочее → «Не в сети»
   return { status: "offline", statusLabel: "Не в сети" };
+}
+
+function toStationKind(location: CwLocation): StationKind {
+  const raw = (location.kind ?? location.type ?? "wash").toString().toLowerCase();
+  if (
+    raw === "charging" ||
+    raw === "ev" ||
+    raw === "electro" ||
+    raw === "electric" ||
+    raw.includes("charg") ||
+    raw.includes("electro")
+  ) {
+    return "charging";
+  }
+  return "wash";
 }
 
 /** Маппинг ответа API → Station для UI */
@@ -67,11 +85,16 @@ export function toStation(location: CwLocation): Station {
     };
   });
 
+  const kind = toStationKind(location);
+
   return {
     id: String(location.id),
-    name: `CarWash · ${location.address}`,
+    name: kind === "charging" ? `ЭЗС · ${location.address}` : `CarWash · ${location.address}`,
     address: location.address,
     status: location.status,
+    kind,
+    photoUrl: location.photo_url,
+    hoursLabel: formatOpenHoursLabel(location.open_hours),
     freeSlots: washers.filter((w) => w.status === "free").length,
     washersTotal: washers.length,
     washers,
@@ -86,7 +109,6 @@ export function toStation(location: CwLocation): Station {
   };
 }
 
-/** GET /api/cw/locations — все мойки */
 export async function fetchCwLocations(): Promise<CwLocation[]> {
   const data = await apiFetch<LocationsResponse>("/api/cw/locations");
   return data.locations;
@@ -97,7 +119,6 @@ export async function fetchCwStations(): Promise<Station[]> {
   return locations.map(toStation);
 }
 
-/** GET /api/cw/locations/:id — одна мойка */
 export async function fetchCwLocation(id: number | string): Promise<CwLocation> {
   const data = await apiFetch<LocationResponse>(`/api/cw/locations/${id}`);
   return data.location;

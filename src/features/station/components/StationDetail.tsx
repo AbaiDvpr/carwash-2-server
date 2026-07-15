@@ -19,7 +19,6 @@ function washerTone(status: string | null) {
         label: "text-amber-600 dark:text-amber-400",
       };
     default:
-      // offline
       return {
         box: "border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800/60",
         text: "text-zinc-500 dark:text-zinc-400",
@@ -34,87 +33,100 @@ export default function StationDetail({ station }: { station: Station }) {
   const freeCount = station.washers.filter((w) => w.status === "free").length;
 
   return (
-    <div className="pb-10">
-      <section className="mx-auto max-w-2xl px-4 pt-6">
+    <div className="pb-8">
+      <section className="mx-auto max-w-lg px-4 pt-4">
         <Link
           href="/"
-          className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 transition hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+          className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" d="M15 6l-6 6 6 6" />
-          </svg>
-          Назад
+          ← Назад
         </Link>
 
-        <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-md dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-5 py-6 text-white">
+        <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          {station.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={station.photoUrl}
+              alt={station.name}
+              className="h-36 w-full object-cover"
+            />
+          ) : (
+            <div className="relative flex h-28 w-full items-end bg-gradient-to-br from-sky-600 via-blue-600 to-zinc-800 px-3 pb-2.5">
+              <p className="text-xs font-medium text-white/90">Фото появится позже</p>
+            </div>
+          )}
+
+          <div className="border-b border-zinc-100 px-3 py-3 dark:border-zinc-800">
             <span
-              className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-                isOpen ? "bg-emerald-400/20 text-emerald-100" : "bg-white/15 text-white/70"
+              className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                isOpen
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                  : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
               }`}
             >
               {station.status}
             </span>
-            <h1 className="mt-3 text-2xl font-bold">{station.name}</h1>
-            <p className="mt-1 text-sm text-blue-100">{station.address}</p>
+            <h1 className="mt-1.5 text-base font-semibold text-zinc-900 dark:text-zinc-50">
+              {station.name}
+            </h1>
+            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{station.address}</p>
+            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              {isOpen ? `Открыто · ${station.hoursLabel}` : `Закрыто · ${station.hoursLabel}`}
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-px bg-zinc-200 dark:bg-zinc-800">
-            <div className="bg-white px-5 py-4 dark:bg-zinc-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          <div className="grid grid-cols-2 gap-px bg-zinc-100 dark:bg-zinc-800">
+            <div className="bg-white px-3 py-2.5 dark:bg-zinc-950">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
                 Свободно
               </p>
-              <p className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+              <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                 {freeCount}
               </p>
             </div>
-            <div className="bg-white px-5 py-4 dark:bg-zinc-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Всего постов
+            <div className="bg-white px-3 py-2.5 dark:bg-zinc-950">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                Всего
               </p>
-              <p className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+              <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                 {totalPosts}
               </p>
             </div>
           </div>
 
-          <div className="border-t border-zinc-200 p-5 dark:border-zinc-800">
-            <div className="mb-3 flex items-end justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
-                Посты
-              </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {freeCount} из {totalPosts} свободно
+          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
+            <div className="mb-2 flex items-end justify-between gap-2">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Посты</p>
+              <p className="text-[11px] text-zinc-500">
+                {freeCount} из {totalPosts}
               </p>
             </div>
 
-            <div className="mb-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Свободен
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                 Занят
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-zinc-400" />
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
                 Не в сети
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-4 gap-1.5">
               {station.washers.map((washer, index) => {
                 const tone = washerTone(washer.status);
                 return (
                   <div
                     key={washer.id}
-                    className={`flex min-h-[5.5rem] flex-col items-center justify-center rounded-xl border px-2 py-3 text-center transition ${tone.box}`}
+                    className={`flex min-h-[3.5rem] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center ${tone.box}`}
                   >
-                    <span className={`text-lg font-bold ${tone.text}`}>{index + 1}</span>
-                    <span
-                      className={`mt-1 text-[10px] font-semibold uppercase tracking-wide ${tone.label}`}
-                    >
+                    <span className={`text-sm font-semibold ${tone.text}`}>{index + 1}</span>
+                    <span className={`mt-0.5 text-[9px] font-medium uppercase ${tone.label}`}>
                       {washer.statusLabel}
                     </span>
                   </div>
@@ -123,20 +135,20 @@ export default function StationDetail({ station }: { station: Station }) {
             </div>
           </div>
 
-          <div className="border-t border-zinc-200 p-5 dark:border-zinc-800">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
+          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
               Маршрут
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
               <a
                 href={station.map_yandex}
                 onClick={(event) => {
                   event.preventDefault();
                   openYandexMap(station.latitude, station.longitude, station.map_yandex);
                 }}
-                className="flex items-center justify-center rounded-xl bg-zinc-900 px-3 py-3 text-sm font-semibold text-white transition hover:opacity-90 dark:bg-zinc-100 dark:text-zinc-900"
+                className="flex items-center justify-center rounded-lg bg-zinc-900 px-2 py-2 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
               >
-                Яндекс Карты
+                Яндекс
               </a>
               <a
                 href={station.map_2gis}
@@ -144,7 +156,7 @@ export default function StationDetail({ station }: { station: Station }) {
                   event.preventDefault();
                   open2GisMap(station.latitude, station.longitude, station.map_2gis);
                 }}
-                className="flex items-center justify-center rounded-xl bg-blue-600 px-3 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="flex items-center justify-center rounded-lg bg-blue-600 px-2 py-2 text-xs font-medium text-white hover:bg-blue-700"
               >
                 2ГИС
               </a>
@@ -152,25 +164,23 @@ export default function StationDetail({ station }: { station: Station }) {
           </div>
 
           {station.tariff.length > 0 ? (
-            <div className="border-t border-zinc-200 p-5 dark:border-zinc-800">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
+            <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
                 Тарифы
               </p>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {station.tariff.map((tariff) => (
                   <div
                     key={tariff.title}
-                    className="flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+                    className="flex items-center justify-between rounded-lg border border-zinc-100 px-2.5 py-2 dark:border-zinc-800"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      <p className="text-xs font-medium text-zinc-900 dark:text-zinc-50">
                         {tariff.title}
                       </p>
-                      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                        {tariff.description}
-                      </p>
+                      <p className="text-[11px] text-zinc-500">{tariff.description}</p>
                     </div>
-                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    <p className="text-xs font-medium text-zinc-900 dark:text-zinc-50">
                       {tariff.price} ₸
                     </p>
                   </div>
@@ -180,22 +190,20 @@ export default function StationDetail({ station }: { station: Station }) {
           ) : null}
 
           {station.market.length > 0 ? (
-            <div className="border-t border-zinc-200 p-5 dark:border-zinc-800">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
+            <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
                 Маркет
               </p>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {station.market.map((market) => (
                   <div
                     key={market.id}
-                    className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+                    className="rounded-lg border border-zinc-100 px-2.5 py-2 dark:border-zinc-800"
                   >
-                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    <p className="text-xs font-medium text-zinc-900 dark:text-zinc-50">
                       {market.name}
                     </p>
-                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                      {market.description}
-                    </p>
+                    <p className="text-[11px] text-zinc-500">{market.description}</p>
                   </div>
                 ))}
               </div>

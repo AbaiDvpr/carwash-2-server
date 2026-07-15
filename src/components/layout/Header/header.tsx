@@ -24,32 +24,37 @@ export default function Header() {
     setShowNavFromStorage(getHeaderVisible() === "true");
   }, []);
 
-  const showNav = showHeaderNavFromStore || showNavFromStorage ;
+  const showNav = showHeaderNavFromStore || showNavFromStorage;
 
   if (pathname.startsWith("/payment")) {
     return null;
   }
- 
+
   return (
-    <div className="app-header flex shrink-0 flex-row items-center justify-between border-b border-gray-200 bg-(--bacground)">
-      <div className="px-4 py-3">
-        <h1 className="text-2xl font-bold">CarWash</h1>
+    <div className="app-header flex shrink-0 flex-row items-center justify-between border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="px-4 py-2.5">
+        <h1 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          CarWash
+        </h1>
       </div>
-      <div className="flex flex-row items-center gap-6 px-4 py-3">
-        
-        {showNav && (
-          <nav className="flex flex-row gap-4 text-sm">
+      <div className="flex flex-row items-center gap-4 px-4 py-2.5">
+        {showNav ? (
+          <nav className="flex flex-row gap-3 text-xs">
             {NAV_LINKS.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
-                className={pathname === href ? "font-semibold text-blue-600" : "text-zinc-600"}
+                className={
+                  pathname === href
+                    ? "font-medium text-blue-600"
+                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                }
               >
                 {label}
               </Link>
             ))}
           </nav>
-        )}
+        ) : null}
 
         <UserSessionInfo compact />
       </div>

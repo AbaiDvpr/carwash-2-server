@@ -95,61 +95,58 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
   }, [showConfirm, modalStep]);
 
   return (
-    <div className="pb-10">
+    <div className="pb-8">
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/95 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
-        <div className="mx-auto flex max-w-2xl items-center px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <div className="mx-auto flex max-w-lg items-center px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
           <button
             type="button"
             onClick={handleBack}
             disabled={isModalLocked}
-            className="inline-flex items-center gap-1 rounded-lg px-3 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-200 dark:hover:bg-zinc-800"
             aria-label="Назад на главную"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 6l-6 6 6 6" />
-            </svg>
-            Назад
+            ← Назад
           </button>
         </div>
       </header>
 
       <section
-        className={`mx-auto max-w-2xl px-4 pt-6 ${isModalLocked ? "pointer-events-none select-none opacity-60" : ""}`}
+        className={`mx-auto max-w-lg px-4 pt-4 ${isModalLocked ? "pointer-events-none select-none opacity-60" : ""}`}
         aria-hidden={isModalLocked}
       >
-        <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-md dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-5 py-8 text-white">
-            <p className="text-sm font-medium text-blue-100">Здравствуйте!</p>
-            <h1 className="mt-2 text-2xl font-bold leading-snug">
-              Это мойка — {station.paymentTitle}
+        <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="border-b border-zinc-100 px-3 py-3 dark:border-zinc-800">
+            <p className="text-[11px] font-medium text-zinc-400">Оплата</p>
+            <h1 className="mt-0.5 text-base font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
+              {station.paymentTitle}
             </h1>
-            <p className="mt-2 text-sm text-blue-100">{station.address}</p>
+            <p className="mt-0.5 text-xs text-zinc-500">{station.address}</p>
           </div>
 
-          <div className="border-t border-zinc-200 p-5 dark:border-zinc-800">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
+          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
               Оплата мойки
             </p>
-            <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
-              Выберите один тариф и подтвердите оплату.
+            <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
+              Выберите тариф и подтвердите оплату.
             </p>
           </div>
 
-          <div className="border-t border-zinc-200 p-5 dark:border-zinc-800">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
+          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
               Тарифы
             </p>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {station.tariff.map((tariff) => {
                 const isSelected = selectedTariff === tariff.title;
 
                 return (
                   <label
                     key={tariff.title}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${
+                    className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition ${
                       isSelected
                         ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40"
-                        : "border-zinc-200 bg-zinc-50 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:border-zinc-600"
+                        : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600"
                     }`}
                   >
                     <input
@@ -162,17 +159,17 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                         setSelectedTariff(isSelected ? null : tariff.title);
                         closeModal();
                       }}
-                      className="h-4 w-4 shrink-0 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900"
+                      className="h-3.5 w-3.5 shrink-0 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      <p className="text-xs font-medium text-zinc-900 dark:text-zinc-50">
                         {tariff.title}
                       </p>
-                      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
                         {tariff.description}
                       </p>
                     </div>
-                    <p className="shrink-0 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    <p className="shrink-0 text-xs font-medium text-zinc-900 dark:text-zinc-50">
                       {tariff.price} ₸
                     </p>
                   </label>
@@ -181,15 +178,16 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
             </div>
           </div>
 
-          <div className="border-t border-zinc-200 p-5 dark:border-zinc-800">
+          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
             {selected ? (
-              <p className="mb-3 text-center text-sm text-zinc-600 dark:text-zinc-300">
-                Выбрано: <span className="font-semibold text-zinc-900 dark:text-zinc-50">{selected.title}</span>
+              <p className="mb-2 text-center text-xs text-zinc-600 dark:text-zinc-300">
+                Выбрано:{" "}
+                <span className="font-medium text-zinc-900 dark:text-zinc-50">{selected.title}</span>
                 {" · "}
-                <span className="font-semibold text-zinc-900 dark:text-zinc-50">{selected.price} ₸</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-50">{selected.price} ₸</span>
               </p>
             ) : (
-              <p className="mb-3 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              <p className="mb-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
                 Выберите тариф для оплаты
               </p>
             )}
@@ -197,7 +195,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
               type="button"
               disabled={!selected || isModalLocked}
               onClick={handlePayClick}
-              className="flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Оплатить мойку
             </button>

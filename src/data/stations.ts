@@ -1,3 +1,5 @@
+export type StationKind = "wash" | "charging";
+
 export type StationWasher = {
   id: number;
   status: string | null;
@@ -9,6 +11,12 @@ export type Station = {
   name: string;
   address: string;
   status: "Открыто" | "Закрыто";
+  /** Мойка или электростанция */
+  kind: StationKind;
+  /** Фото локации; null → UI-заглушка */
+  photoUrl: string | null;
+  /** Например: «с 09:00 до 22:00» */
+  hoursLabel: string;
   freeSlots: number;
   washersTotal: number;
   washers: StationWasher[];
@@ -36,6 +44,9 @@ export const STATIONS: Station[] = [
     name: "CarWash Seifulina",
     address: "Сакен Сейфуллин, 11/2",
     status: "Открыто",
+    kind: "wash",
+    photoUrl: null,
+    hoursLabel: "с 09:00 до 22:00",
     freeSlots: 2,
     washersTotal: 2,
     washers: [],
@@ -82,6 +93,9 @@ export const STATIONS: Station[] = [
     name: "CarWash Sauran",
     address: "Сауран, 18/1",
     status: "Открыто",
+    kind: "wash",
+    photoUrl: null,
+    hoursLabel: "с 09:00 до 22:00",
     freeSlots: 1,
     washersTotal: 1,
     washers: [],
@@ -128,6 +142,9 @@ export const STATIONS: Station[] = [
     name: "CarWash Uly dala",
     address: "Қабанбай батыр, 51",
     status: "Закрыто",
+    kind: "wash",
+    photoUrl: null,
+    hoursLabel: "с 09:00 до 22:00",
     freeSlots: 0,
     washersTotal: 0,
     washers: [],
