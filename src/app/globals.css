@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --app-height: 100dvh;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  height: var(--app-height);
+  max-height: var(--app-height);
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-layout {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-header {
+  flex-shrink: 0;
+}
+
+.app-shell {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+}
+
+.page__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.page__description {
+  color: #71717a;
+  font-size: 0.875rem;
+}
+
+/* Чат: скролл только в ленте сообщений */
+body:has(.page--chat) .app-shell {
+  overflow: hidden;
+}
+
+.page--chat {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}

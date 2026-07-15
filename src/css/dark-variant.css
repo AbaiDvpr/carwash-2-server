@@ -1,0 +1,1 @@
+@custom-variant dark (&:where(html[data-theme="dark"], html[data-theme="dark"] *));
