@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchUserInfo } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api";
 import { hasAccessToken } from "@/lib/authToken";
 import { forceLogout } from "@/lib/forceLogout";
 import { formatUserDisplayName, getUserName } from "@/lib/userSession";
 
 /**
  * Имя авторизованного пользователя.
- * Нет токена / 401 → сразу forceLogout, без режима «Гость».
+ * Нет токена / 401 → forceLogout (в test_version — error-блок).
  */
 export function useAuthUser() {
   const [mounted, setMounted] = useState(false);
@@ -17,7 +18,10 @@ export function useAuthUser() {
 
   const sync = useCallback(async () => {
     if (!hasAccessToken()) {
-      forceLogout();
+      forceLogout({
+        reason: "useAuthUser: нет access_token при синхронизации профиля",
+        source: "useAuthUser.sync",
+      });
       setName("");
       setLoading(false);
       return;
@@ -29,8 +33,15 @@ export function useAuthUser() {
     try {
       const user = await fetchUserInfo();
       setName(formatUserDisplayName(user) || cached || "");
-    } catch {
-      forceLogout();
+    } catch (err) {
+      const apiErr = err instanceof ApiError ? err : null;
+      forceLogout({
+        reason: "useAuthUser: не удалось загрузить user_info",
+        source: "useAuthUser.sync",
+        path: "/api/auth/user_info",
+        status: apiErr?.status,
+        body: apiErr?.body ?? (err instanceof Error ? err.message : String(err)),
+      });
       setName("");
     } finally {
       setLoading(false);

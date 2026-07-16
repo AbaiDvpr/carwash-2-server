@@ -3,10 +3,16 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Station, StationKind } from "@/data/stations";
-import { useCwStations } from "@/hooks/useCwStations";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
 
 type PlaceFilter = "all" | StationKind;
+
+type MainProps = {
+  stations: Station[];
+  loading: boolean;
+  error: string | null;
+  onOpenMap: () => void;
+};
 
 const FILTERS: { id: PlaceFilter; label: string }[] = [
   { id: "all", label: "Все" },
@@ -91,11 +97,11 @@ function StationCard({ station }: { station: Station }) {
             {station.status}
           </span>
           <span className="text-[11px] text-zinc-400">
-            {station.kind === "charging"
-              ? "Зарядка"
-              : isOpen
-                ? `${station.freeSlots}/${station.washersTotal || station.washers.length} своб.`
-                : "Нет мест"}
+            {isOpen
+              ? `${station.freeSlots}/${station.washersTotal || station.washers.length} ${
+                  station.kind === "charging" ? "коннект." : "своб."
+                }`
+              : "Нет мест"}
           </span>
         </div>
 
@@ -160,8 +166,7 @@ function ChargingEmptyState() {
   );
 }
 
-export default function Main() {
-  const { stations, loading, error } = useCwStations();
+export default function Main({ stations, loading, error, onOpenMap }: MainProps) {
   const [filter, setFilter] = useState<PlaceFilter>("all");
 
   const filtered = useMemo(() => {
@@ -186,13 +191,26 @@ export default function Main() {
 
   return (
     <div className="pb-8">
-      <section className="mx-auto max-w-5xl px-4 pt-4">
-        <div className="mb-3">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Рядом</p>
-          <h1 className="mt-0.5 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Выберите точку
-          </h1>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
+      <section className="mx-auto max-w-5xl px-4 pt-1">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Рядом</p>
+            <h1 className="mt-0.5 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Выберите точку
+            </h1>
+            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenMap}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20 3 17V4l6 3 6-3 6 3v13l-6-3-6 3Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 7v13M15 4v13" />
+            </svg>
+            На карте
+          </button>
         </div>
 
         <div

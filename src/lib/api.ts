@@ -1,7 +1,7 @@
 /**
  * Базовый URL API из .env.local (NEXT_PUBLIC_API_URL).
  * Все запросы (кроме login/register) идут с Bearer access_token.
- * Нет токена / 401 → forceLogout.
+ * Нет токена / 401 → forceLogout (в test_version — error-блок).
  */
 import { getAccessToken } from "@/lib/authToken";
 import { forceLogout } from "@/lib/forceLogout";
@@ -56,7 +56,13 @@ export async function apiFetch<T>(
 
   if (requireAuth) {
     if (!token) {
-      forceLogout();
+      forceLogout({
+        reason: "Запрос с requireAuth, но access_token отсутствует",
+        source: "apiFetch",
+        path,
+        status: 401,
+        body: { message: "Unauthenticated." },
+      });
       throw new ApiError(401, path, { message: "Unauthenticated." });
     }
   }
@@ -86,7 +92,16 @@ export async function apiFetch<T>(
 
     // истёк / неверный / отсутствует на сервере
     if (requireAuth && (response.status === 401 || response.status === 403)) {
-      forceLogout();
+      forceLogout({
+        reason:
+          response.status === 401
+            ? "API вернул 401 Unauthorized"
+            : "API вернул 403 Forbidden",
+        source: "apiFetch",
+        path,
+        status: response.status,
+        body,
+      });
     }
 
     throw new ApiError(response.status, path, body);

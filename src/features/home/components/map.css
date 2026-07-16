@@ -34,6 +34,10 @@
   @apply block h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow-md;
 }
 
+.map-marker__dot--charging {
+  @apply bg-emerald-500;
+}
+
 .map-page__frame {
   @apply relative w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800;
   height: clamp(300px, calc(var(--app-height) - 14rem), 480px);

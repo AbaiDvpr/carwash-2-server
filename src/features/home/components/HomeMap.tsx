@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { Station } from "@/data/stations";
-import { useCwStations } from "@/hooks/useCwStations";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./map.css";
@@ -16,6 +16,18 @@ type StationDotProps = {
 
 type MapStatus = "loading" | "ready" | "error";
 
+type HomeMapProps = {
+  stations: Station[];
+  loading: boolean;
+  error: string | null;
+  onBackToList: () => void;
+};
+
+type DisplayStation = Station & {
+  displayLatitude: number;
+  displayLongitude: number;
+};
+
 const MAP_CENTER = {
   longitude: 76.889709,
   latitude: 43.238949,
@@ -23,6 +35,26 @@ const MAP_CENTER = {
 };
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+
+/** ~25–40 м — чтобы мойка и ЭЗС в одном здании не слипались в одну точку */
+function withDisplayOffsets(stations: Station[]): DisplayStation[] {
+  const used = new Map<string, number>();
+
+  return stations.map((station) => {
+    const key = `${station.latitude.toFixed(5)}_${station.longitude.toFixed(5)}`;
+    const index = used.get(key) ?? 0;
+    used.set(key, index + 1);
+
+    // лёгкий сдвиг по кругу для совпадающих/очень близких точек
+    const angle = (index * 120 * Math.PI) / 180;
+    const delta = index === 0 ? 0 : 0.00028;
+    return {
+      ...station,
+      displayLatitude: station.latitude + Math.sin(angle) * delta,
+      displayLongitude: station.longitude + Math.cos(angle) * delta,
+    };
+  });
+}
 
 function MapLoading() {
   return (
@@ -43,12 +75,14 @@ function MapError() {
 }
 
 function StationDot({ station, onSelect }: StationDotProps) {
+  const isCharging = station.kind === "charging";
   return (
     <button
       type="button"
-      className="map-marker__dot"
+      className={isCharging ? "map-marker__dot map-marker__dot--charging" : "map-marker__dot"}
       onClick={() => onSelect(station)}
       aria-label={station.name}
+      title={station.name}
     />
   );
 }
@@ -56,11 +90,11 @@ function StationDot({ station, onSelect }: StationDotProps) {
 async function createMapView() {
   const { default: MapGL, Marker } = await import("react-map-gl/maplibre");
   type MapViewProps = {
-    stations: Station[];
+    stations: DisplayStation[];
     selectedStation: Station | null;
     onSelectStation: (station: Station | null) => void;
   };
-  return function MapView({ stations, selectedStation, onSelectStation }: MapViewProps) {
+  return function MapView({ stations, onSelectStation }: MapViewProps) {
     const [status, setStatus] = useState<MapStatus>("loading");
     const [userLocation, setUserLocation] = useState<{
       latitude: number;
@@ -91,12 +125,21 @@ async function createMapView() {
 
     useEffect(() => {
       if (!stations.length || !mapRef.current) return;
-      const first = stations[0];
-      mapRef.current.flyTo({
-        center: [first.longitude, first.latitude],
-        zoom: 11,
-        duration: 600,
-      });
+
+      const lats = stations.map((s) => s.displayLatitude);
+      const lngs = stations.map((s) => s.displayLongitude);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+
+      mapRef.current.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: 56, duration: 700, maxZoom: 14 },
+      );
     }, [stations]);
 
     return (
@@ -134,8 +177,8 @@ async function createMapView() {
           {stations.map((station) => (
             <Marker
               key={station.id}
-              longitude={station.longitude}
-              latitude={station.latitude}
+              longitude={station.displayLongitude}
+              latitude={station.displayLatitude}
               anchor="bottom"
             >
               <StationDot station={station} onSelect={onSelectStation} />
@@ -162,28 +205,55 @@ const MapView = dynamic(createMapView, {
   loading: MapLoading,
 });
 
-export default function HomeMap() {
-  const { stations, loading, error } = useCwStations();
+export default function HomeMap({
+  stations,
+  loading,
+  error,
+  onBackToList,
+}: HomeMapProps) {
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+  const displayStations = useMemo(() => withDisplayOffsets(stations), [stations]);
 
   return (
-    <>
+    <div className="mx-auto max-w-5xl px-4 pb-8">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Карта</p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+            {loading
+              ? "Загрузка…"
+              : `${stations.length} точек · синие — мойки, зелёные — ЭЗС`}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onBackToList}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
+          Список
+        </button>
+      </div>
+
       <div className="map-page__frame">
         {loading ? (
           <MapLoading />
         ) : error ? (
           <div className="map-error">
-            <p className="map-error__title">Не удалось загрузить мойки</p>
+            <p className="map-error__title">Не удалось загрузить точки</p>
             <p className="map-error__text">{error}</p>
           </div>
         ) : (
           <MapView
-            stations={stations}
+            stations={displayStations}
             selectedStation={selectedStation}
             onSelectStation={setSelectedStation}
           />
         )}
       </div>
+
       {selectedStation && (
         <>
           <button
@@ -196,10 +266,15 @@ export default function HomeMap() {
             <div className="map-drawer__handle" aria-hidden />
             <div className="map-drawer__header">
               <div className="map-drawer__headline">
-                <span className="map-drawer__label">Автомойка</span>
+                <span className="map-drawer__label">
+                  {selectedStation.kind === "charging" ? "ЭЗС" : "Автомойка"}
+                </span>
                 <h2 id="map-drawer-title" className="map-drawer__title">
                   {selectedStation.name}
                 </h2>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {selectedStation.freeSlots}/{selectedStation.washersTotal} свободно
+                </p>
               </div>
               <button
                 type="button"
@@ -253,6 +328,6 @@ export default function HomeMap() {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

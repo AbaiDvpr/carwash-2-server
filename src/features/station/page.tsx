@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCwStation } from "@/hooks/useCwStation";
+import { useStation } from "@/hooks/useStation";
 import StationDetail from "./components/StationDetail";
 
 type StationPageProps = {
@@ -9,7 +9,7 @@ type StationPageProps = {
 };
 
 export default function StationPage({ id }: StationPageProps) {
-  const { station, loading, error, notFound } = useCwStation(id);
+  const { station, loading, error, notFound } = useStation(id);
 
   if (loading) {
     return (
@@ -24,9 +24,9 @@ export default function StationPage({ id }: StationPageProps) {
   if (notFound) {
     return (
       <div className="mx-auto max-w-lg px-4 py-12 text-center">
-        <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Мойка не найдена</h1>
+        <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Точка не найдена</h1>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Такой автомойки нет в списке.
+          Такой мойки или ЭЗС нет в списке.
         </p>
         <Link
           href="/"

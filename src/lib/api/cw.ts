@@ -58,6 +58,9 @@ export function toDisplayWasherStatus(status: string | null): {
 
 function toStationKind(location: CwLocation): StationKind {
   const raw = (location.kind ?? location.type ?? "wash").toString().toLowerCase();
+  if (raw === "wash" || raw === "carwash" || raw === "cw") {
+    return "wash";
+  }
   if (
     raw === "charging" ||
     raw === "ev" ||

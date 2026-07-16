@@ -4,9 +4,11 @@ import { useState, type ReactNode } from "react";
 import { PageLayout } from "@/components/layout";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { forceLogout } from "@/lib/forceLogout";
+import { openTelegram, openWhatsApp } from "@/lib/messengerController";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleHeaderNav } from "@/store/slices/appSlice";
 import { usePromoCode } from "./hooks/usePromoCode";
+import { usePushNotifications } from "./hooks/usePushNotifications";
 import GaragePanel, { type MockCar } from "./components/GaragePanel";
 import ProfileNavRow from "./components/ProfileNavRow";
 import ProfileVersion from "./components/ProfileVersion";
@@ -82,6 +84,13 @@ export default function ProfilePage() {
   const appVersion = useAppSelector((state) => state.app.version);
   const showHeaderNav = useAppSelector((state) => state.app.showHeaderNav);
   const { promoCode, promoMessage, applyPromo, updatePromoCode } = usePromoCode();
+  const {
+    pushEnabled,
+    loading: pushLoading,
+    saving: pushSaving,
+    togglePush,
+    hint: pushHint,
+  } = usePushNotifications();
 
   const [view, setView] = useState<ProfileView>("home");
   const [cars, setCars] = useState<MockCar[]>(INITIAL_CARS);
@@ -124,11 +133,38 @@ export default function ProfilePage() {
                     onClick={() => undefined}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label="Уведомления"
-                    hint="Включены"
-                    onClick={() => undefined}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => void togglePush()}
+                    disabled={pushLoading || pushSaving}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-zinc-50 disabled:opacity-60 dark:hover:bg-zinc-900/60"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                        Уведомления
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-zinc-400">
+                        {pushHint}
+                      </span>
+                    </span>
+                    <span
+                      className={[
+                        "relative h-5 w-9 shrink-0 rounded-full transition",
+                        pushLoading
+                          ? "bg-zinc-200 dark:bg-zinc-700"
+                          : pushEnabled
+                            ? "bg-blue-600"
+                            : "bg-zinc-200 dark:bg-zinc-700",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition",
+                          !pushLoading && pushEnabled ? "left-4" : "left-0.5",
+                        ].join(" ")}
+                      />
+                    </span>
+                  </button>
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <button
                     type="button"
@@ -193,7 +229,17 @@ export default function ProfilePage() {
 
               <section>
                 <SectionCard>
-                  <ProfileNavRow label="Выйти" danger onClick={() => forceLogout()} />
+                  <ProfileNavRow
+                    label="Выйти"
+                    danger
+                    onClick={() =>
+                      forceLogout({
+                        immediate: true,
+                        reason: "Выход из профиля",
+                        source: "ProfilePage",
+                      })
+                    }
+                  />
                 </SectionCard>
               </section>
             </div>
@@ -266,15 +312,13 @@ export default function ProfilePage() {
               <ProfileNavRow
                 label="Telegram"
                 hint="@carwash_support"
-                href="https://t.me/carwash_support"
-                external
+                onClick={() => openTelegram("https://t.me/carwash_support")}
               />
               <div className="border-t border-zinc-100 dark:border-zinc-800" />
               <ProfileNavRow
                 label="WhatsApp"
                 hint="Написать в чат"
-                href="https://wa.me/77001234567"
-                external
+                onClick={() => openWhatsApp("https://wa.me/77001234567")}
               />
             </SectionCard>
           </>

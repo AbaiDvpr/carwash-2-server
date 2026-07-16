@@ -10,6 +10,7 @@ export type AuthUser = {
   last_name: string | null;
   balance: string | number;
   photo_url: string | null;
+  push_enabled: boolean;
 };
 
 type AuthResponse = {
@@ -41,8 +42,23 @@ export async function loginWithPhone(phone: string, password: string): Promise<A
 
 export async function fetchUserInfo(): Promise<AuthUser> {
   const data = await apiFetch<UserInfoResponse>("/api/auth/user_info");
-  console.log("counter");
   setUserId(data.user.id);
+  cacheUserProfile(data.user);
+  return data.user;
+}
+
+type UpdateSettingsResponse = {
+  message: string;
+  user: AuthUser;
+};
+
+export async function updateUserSettings(settings: {
+  push_enabled?: boolean;
+}): Promise<AuthUser> {
+  const data = await apiFetch<UpdateSettingsResponse>("/api/auth/settings", {
+    method: "PATCH",
+    body: JSON.stringify(settings),
+  });
   cacheUserProfile(data.user);
   return data.user;
 }

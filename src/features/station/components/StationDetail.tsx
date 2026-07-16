@@ -29,8 +29,10 @@ function washerTone(status: string | null) {
 
 export default function StationDetail({ station }: { station: Station }) {
   const isOpen = station.status === "Открыто";
+  const isCharging = station.kind === "charging";
   const totalPosts = station.washers.length || station.washersTotal;
   const freeCount = station.washers.filter((w) => w.status === "free").length;
+  const slotsTitle = isCharging ? "Коннекторы" : "Посты";
 
   return (
     <div className="pb-8">
@@ -51,8 +53,17 @@ export default function StationDetail({ station }: { station: Station }) {
               className="h-36 w-full object-cover"
             />
           ) : (
-            <div className="relative flex h-28 w-full items-end bg-gradient-to-br from-sky-600 via-blue-600 to-zinc-800 px-3 pb-2.5">
-              <p className="text-xs font-medium text-white/90">Фото появится позже</p>
+            <div
+              className={[
+                "relative flex h-28 w-full items-end px-3 pb-2.5",
+                isCharging
+                  ? "bg-gradient-to-br from-emerald-600 via-teal-600 to-zinc-800"
+                  : "bg-gradient-to-br from-sky-600 via-blue-600 to-zinc-800",
+              ].join(" ")}
+            >
+              <p className="text-xs font-medium text-white/90">
+                {isCharging ? "Электростанция" : "Фото появится позже"}
+              </p>
             </div>
           )}
 
@@ -96,7 +107,9 @@ export default function StationDetail({ station }: { station: Station }) {
 
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
             <div className="mb-2 flex items-end justify-between gap-2">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Посты</p>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                {slotsTitle}
+              </p>
               <p className="text-[11px] text-zinc-500">
                 {freeCount} из {totalPosts}
               </p>
