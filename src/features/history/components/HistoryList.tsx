@@ -65,14 +65,19 @@ export default function HistoryList() {
     async function boot() {
       try {
         await loadSessions();
-        if (!cancelled) setError(null);
-      } catch (err) {
         if (!cancelled) {
-          setSessions([]);
-          setError(errorMessage(err));
+          setError(null);
+          setLoading(false);
         }
-      } finally {
-        if (!cancelled) setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        // 401/403 → logout+reload в apiFetch, текст ошибки не показываем
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          return;
+        }
+        setSessions([]);
+        setError(errorMessage(err));
+        setLoading(false);
       }
     }
 

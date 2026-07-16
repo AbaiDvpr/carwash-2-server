@@ -46,14 +46,18 @@ export default function GarageSection() {
     async function boot() {
       try {
         await loadGarages();
-        if (!cancelled) setError(null);
-      } catch (err) {
         if (!cancelled) {
-          setGarages([]);
-          setError(errorMessage(err));
+          setError(null);
+          setLoading(false);
         }
-      } finally {
-        if (!cancelled) setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          return;
+        }
+        setGarages([]);
+        setError(errorMessage(err));
+        setLoading(false);
       }
     }
 

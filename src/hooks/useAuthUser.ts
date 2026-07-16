@@ -9,7 +9,7 @@ import { formatUserDisplayName, getUserName } from "@/lib/userSession";
 
 /**
  * Имя авторизованного пользователя.
- * Нет токена / 401 → forceLogout (в test_version — error-блок).
+ * Нет токена / 401 → сразу forceLogout.
  */
 export function useAuthUser() {
   const [mounted, setMounted] = useState(false);
@@ -19,6 +19,7 @@ export function useAuthUser() {
   const sync = useCallback(async () => {
     if (!hasAccessToken()) {
       forceLogout({
+        immediate: true,
         reason: "useAuthUser: нет access_token при синхронизации профиля",
         source: "useAuthUser.sync",
       });
@@ -35,13 +36,17 @@ export function useAuthUser() {
       setName(formatUserDisplayName(user) || cached || "");
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : null;
-      forceLogout({
-        reason: "useAuthUser: не удалось загрузить user_info",
-        source: "useAuthUser.sync",
-        path: "/api/auth/user_info",
-        status: apiErr?.status,
-        body: apiErr?.body ?? (err instanceof Error ? err.message : String(err)),
-      });
+      // 401/403 уже обработаны в apiFetch (immediate logout)
+      if (apiErr?.status !== 401 && apiErr?.status !== 403) {
+        forceLogout({
+          reason: "useAuthUser: не удалось загрузить user_info",
+          source: "useAuthUser.sync",
+          path: "/api/auth/user_info",
+          status: apiErr?.status,
+          body:
+            apiErr?.body ?? (err instanceof Error ? err.message : String(err)),
+        });
+      }
       setName("");
     } finally {
       setLoading(false);

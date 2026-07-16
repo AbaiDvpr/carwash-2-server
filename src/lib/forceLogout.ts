@@ -15,18 +15,25 @@ function logoutApiUrl(): string {
   return `${base}/api/auth/logout`;
 }
 
-async function revokeServerToken(token: string): Promise<void> {
-  try {
-    await fetch(logoutApiUrl(), {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+/**
+ * Попытка revoke на сервере. Не через apiFetch — иначе 401 на /logout
+ * снова вызовет forceLogout. Токен уже может быть мёртвым: 401/сеть — ок, игнор.
+ * Локальный выход от ответа сервера не зависит.
+ */
+function revokeServerToken(token: string): void {
+  void fetch(logoutApiUrl(), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  })
+    .then(() => {
+      // 200 или 401 — не важно
+    })
+    .catch(() => {
+      // сеть / CORS — не важно
     });
-  } catch {
-    // continue local logout
-  }
 }
 
 export type ForceLogoutOptions = Partial<AuthErrorPayload> & {
@@ -57,8 +64,9 @@ function formatDetail(detail?: string, body?: unknown): string | undefined {
 }
 
 /**
- * Полный logout: revoke на сервере → очистка storage → native logout.
- * В test_version без immediate — только показ error-блока.
+ * Полный logout: сразу очистка storage + native logout.
+ * Ответ /api/auth/logout (в т.ч. 401 при исчерпанном токене) ни на что не влияет.
+ * В test_version без immediate — только error-блок.
  */
 export function forceLogout(options?: ForceLogoutOptions | string): void {
   if (typeof window === "undefined") return;
@@ -89,27 +97,20 @@ export function forceLogout(options?: ForceLogoutOptions | string): void {
   const store = getAppStore();
   store?.dispatch(clearAuthError());
 
+  // Сначала локальный выход — сервер может ответить 401 на мёртвый токен
   const token = getAccessToken();
-
-  const finish = () => {
-    try {
-      clearAccessToken();
-      clearUserId();
-      revokeAccess();
-      nativeLogout();
-    } finally {
-      window.setTimeout(() => {
-        logoutInProgress = false;
-      }, 300);
-    }
-  };
+  clearAccessToken();
+  clearUserId();
+  revokeAccess();
+  nativeLogout();
 
   if (token) {
-    void revokeServerToken(token).finally(finish);
-    return;
+    revokeServerToken(token);
   }
 
-  finish();
+  window.setTimeout(() => {
+    logoutInProgress = false;
+  }, 300);
 }
 
 export function requireAccessToken(): string {

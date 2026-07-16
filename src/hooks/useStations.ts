@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Station } from "@/data/stations";
+import { ApiError } from "@/lib/api";
 import { fetchCwStations } from "@/lib/api/cw";
 import { fetchEvStations } from "@/lib/api/ev";
 
@@ -20,23 +21,28 @@ export function useStations(): UseStationsState {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([fetchCwStations(), fetchEvStations()])
-      .then(([washes, chargers]) => {
-        if (!cancelled) {
-          setStations([...washes, ...chargers]);
-          setError(null);
+    async function boot() {
+      try {
+        const [washes, chargers] = await Promise.all([
+          fetchCwStations(),
+          fetchEvStations(),
+        ]);
+        if (cancelled) return;
+        setStations([...washes, ...chargers]);
+        setError(null);
+        setLoading(false);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          return;
         }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Не удалось загрузить точки");
-          setStations([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+        setError(err instanceof Error ? err.message : "Не удалось загрузить точки");
+        setStations([]);
+        setLoading(false);
+      }
+    }
 
+    void boot();
     return () => {
       cancelled = true;
     };
