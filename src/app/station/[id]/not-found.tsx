@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function StationNotFound() {
   return (
-    <div className="mx-auto max-w-lg px-4 py-12 text-center">
+    <div className="page-content text-center">
       <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Мойка не найдена</h1>
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
         Такой автомойки нет в списке.

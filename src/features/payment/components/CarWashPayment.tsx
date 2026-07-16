@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import BackButton from "@/components/ui/BackButton";
 import type { Station } from "@/data/stations";
+import { ApiError } from "@/lib/api";
+import { parseEvStationId } from "@/lib/api/ev";
+import { payCarWash, payEv, payFromBalance } from "@/lib/api/payments";
 import { navigateNavbar } from "@/lib/navbarController";
+import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
 import type { ModalStep } from "../hooks/usePaymentModal";
 
 type CarWashPaymentProps = {
@@ -28,28 +33,90 @@ function SuccessIcon() {
   );
 }
 
+function paymentErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body as {
+      message?: string;
+      errors?: Record<string, string[]>;
+    } | null;
+    const fieldError =
+      body?.errors?.amount?.[0] ??
+      body?.errors?.tariff_id?.[0] ??
+      body?.errors?.location_id?.[0];
+    if (fieldError) return fieldError;
+    if (body?.message) return body.message;
+  }
+  if (err instanceof Error) return err.message;
+  return "Не удалось оплатить";
+}
+
 export default function CarWashPayment({ station }: CarWashPaymentProps) {
   const router = useRouter();
-  const [selectedTariff, setSelectedTariff] = useState<string | null>(null);
+  const { balance, loading: balanceLoading, refresh: refreshBalance } = useUserBalance();
+  const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [modalStep, setModalStep] = useState<ModalStep>("confirm");
+  const [payError, setPayError] = useState<string | null>(null);
 
-  const selected = station.tariff.find((tariff) => tariff.title === selectedTariff);
+  const selected = station.tariff.find((tariff) => {
+    const key = tariff.id != null ? String(tariff.id) : tariff.title;
+    return key === selectedTariffKey;
+  });
+  const balanceValue = balance ?? 0;
+  const canAfford =
+    selected != null && Number.isFinite(balanceValue) && balanceValue >= selected.price;
 
   const closeModal = () => {
+    if (modalStep === "processing") return;
     setShowConfirm(false);
     setModalStep("confirm");
+    setPayError(null);
   };
 
   const handlePayClick = () => {
     if (!selected) return;
+    setPayError(null);
     setModalStep("confirm");
     setShowConfirm(true);
   };
 
-  const handleConfirmPay = () => {
+  const handleConfirmPay = async () => {
     if (!selected) return;
+    setPayError(null);
     setModalStep("processing");
+
+    try {
+      const description = `${station.paymentTitle} · ${selected.title}`;
+      const evId = parseEvStationId(station.id);
+      const cwId = /^\d+$/.test(station.id) ? Number.parseInt(station.id, 10) : null;
+
+      if (evId != null && selected.id != null) {
+        await payEv({
+          location_id: evId,
+          tariff_id: selected.id,
+          description,
+        });
+      } else if (cwId != null && Number.isFinite(cwId) && selected.id != null) {
+        await payCarWash({
+          location_id: cwId,
+          tariff_id: selected.id,
+          description,
+        });
+      } else {
+        // Старые slug (Sauran и т.п.) — только баланс, под гео
+        await payFromBalance({
+          amount: selected.price,
+          tariff_title: selected.title,
+          description,
+        });
+      }
+
+      await refreshBalance();
+      setModalStep("success");
+    } catch (err) {
+      setModalStep("confirm");
+      setPayError(paymentErrorMessage(err));
+    }
   };
 
   const isModalLocked = modalStep === "processing" || modalStep === "success";
@@ -60,20 +127,13 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
   };
 
   useEffect(() => {
-    if (modalStep !== "processing") return;
-
-    const delay = 2000 + Math.random() * 2000;
-    const timer = window.setTimeout(() => {
-      setModalStep("success");
-    }, delay);
-
-    return () => window.clearTimeout(timer);
-  }, [modalStep]);
-
-  useEffect(() => {
     if (modalStep !== "success") return;
 
-    navigateNavbar("map");
+    const timer = window.setTimeout(() => {
+      navigateNavbar("map");
+    }, 1600);
+
+    return () => window.clearTimeout(timer);
   }, [modalStep]);
 
   useEffect(() => {
@@ -95,23 +155,15 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
   }, [showConfirm, modalStep]);
 
   return (
-    <div className="pb-8">
+    <div>
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/95 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
-        <div className="mx-auto flex max-w-lg items-center px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-          <button
-            type="button"
-            onClick={handleBack}
-            disabled={isModalLocked}
-            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-200 dark:hover:bg-zinc-800"
-            aria-label="Назад на главную"
-          >
-            ← Назад
-          </button>
+        <div className="mx-auto flex w-full max-w-5xl items-center px-4 pt-[max(0.25rem,env(safe-area-inset-top))]">
+          <BackButton onClick={handleBack} disabled={isModalLocked} />
         </div>
       </header>
 
       <section
-        className={`mx-auto max-w-lg px-4 pt-4 ${isModalLocked ? "pointer-events-none select-none opacity-60" : ""}`}
+        className={`page-content ${isModalLocked ? "pointer-events-none select-none opacity-60" : ""}`}
         aria-hidden={isModalLocked}
       >
         <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
@@ -123,12 +175,26 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
             <p className="mt-0.5 text-xs text-zinc-500">{station.address}</p>
           </div>
 
+          <div className="border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                  Баланс
+                </p>
+                <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                  {balanceLoading && balance == null ? "…" : formatBalance(balanceValue)}
+                </p>
+              </div>
+              <p className="text-[11px] text-zinc-400">Списание с баланса</p>
+            </div>
+          </div>
+
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
             <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-              Оплата мойки
+              {station.kind === "charging" ? "Оплата зарядки" : "Оплата мойки"}
             </p>
             <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
-              Выберите тариф и подтвердите оплату.
+              Выберите тариф — сумма спишется с вашего баланса.
             </p>
           </div>
 
@@ -138,11 +204,12 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
             </p>
             <div className="space-y-1.5">
               {station.tariff.map((tariff) => {
-                const isSelected = selectedTariff === tariff.title;
+                const key = tariff.id != null ? String(tariff.id) : tariff.title;
+                const isSelected = selectedTariffKey === key;
 
                 return (
                   <label
-                    key={tariff.title}
+                    key={key}
                     className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition ${
                       isSelected
                         ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40"
@@ -156,7 +223,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                       disabled={isModalLocked}
                       onChange={() => {
                         if (isModalLocked) return;
-                        setSelectedTariff(isSelected ? null : tariff.title);
+                        setSelectedTariffKey(isSelected ? null : key);
                         closeModal();
                       }}
                       className="h-3.5 w-3.5 shrink-0 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900"
@@ -180,12 +247,24 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
 
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
             {selected ? (
-              <p className="mb-2 text-center text-xs text-zinc-600 dark:text-zinc-300">
-                Выбрано:{" "}
-                <span className="font-medium text-zinc-900 dark:text-zinc-50">{selected.title}</span>
-                {" · "}
-                <span className="font-medium text-zinc-900 dark:text-zinc-50">{selected.price} ₸</span>
-              </p>
+              <div className="mb-2 space-y-1 text-center text-xs">
+                <p className="text-zinc-600 dark:text-zinc-300">
+                  Выбрано:{" "}
+                  <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {selected.title}
+                  </span>
+                  {" · "}
+                  <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {selected.price} ₸
+                  </span>
+                </p>
+                {!canAfford && !balanceLoading ? (
+                  <p className="text-red-600 dark:text-red-400">
+                    Недостаточно средств. Нужно {selected.price} ₸, на балансе{" "}
+                    {formatBalance(balanceValue)}
+                  </p>
+                ) : null}
+              </div>
             ) : (
               <p className="mb-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
                 Выберите тариф для оплаты
@@ -193,11 +272,11 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
             )}
             <button
               type="button"
-              disabled={!selected || isModalLocked}
+              disabled={!selected || !canAfford || isModalLocked || balanceLoading}
               onClick={handlePayClick}
               className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Оплатить мойку
+              {station.kind === "charging" ? "Оплатить зарядку" : "Оплатить мойку"}
             </button>
           </div>
         </article>
@@ -231,7 +310,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                     Вы точно уверены?
                   </p>
                   <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    Проверьте данные перед оплатой
+                    Сумма спишется с баланса
                   </p>
                 </div>
 
@@ -248,12 +327,23 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                       {selected.title}
                     </span>
                   </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 dark:text-zinc-400">Баланс</span>
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+                      {formatBalance(balanceValue)}
+                    </span>
+                  </div>
                   <div className="flex items-center justify-between gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
-                    <span className="text-zinc-500 dark:text-zinc-400">Сумма</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">К оплате</span>
                     <span className="text-base font-bold text-blue-600 dark:text-blue-400">
                       {selected.price} ₸
                     </span>
                   </div>
+                  {payError ? (
+                    <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                      {payError}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 p-4 dark:border-zinc-800">
@@ -266,7 +356,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={handleConfirmPay}
+                    onClick={() => void handleConfirmPay()}
                     className="flex items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
                   >
                     Да, оплатить
@@ -282,7 +372,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                   Оплата...
                 </p>
                 <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  Подождите несколько секунд
+                  Списываем с баланса
                 </p>
               </div>
             ) : null}
@@ -294,11 +384,16 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                   Оплата прошла успешно
                 </p>
                 <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                  Можете заходить на пост
+                  С баланса списано {selected.price} ₸
                 </p>
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  {station.paymentTitle} · {selected.title}
+                  Остаток: {formatBalance(balanceValue)}
                 </p>
+                {/^\d+$/.test(station.id) || parseEvStationId(station.id) != null ? (
+                  <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    Запись добавлена в историю
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </div>

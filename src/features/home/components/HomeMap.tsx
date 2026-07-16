@@ -5,7 +5,9 @@ import type { MapRef } from "react-map-gl/maplibre";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { Station } from "@/data/stations";
+import { getUserLocation } from "@/lib/locationController";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
+import HomeTabShell from "./HomeTabShell";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./map.css";
 
@@ -23,9 +25,11 @@ type HomeMapProps = {
   onBackToList: () => void;
 };
 
-type DisplayStation = Station & {
-  displayLatitude: number;
-  displayLongitude: number;
+type MarkerCluster = {
+  key: string;
+  latitude: number;
+  longitude: number;
+  stations: Station[];
 };
 
 const MAP_CENTER = {
@@ -36,23 +40,40 @@ const MAP_CENTER = {
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
-/** ~25–40 м — чтобы мойка и ЭЗС в одном здании не слипались в одну точку */
-function withDisplayOffsets(stations: Station[]): DisplayStation[] {
-  const used = new Map<string, number>();
+/** ~12–15 м: точки в одном месте / рядом группируем */
+const CLUSTER_GRID = 0.00012;
 
-  return stations.map((station) => {
-    const key = `${station.latitude.toFixed(5)}_${station.longitude.toFixed(5)}`;
-    const index = used.get(key) ?? 0;
-    used.set(key, index + 1);
+function clusterKey(lat: number, lng: number): string {
+  return `${(Math.round(lat / CLUSTER_GRID) * CLUSTER_GRID).toFixed(5)}_${(
+    Math.round(lng / CLUSTER_GRID) * CLUSTER_GRID
+  ).toFixed(5)}`;
+}
 
-    // лёгкий сдвиг по кругу для совпадающих/очень близких точек
-    const angle = (index * 120 * Math.PI) / 180;
-    const delta = index === 0 ? 0 : 0.00028;
-    return {
-      ...station,
-      displayLatitude: station.latitude + Math.sin(angle) * delta,
-      displayLongitude: station.longitude + Math.cos(angle) * delta,
-    };
+/** Мойка (синий) слева, ЭЗС (зелёный) справа — удобно различать наслоение */
+function sortClusterStations(stations: Station[]): Station[] {
+  return [...stations].sort((a, b) => {
+    if (a.kind === b.kind) return a.name.localeCompare(b.name, "ru");
+    return a.kind === "wash" ? -1 : 1;
+  });
+}
+
+function buildClusters(stations: Station[]): MarkerCluster[] {
+  const groups = new Map<string, Station[]>();
+
+  for (const station of stations) {
+    const key = clusterKey(station.latitude, station.longitude);
+    const list = groups.get(key);
+    if (list) list.push(station);
+    else groups.set(key, [station]);
+  }
+
+  return Array.from(groups.entries()).map(([key, group]) => {
+    const sorted = sortClusterStations(group);
+    const latitude =
+      sorted.reduce((sum, s) => sum + s.latitude, 0) / sorted.length;
+    const longitude =
+      sorted.reduce((sum, s) => sum + s.longitude, 0) / sorted.length;
+    return { key, latitude, longitude, stations: sorted };
   });
 }
 
@@ -80,21 +101,52 @@ function StationDot({ station, onSelect }: StationDotProps) {
     <button
       type="button"
       className={isCharging ? "map-marker__dot map-marker__dot--charging" : "map-marker__dot"}
-      onClick={() => onSelect(station)}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(station);
+      }}
       aria-label={station.name}
       title={station.name}
     />
   );
 }
 
+type ClusterMarkerProps = {
+  stations: Station[];
+  onSelect: (station: Station) => void;
+};
+
+/** Одна точка или плотный ряд синий+зелёный без большого разъезда */
+function ClusterMarker({ stations, onSelect }: ClusterMarkerProps) {
+  if (stations.length === 1) {
+    return <StationDot station={stations[0]} onSelect={onSelect} />;
+  }
+
+  return (
+    <div
+      className={
+        stations.length === 2
+          ? "map-marker__cluster map-marker__cluster--pair"
+          : "map-marker__cluster map-marker__cluster--stack"
+      }
+      role="group"
+      aria-label={`${stations.length} точек рядом`}
+    >
+      {stations.map((station) => (
+        <StationDot key={station.id} station={station} onSelect={onSelect} />
+      ))}
+    </div>
+  );
+}
+
 async function createMapView() {
   const { default: MapGL, Marker } = await import("react-map-gl/maplibre");
   type MapViewProps = {
-    stations: DisplayStation[];
+    clusters: MarkerCluster[];
     selectedStation: Station | null;
     onSelectStation: (station: Station | null) => void;
   };
-  return function MapView({ stations, onSelectStation }: MapViewProps) {
+  return function MapView({ clusters, onSelectStation }: MapViewProps) {
     const [status, setStatus] = useState<MapStatus>("loading");
     const [userLocation, setUserLocation] = useState<{
       latitude: number;
@@ -103,31 +155,25 @@ async function createMapView() {
 
     const mapRef = useRef<MapRef>(null);
 
-    function handleLocation() {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const location = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-          };
-          setUserLocation(location);
-          mapRef.current?.flyTo({
-            center: [location.longitude, location.latitude],
-            zoom: 15,
-            duration: 900,
-          });
-        },
-        () => {
-          alert("Не удалось получить геолокацию");
-        },
-      );
+    async function handleLocation() {
+      try {
+        const location = await getUserLocation();
+        setUserLocation(location);
+        mapRef.current?.flyTo({
+          center: [location.longitude, location.latitude],
+          zoom: 15,
+          duration: 900,
+        });
+      } catch {
+        alert("Не удалось получить геолокацию");
+      }
     }
 
     useEffect(() => {
-      if (!stations.length || !mapRef.current) return;
+      if (!clusters.length || !mapRef.current) return;
 
-      const lats = stations.map((s) => s.displayLatitude);
-      const lngs = stations.map((s) => s.displayLongitude);
+      const lats = clusters.map((c) => c.latitude);
+      const lngs = clusters.map((c) => c.longitude);
       const minLat = Math.min(...lats);
       const maxLat = Math.max(...lats);
       const minLng = Math.min(...lngs);
@@ -140,23 +186,52 @@ async function createMapView() {
         ],
         { padding: 56, duration: 700, maxZoom: 14 },
       );
-    }, [stations]);
+    }, [clusters]);
 
     return (
       <div className="map-root">
         {status === "loading" && <MapLoading />}
         {status === "error" && <MapError />}
         {status === "ready" && (
-          <div className="map-zoom-controls z-10">
-            <button type="button" onClick={handleLocation}>
-              location
+          <div
+            className="map-zoom-controls"
+            onPointerDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="map-zoom-controls__btn"
+              onClick={handleLocation}
+              aria-label="Моё местоположение"
+              title="Моё местоположение"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <circle cx="12" cy="12" r="3" />
+                <path strokeLinecap="round" d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+              </svg>
             </button>
-            <button type="button" onClick={() => mapRef.current?.zoomIn()}>
-              +
-            </button>
-            <button type="button" onClick={() => mapRef.current?.zoomOut()}>
-              −
-            </button>
+            <div className="map-zoom-controls__stack" role="group" aria-label="Масштаб">
+              <button
+                type="button"
+                className="map-zoom-controls__btn"
+                onClick={() => mapRef.current?.zoomIn({ duration: 200 })}
+                aria-label="Приблизить"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+                  <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="map-zoom-controls__btn"
+                onClick={() => mapRef.current?.zoomOut({ duration: 200 })}
+                aria-label="Отдалить"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+                  <path strokeLinecap="round" d="M5 12h14" />
+                </svg>
+              </button>
+            </div>
           </div>
         )}
 
@@ -174,14 +249,14 @@ async function createMapView() {
           onLoad={() => setStatus("ready")}
           onError={() => setStatus("error")}
         >
-          {stations.map((station) => (
+          {clusters.map((cluster) => (
             <Marker
-              key={station.id}
-              longitude={station.displayLongitude}
-              latitude={station.displayLatitude}
-              anchor="bottom"
+              key={cluster.key}
+              longitude={cluster.longitude}
+              latitude={cluster.latitude}
+              anchor="center"
             >
-              <StationDot station={station} onSelect={onSelectStation} />
+              <ClusterMarker stations={cluster.stations} onSelect={onSelectStation} />
             </Marker>
           ))}
 
@@ -212,47 +287,48 @@ export default function HomeMap({
   onBackToList,
 }: HomeMapProps) {
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
-  const displayStations = useMemo(() => withDisplayOffsets(stations), [stations]);
+  const clusters = useMemo(() => buildClusters(stations), [stations]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 pb-8">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Карта</p>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-            {loading
-              ? "Загрузка…"
-              : `${stations.length} точек · синие — мойки, зелёные — ЭЗС`}
-          </p>
+    <>
+      <HomeTabShell
+        eyebrow="Карта"
+        title="Точки рядом"
+        subtitle={
+          loading
+            ? "Загрузка…"
+            : `${stations.length} точек · синие — мойки, зелёные — ЭЗС`
+        }
+        action={
+          <button
+            type="button"
+            onClick={onBackToList}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+            </svg>
+            Список
+          </button>
+        }
+      >
+        <div className="map-page__frame">
+          {loading ? (
+            <MapLoading />
+          ) : error ? (
+            <div className="map-error">
+              <p className="map-error__title">Не удалось загрузить точки</p>
+              <p className="map-error__text">{error}</p>
+            </div>
+          ) : (
+            <MapView
+              clusters={clusters}
+              selectedStation={selectedStation}
+              onSelectStation={setSelectedStation}
+            />
+          )}
         </div>
-        <button
-          type="button"
-          onClick={onBackToList}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
-        >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-          </svg>
-          Список
-        </button>
-      </div>
-
-      <div className="map-page__frame">
-        {loading ? (
-          <MapLoading />
-        ) : error ? (
-          <div className="map-error">
-            <p className="map-error__title">Не удалось загрузить точки</p>
-            <p className="map-error__text">{error}</p>
-          </div>
-        ) : (
-          <MapView
-            stations={displayStations}
-            selectedStation={selectedStation}
-            onSelectStation={setSelectedStation}
-          />
-        )}
-      </div>
+      </HomeTabShell>
 
       {selectedStation && (
         <>
@@ -328,6 +404,6 @@ export default function HomeMap({
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }

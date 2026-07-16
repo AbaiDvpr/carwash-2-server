@@ -8,7 +8,11 @@ import { forceLogout } from "@/lib/forceLogout";
 import { grantAccess, isAccessGranted } from "@/lib/userSession";
 import AppPreloader from "./AppPreloader";
 
+/** Ждём bridge / source=mobile из Flutter */
 const BRIDGE_WAIT_MS = 3000;
+/** Flutter часто пишет source раньше access_token — ждём токен, не логаутим сразу */
+const TOKEN_WAIT_MS = 3000;
+const TOKEN_POLL_MS = 100;
 
 type MobileAccessGateProps = {
   children: ReactNode;
@@ -60,63 +64,94 @@ export default function MobileAccessGate({ children }: MobileAccessGateProps) {
   const [status, setStatus] = useState<"checking" | "granted" | "denied">("checking");
 
   useEffect(() => {
-    if (isAccessGranted()) {
-      if (!hasAccessToken()) {
-        forceLogout({
-          reason:
-            "MobileAccessGate: доступ уже выдан (session), но access_token ещё нет в localStorage",
-          source: "MobileAccessGate",
-        });
-        // В test_version показываем UI + error-блок, не зависаем на прелоадере
-        setStatus("granted");
+    let cancelled = false;
+    let pollId: number | undefined;
+    let denyTimer: number | undefined;
+
+    const grant = () => {
+      if (cancelled) return;
+      grantAccess();
+      setStatus("granted");
+    };
+
+    const logoutMissingToken = (reason: string) => {
+      if (cancelled) return;
+      forceLogout({
+        immediate: true,
+        reason,
+        source: "MobileAccessGate",
+      });
+      // После logout native перехватит; UI не оставляем «залипшим» на checking
+      setStatus("granted");
+    };
+
+    /** source/bridge уже есть, токен может прийти чуть позже — поллим */
+    const waitForTokenThen = (onReady: () => void, missingReason: string) => {
+      if (hasAccessToken()) {
+        onReady();
         return;
       }
-      setStatus("granted");
-      return;
+
+      const started = Date.now();
+      pollId = window.setInterval(() => {
+        if (cancelled) return;
+        if (hasAccessToken()) {
+          if (pollId != null) window.clearInterval(pollId);
+          onReady();
+          return;
+        }
+        if (Date.now() - started >= TOKEN_WAIT_MS) {
+          if (pollId != null) window.clearInterval(pollId);
+          logoutMissingToken(missingReason);
+        }
+      }, TOKEN_POLL_MS);
+    };
+
+    if (isAccessGranted()) {
+      waitForTokenThen(
+        () => {
+          if (!cancelled) setStatus("granted");
+        },
+        "MobileAccessGate: доступ уже выдан (session), но access_token так и не появился",
+      );
+      return () => {
+        cancelled = true;
+        if (pollId != null) window.clearInterval(pollId);
+      };
     }
 
     if (isMobileApp) {
-      if (!hasAccessToken()) {
-        forceLogout({
-          reason:
-            "MobileAccessGate: WebView/приложение определено, но access_token не передан",
-          source: "MobileAccessGate",
-        });
-        setStatus("granted");
-        return;
-      }
-      grantAccess();
-      setStatus("granted");
-      return;
+      waitForTokenThen(
+        grant,
+        "MobileAccessGate: WebView/приложение определено, но access_token не передан",
+      );
+      return () => {
+        cancelled = true;
+        if (pollId != null) window.clearInterval(pollId);
+      };
     }
 
     if (!mounted) return;
 
-    const timer = window.setTimeout(() => {
-      setStatus("denied");
+    denyTimer = window.setTimeout(() => {
+      if (!cancelled) setStatus("denied");
     }, BRIDGE_WAIT_MS);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      if (denyTimer != null) window.clearTimeout(denyTimer);
+      if (pollId != null) window.clearInterval(pollId);
+    };
   }, [mounted, isMobileApp]);
 
   if (status === "denied") {
     return <AccessDenied />;
   }
 
-  return (
-    <>
-      <div
-        className={[
-          "app-root",
-          status === "checking" ? "invisible pointer-events-none" : undefined,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        aria-hidden={status === "checking"}
-      >
-        {children}
-      </div>
-      {status === "checking" && <AppPreloader />}
-    </>
-  );
+  // Пока checking — не монтируем children: иначе хуки дергают API без токена → logout
+  if (status === "checking") {
+    return <AppPreloader />;
+  }
+
+  return <div className="app-root">{children}</div>;
 }

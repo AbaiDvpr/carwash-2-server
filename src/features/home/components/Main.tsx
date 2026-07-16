@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Station, StationKind } from "@/data/stations";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
+import HomeTabShell from "./HomeTabShell";
 
 type PlaceFilter = "all" | StationKind;
 
@@ -190,83 +191,77 @@ export default function Main({ stations, loading, error, onOpenMap }: MainProps)
           : `${stations.length} точек рядом`;
 
   return (
-    <div className="pb-8">
-      <section className="mx-auto max-w-5xl px-4 pt-1">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Рядом</p>
-            <h1 className="mt-0.5 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Выберите точку
-            </h1>
-            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onOpenMap}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20 3 17V4l6 3 6-3 6 3v13l-6-3-6 3Z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 7v13M15 4v13" />
-            </svg>
-            На карте
-          </button>
-        </div>
-
-        <div
-          className="mb-4 flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-800 dark:bg-zinc-900/60"
-          role="tablist"
-          aria-label="Тип точек"
+    <HomeTabShell
+      eyebrow="Рядом"
+      title="Выберите точку"
+      subtitle={subtitle}
+      action={
+        <button
+          type="button"
+          onClick={onOpenMap}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
         >
-          {FILTERS.map((item) => {
-            const active = filter === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setFilter(item.id)}
-                className={[
-                  "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition",
-                  active
-                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
-                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
-                ].join(" ")}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 20 3 17V4l6 3 6-3 6 3v13l-6-3-6 3Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 7v13M15 4v13" />
+          </svg>
+          На карте
+        </button>
+      }
+    >
+      <div
+        className="mb-4 flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-800 dark:bg-zinc-900/60"
+        role="tablist"
+        aria-label="Тип точек"
+      >
+        {FILTERS.map((item) => {
+          const active = filter === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setFilter(item.id)}
+              className={[
+                "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition",
+                active
+                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
+                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
+              ].join(" ")}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
 
-        {loading ? (
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((key) => (
-              <div
-                key={key}
-                className="h-56 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
-              />
-            ))}
-          </div>
-        ) : error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-4 text-center text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-            {error}
-          </div>
-        ) : filter === "charging" && filtered.length === 0 ? (
-          <ChargingEmptyState />
-        ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-zinc-300 px-4 py-8 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-            По этому фильтру пока ничего нет
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((station) => (
-              <StationCard key={station.id} station={station} />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
+      {loading ? (
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((key) => (
+            <div
+              key={key}
+              className="h-56 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
+            />
+          ))}
+        </div>
+      ) : error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-4 text-center text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {error}
+        </div>
+      ) : filter === "charging" && filtered.length === 0 ? (
+        <ChargingEmptyState />
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-zinc-300 px-4 py-8 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+          По этому фильтру пока ничего нет
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((station) => (
+            <StationCard key={station.id} station={station} />
+          ))}
+        </div>
+      )}
+    </HomeTabShell>
   );
 }

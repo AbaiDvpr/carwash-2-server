@@ -23,6 +23,15 @@ export type EvCharger = {
   pistols: EvPistol[];
 };
 
+export type EvTariff = {
+  id: number;
+  charger_id: number;
+  title: string;
+  description: string | null;
+  kwh: number;
+  price: number;
+};
+
 export type EvLocation = {
   id: number;
   kind?: string | null;
@@ -43,6 +52,7 @@ export type EvLocation = {
   pistols_total: number;
   free_slots: number;
   chargers: EvCharger[];
+  tariffs?: EvTariff[];
 };
 
 type LocationsResponse = {
@@ -80,13 +90,12 @@ export function toEvStation(location: EvLocation): Station {
     }),
   );
 
-  const tariffs = location.chargers
-    .filter((c) => c.price_per_kwh != null)
-    .map((charger) => ({
-      title: `${charger.type || "Зарядка"}${charger.power ? ` · ${charger.power} кВт` : ""}`,
-      price: Number(charger.price_per_kwh),
-      description: "за кВт·ч",
-    }));
+  const tariffs = (location.tariffs ?? []).map((tariff) => ({
+    id: tariff.id,
+    title: tariff.title,
+    price: Number(tariff.price),
+    description: tariff.description ?? `${tariff.kwh} кВт·ч`,
+  }));
 
   return {
     id: evStationId(location.id),

@@ -1,18 +1,10 @@
-import { notFound } from "next/navigation";
-import PaymentPage from "@/features/payment/page";
-import { getStationByPaymentSlug } from "@/data/stations";
+import PaymentRoute from "@/features/payment/PaymentRoute";
 
-type PaymentPageProps = {
+type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export default async function Page({ params }: PaymentPageProps) {
+export default async function Page({ params }: PageProps) {
   const { slug } = await params;
-  const station = getStationByPaymentSlug(slug);
-
-  if (!station) {
-    notFound();
-  }
-
-  return <PaymentPage station={station} />;
+  return <PaymentRoute slug={slug} />;
 }

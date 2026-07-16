@@ -1,7 +1,7 @@
 /**
  * Базовый URL API из .env.local (NEXT_PUBLIC_API_URL).
  * Все запросы (кроме login/register) идут с Bearer access_token.
- * Нет токена / 401 → сразу forceLogout (без error-блока в test_version).
+ * 401/403 при requireAuth → сразу forceLogout. Без токена — только ApiError.
  */
 import { getAccessToken } from "@/lib/authToken";
 import { forceLogout } from "@/lib/forceLogout";
@@ -54,18 +54,10 @@ export async function apiFetch<T>(
   const { requireAuth = !isPublicApiPath(path), ...fetchInit } = init ?? {};
   const token = getAccessToken();
 
-  if (requireAuth) {
-    if (!token) {
-      forceLogout({
-        immediate: true,
-        reason: "Запрос с requireAuth, но access_token отсутствует",
-        source: "apiFetch",
-        path,
-        status: 401,
-        body: { message: "Unauthenticated." },
-      });
-      throw new ApiError(401, path, { message: "Unauthenticated." });
-    }
+  if (requireAuth && !token) {
+    // Не forceLogout здесь: на старте WebView токен может ещё не прийти.
+    // Сессию закрывает MobileAccessGate / ответ 401 с реальным Bearer.
+    throw new ApiError(401, path, { message: "Unauthenticated." });
   }
 
   const headers: Record<string, string> = {

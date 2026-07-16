@@ -1,20 +1,44 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { PageLayout } from "@/components/layout";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { forceLogout } from "@/lib/forceLogout";
 import { openTelegram, openWhatsApp } from "@/lib/messengerController";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleHeaderNav } from "@/store/slices/appSlice";
+import HistoryList from "@/features/history/components/HistoryList";
+import BackButton from "@/components/ui/BackButton";
+import Toast from "@/components/ui/Toast";
+import { useTheme } from "@/hooks/useTheme";
+import { useToast } from "@/hooks/useToast";
 import { useEditProfile } from "./hooks/useEditProfile";
 import { usePromoCode } from "./hooks/usePromoCode";
 import { usePushNotifications } from "./hooks/usePushNotifications";
+import { useUserBalance } from "./hooks/useUserBalance";
+import BalanceCard from "./components/BalanceCard";
+import BalanceTopUp from "./components/BalanceTopUp";
 import GaragePanel, { type MockCar } from "./components/GaragePanel";
 import ProfileNavRow from "./components/ProfileNavRow";
 import ProfileVersion from "./components/ProfileVersion";
 
-type ProfileView = "home" | "edit" | "garage" | "promo" | "referral" | "support" | "faq";
+type ProfileView =
+  | "home"
+  | "edit"
+  | "balance"
+  | "history"
+  | "garage"
+  | "promo"
+  | "referral"
+  | "support"
+  | "faq"
+  | "language";
+
+const LANGUAGE_OPTIONS = [
+  { id: "ru", label: "Русский", code: "RU" },
+  { id: "kz", label: "Қазақша", code: "KZ" },
+  { id: "en", label: "English", code: "EN" },
+] as const;
 
 const FAQ_ITEMS = [
   {
@@ -67,13 +91,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 function BackBar({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <div className="mb-4 flex items-center gap-2">
-      <button
-        type="button"
-        onClick={onBack}
-        className="rounded-md px-1.5 py-1 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-      >
-        ← Назад
-      </button>
+      <BackButton onClick={onBack} />
       <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{title}</h1>
     </div>
   );
@@ -93,11 +111,30 @@ export default function ProfilePage() {
     hint: pushHint,
   } = usePushNotifications();
   const profileEdit = useEditProfile();
+  const {
+    balance,
+    loading: balanceLoading,
+    refresh: refreshBalance,
+  } = useUserBalance();
+  const { isDark, toggleTheme } = useTheme();
+  const { message: toastMessage, showToast } = useToast();
 
   const [view, setView] = useState<ProfileView>("home");
   const [cars, setCars] = useState<MockCar[]>(INITIAL_CARS);
   const [copied, setCopied] = useState(false);
   const [openFaqId, setOpenFaqId] = useState<string | null>(null);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    if (!logoutConfirmOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLogoutConfirmOpen(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [logoutConfirmOpen]);
 
   const displayName = mounted ? name || "…" : "…";
   const displayEmail = mounted ? profileEdit.email || "Не указан" : "…";
@@ -122,7 +159,7 @@ export default function ProfilePage() {
 
   return (
     <PageLayout title="Profile" description="Профиль пользователя CarWash">
-      <div className="mx-auto w-full max-w-lg px-4 py-4 pb-10">
+      <>
         {view === "home" ? (
           <>
             <header className="mb-5">
@@ -159,6 +196,13 @@ export default function ProfilePage() {
             </header>
 
             <div className="space-y-5">
+              <BalanceCard
+                balance={balance}
+                loading={balanceLoading}
+                onTopUp={() => setView("balance")}
+                onHistory={() => setView("history")}
+              />
+
               <section>
                 <SectionTitle>Настройки</SectionTitle>
                 <SectionCard>
@@ -177,8 +221,36 @@ export default function ProfilePage() {
                   <ProfileNavRow
                     label="Язык"
                     hint="Русский"
-                    onClick={() => undefined}
+                    onClick={() => setView("language")}
                   />
+                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                  <button
+                    type="button"
+                    onClick={() => toggleTheme()}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                        Тёмный режим
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-zinc-400">
+                        {isDark ? "Включён" : "Выключен · светлая тема"}
+                      </span>
+                    </span>
+                    <span
+                      className={[
+                        "relative h-5 w-9 shrink-0 rounded-full transition",
+                        isDark ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-700",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition",
+                          isDark ? "left-4" : "left-0.5",
+                        ].join(" ")}
+                      />
+                    </span>
+                  </button>
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <button
                     type="button"
@@ -279,19 +351,31 @@ export default function ProfilePage() {
                   <ProfileNavRow
                     label="Выйти"
                     danger
-                    onClick={() =>
-                      forceLogout({
-                        immediate: true,
-                        reason: "Выход из профиля",
-                        source: "ProfilePage",
-                      })
-                    }
+                    onClick={() => setLogoutConfirmOpen(true)}
                   />
                 </SectionCard>
               </section>
             </div>
 
             <ProfileVersion version={appVersion} />
+          </>
+        ) : null}
+
+        {view === "balance" ? (
+          <>
+            <BackBar title="Пополнить" onBack={() => setView("home")} />
+            <BalanceTopUp
+              balance={balance}
+              loading={balanceLoading}
+              onSuccess={() => void refreshBalance()}
+            />
+          </>
+        ) : null}
+
+        {view === "history" ? (
+          <>
+            <BackBar title="История" onBack={() => setView("home")} />
+            <HistoryList />
           </>
         ) : null}
 
@@ -373,6 +457,42 @@ export default function ProfilePage() {
                 </p>
               ) : null}
             </div>
+          </>
+        ) : null}
+
+        {view === "language" ? (
+          <>
+            <BackBar title="Язык" onBack={() => setView("home")} />
+            <SectionCard>
+              {LANGUAGE_OPTIONS.map((lang, index) => (
+                <div key={lang.id}>
+                  {index > 0 ? (
+                    <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      showToast("Пока переключение языков отсутствует")
+                    }
+                    className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                        {lang.label}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-zinc-400">
+                        {lang.code}
+                      </span>
+                    </span>
+                    {lang.id === "ru" ? (
+                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                        Текущий
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
+              ))}
+            </SectionCard>
           </>
         ) : null}
 
@@ -495,7 +615,61 @@ export default function ProfilePage() {
             </SectionCard>
           </>
         ) : null}
-      </div>
+
+        <Toast message={toastMessage} />
+
+        {logoutConfirmOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="presentation"
+            onClick={() => setLogoutConfirmOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="logout-modal-title"
+              className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+                <p
+                  id="logout-modal-title"
+                  className="text-center text-lg font-bold text-zinc-900 dark:text-zinc-50"
+                >
+                  Выйти из аккаунта?
+                </p>
+                <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                  Вы уверены, что хотите выйти?
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-4">
+                <button
+                  type="button"
+                  onClick={() => setLogoutConfirmOpen(false)}
+                  className="flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLogoutConfirmOpen(false);
+                    forceLogout({
+                      immediate: true,
+                      reason: "Выход из профиля",
+                      source: "ProfilePage",
+                    });
+                  }}
+                  className="flex items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
+                >
+                  Да, выйти
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </>
     </PageLayout>
   );
 }

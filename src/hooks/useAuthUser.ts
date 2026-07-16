@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchUserInfo } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
 import { hasAccessToken } from "@/lib/authToken";
-import { forceLogout } from "@/lib/forceLogout";
 import { formatUserDisplayName, getUserName } from "@/lib/userSession";
 
 /**
  * Имя авторизованного пользователя.
- * Нет токена / 401 → сразу forceLogout.
+ * Нет токена — просто пустое имя (gate уже решает доступ).
+ * 401/403 обрабатывает apiFetch → forceLogout.
+ * Сетевые/прочие ошибки не логаутят — оставляем кэш.
  */
 export function useAuthUser() {
   const [mounted, setMounted] = useState(false);
@@ -18,11 +19,6 @@ export function useAuthUser() {
 
   const sync = useCallback(async () => {
     if (!hasAccessToken()) {
-      forceLogout({
-        immediate: true,
-        reason: "useAuthUser: нет access_token при синхронизации профиля",
-        source: "useAuthUser.sync",
-      });
       setName("");
       setLoading(false);
       return;
@@ -36,18 +32,11 @@ export function useAuthUser() {
       setName(formatUserDisplayName(user) || cached || "");
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : null;
-      // 401/403 уже обработаны в apiFetch (immediate logout)
-      if (apiErr?.status !== 401 && apiErr?.status !== 403) {
-        forceLogout({
-          reason: "useAuthUser: не удалось загрузить user_info",
-          source: "useAuthUser.sync",
-          path: "/api/auth/user_info",
-          status: apiErr?.status,
-          body:
-            apiErr?.body ?? (err instanceof Error ? err.message : String(err)),
-        });
+      // 401/403 → logout в apiFetch; остальное — не выкидываем сессию
+      if (apiErr?.status === 401 || apiErr?.status === 403) {
+        setName("");
       }
-      setName("");
+      // иначе оставляем cached name
     } finally {
       setLoading(false);
     }

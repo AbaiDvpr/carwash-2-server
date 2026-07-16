@@ -9,8 +9,8 @@ export default function ChatbotPage() {
   const { messages, input, isTyping, messagesRef, setInput, sendMessage } = useChatbot();
 
   return (
-    <PageLayout title="Chatbot" description="Чат-бот CarWash" className="page--chat">
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-lg flex-col">
+    <PageLayout title="Chatbot" description="Чат-бот CarWash" className="page--chat" bare>
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col">
         <div className="shrink-0 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
           <div className="flex items-center gap-2.5">
             <BotAvatar />

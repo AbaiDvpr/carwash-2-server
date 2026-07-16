@@ -32,6 +32,7 @@ export type Station = {
     description: string;
   }[];
   tariff: {
+    id?: number;
     title: string;
     price: number;
     description: string;

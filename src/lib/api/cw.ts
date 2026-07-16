@@ -11,6 +11,13 @@ export type CwWasher = {
   status_kk: string | null;
 };
 
+export type CwTariff = {
+  id: number;
+  title: string;
+  description: string | null;
+  price: number;
+};
+
 export type CwLocation = {
   id: number;
   address: string;
@@ -29,6 +36,7 @@ export type CwLocation = {
   washers_total: number;
   free_slots: number;
   washers: CwWasher[];
+  tariffs?: CwTariff[];
   /** Опционально с бэка; без поля считаем мойкой */
   kind?: StationKind | "carwash" | "ev" | "charging" | null;
   type?: string | null;
@@ -90,6 +98,13 @@ export function toStation(location: CwLocation): Station {
 
   const kind = toStationKind(location);
 
+  const tariffs = (location.tariffs ?? []).map((tariff) => ({
+    id: tariff.id,
+    title: tariff.title,
+    price: Number(tariff.price),
+    description: tariff.description ?? "",
+  }));
+
   return {
     id: String(location.id),
     name: kind === "charging" ? `ЭЗС · ${location.address}` : `CarWash · ${location.address}`,
@@ -105,10 +120,11 @@ export function toStation(location: CwLocation): Station {
     longitude: lng,
     map_2gis: location.map_2gis ?? "",
     map_yandex: location.map_yandex ?? "",
+    /** Для реальных моек — id локации; slug вроде Sauran — под гео */
     paymentSlug: String(location.id),
     paymentTitle: location.address,
     market: [],
-    tariff: [],
+    tariff: tariffs,
   };
 }
 

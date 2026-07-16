@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import BackButton from "@/components/ui/BackButton";
 import type { Station } from "@/data/stations";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
 
@@ -35,14 +35,10 @@ export default function StationDetail({ station }: { station: Station }) {
   const slotsTitle = isCharging ? "Коннекторы" : "Посты";
 
   return (
-    <div className="pb-8">
-      <section className="mx-auto max-w-lg px-4 pt-4">
-        <Link
-          href="/"
-          className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-        >
-          ← Назад
-        </Link>
+    <div className="page-content">
+        <div className="mb-3">
+          <BackButton href="/" />
+        </div>
 
         <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           {station.photoUrl ? (
@@ -184,7 +180,7 @@ export default function StationDetail({ station }: { station: Station }) {
               <div className="space-y-1.5">
                 {station.tariff.map((tariff) => (
                   <div
-                    key={tariff.title}
+                    key={tariff.id ?? tariff.title}
                     className="flex items-center justify-between rounded-lg border border-zinc-100 px-2.5 py-2 dark:border-zinc-800"
                   >
                     <div>
@@ -223,7 +219,6 @@ export default function StationDetail({ station }: { station: Station }) {
             </div>
           ) : null}
         </article>
-      </section>
     </div>
   );
 }
