@@ -58,10 +58,12 @@ export function useAuthUser() {
 
     window.addEventListener("storage", onSync);
     window.addEventListener("focus", onSync);
+    window.addEventListener("user-profile-updated", onSync);
 
     return () => {
       window.removeEventListener("storage", onSync);
       window.removeEventListener("focus", onSync);
+      window.removeEventListener("user-profile-updated", onSync);
     };
   }, [sync]);
 

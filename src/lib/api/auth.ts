@@ -54,11 +54,17 @@ type UpdateSettingsResponse = {
 
 export async function updateUserSettings(settings: {
   push_enabled?: boolean;
+  name?: string;
+  last_name?: string | null;
+  email?: string | null;
 }): Promise<AuthUser> {
   const data = await apiFetch<UpdateSettingsResponse>("/api/auth/settings", {
     method: "PATCH",
     body: JSON.stringify(settings),
   });
   cacheUserProfile(data.user);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("user-profile-updated"));
+  }
   return data.user;
 }

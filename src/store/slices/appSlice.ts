@@ -27,7 +27,7 @@ type AppState = {
 const initialState: AppState = {
   version: "1.0.0",
   showHeaderNav: false,
-  test_version: true,
+  test_version: false,
   authError: null,
 };
 

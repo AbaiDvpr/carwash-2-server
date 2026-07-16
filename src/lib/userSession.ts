@@ -20,6 +20,15 @@ export function setUserName(name: string): void {
   localStorage.setItem(USER_NAME_KEY, name);
 }
 
+export function setUserEmail(email: string | null): void {
+  if (typeof window === "undefined") return;
+  if (email) {
+    localStorage.setItem(USER_EMAIL_KEY, email);
+  } else {
+    localStorage.removeItem(USER_EMAIL_KEY);
+  }
+}
+
 export function getHeaderVisible(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(HEADER_VISIBLE);
@@ -69,6 +78,7 @@ export function cacheUserProfile(user: {
   id?: number | null;
   name?: string | null;
   last_name?: string | null;
+  email?: string | null;
 }): string {
   const displayName = formatUserDisplayName(user);
   if (typeof window !== "undefined") {
@@ -77,6 +87,9 @@ export function cacheUserProfile(user: {
     }
     if (user.id != null) {
       localStorage.setItem("user_id", String(user.id));
+    }
+    if ("email" in user) {
+      setUserEmail(user.email ?? null);
     }
   }
   return displayName;

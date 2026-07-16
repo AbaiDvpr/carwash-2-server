@@ -7,13 +7,14 @@ import { forceLogout } from "@/lib/forceLogout";
 import { openTelegram, openWhatsApp } from "@/lib/messengerController";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleHeaderNav } from "@/store/slices/appSlice";
+import { useEditProfile } from "./hooks/useEditProfile";
 import { usePromoCode } from "./hooks/usePromoCode";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import GaragePanel, { type MockCar } from "./components/GaragePanel";
 import ProfileNavRow from "./components/ProfileNavRow";
 import ProfileVersion from "./components/ProfileVersion";
 
-type ProfileView = "home" | "garage" | "promo" | "referral" | "support" | "faq";
+type ProfileView = "home" | "edit" | "garage" | "promo" | "referral" | "support" | "faq";
 
 const FAQ_ITEMS = [
   {
@@ -91,6 +92,7 @@ export default function ProfilePage() {
     togglePush,
     hint: pushHint,
   } = usePushNotifications();
+  const profileEdit = useEditProfile();
 
   const [view, setView] = useState<ProfileView>("home");
   const [cars, setCars] = useState<MockCar[]>(INITIAL_CARS);
@@ -98,6 +100,15 @@ export default function ProfilePage() {
   const [openFaqId, setOpenFaqId] = useState<string | null>(null);
 
   const displayName = mounted ? name || "…" : "…";
+  const displayEmail = mounted ? profileEdit.email || "Не указан" : "…";
+  const initials = mounted
+    ? displayName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? "")
+        .join("") || "?"
+    : "…";
 
   async function handleCopyReferral() {
     try {
@@ -115,18 +126,54 @@ export default function ProfilePage() {
         {view === "home" ? (
           <>
             <header className="mb-5">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-                Профиль
-              </p>
-              <h1 className="mt-0.5 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-                {displayName}
-              </h1>
+              <button
+                type="button"
+                onClick={() => setView("edit")}
+                className="flex w-full items-center gap-3 rounded-xl text-left transition hover:opacity-90"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
+                  {initials}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                    Профиль
+                  </span>
+                  <span className="mt-0.5 block truncate text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+                    {displayName}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-blue-600 dark:text-blue-400">
+                    Изменить профиль
+                  </span>
+                </span>
+                <svg
+                  className="h-4 w-4 shrink-0 text-zinc-300"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden
+                >
+                  <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+                </svg>
+              </button>
             </header>
 
             <div className="space-y-5">
               <section>
                 <SectionTitle>Настройки</SectionTitle>
                 <SectionCard>
+                  <ProfileNavRow
+                    label="Имя и фамилия"
+                    hint={displayName}
+                    onClick={() => setView("edit")}
+                  />
+                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                  <ProfileNavRow
+                    label="Email"
+                    hint={displayEmail}
+                    onClick={() => setView("edit")}
+                  />
+                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <ProfileNavRow
                     label="Язык"
                     hint="Русский"
@@ -245,6 +292,87 @@ export default function ProfilePage() {
             </div>
 
             <ProfileVersion version={appVersion} />
+          </>
+        ) : null}
+
+        {view === "edit" ? (
+          <>
+            <BackBar title="Профиль" onBack={() => setView("home")} />
+            <div className="space-y-4">
+              <SectionCard>
+                <div className="space-y-3 px-3 py-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                      Имя
+                    </span>
+                    <input
+                      type="text"
+                      value={profileEdit.firstName}
+                      onChange={(e) => profileEdit.setFirstName(e.target.value)}
+                      disabled={profileEdit.loading || profileEdit.saving}
+                      placeholder="Имя"
+                      autoComplete="given-name"
+                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:bg-zinc-950"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                      Фамилия
+                    </span>
+                    <input
+                      type="text"
+                      value={profileEdit.lastName}
+                      onChange={(e) => profileEdit.setLastName(e.target.value)}
+                      disabled={profileEdit.loading || profileEdit.saving}
+                      placeholder="Фамилия"
+                      autoComplete="family-name"
+                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:bg-zinc-950"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                      Email
+                    </span>
+                    <input
+                      type="email"
+                      value={profileEdit.email}
+                      onChange={(e) => profileEdit.setEmail(e.target.value)}
+                      disabled={profileEdit.loading || profileEdit.saving}
+                      placeholder="example@mail.com"
+                      autoComplete="email"
+                      inputMode="email"
+                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:bg-zinc-950"
+                    />
+                  </label>
+                </div>
+              </SectionCard>
+
+              <button
+                type="button"
+                disabled={!profileEdit.canSave}
+                onClick={() => {
+                  void profileEdit.save().then((ok) => {
+                    if (ok) {
+                      window.setTimeout(() => setView("home"), 450);
+                    }
+                  });
+                }}
+                className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+              >
+                {profileEdit.saving ? "Сохранение…" : "Сохранить"}
+              </button>
+
+              {profileEdit.message ? (
+                <p className="text-center text-xs text-emerald-600 dark:text-emerald-400">
+                  {profileEdit.message}
+                </p>
+              ) : null}
+              {profileEdit.error ? (
+                <p className="text-center text-xs text-red-600 dark:text-red-400">
+                  {profileEdit.error}
+                </p>
+              ) : null}
+            </div>
           </>
         ) : null}
 
