@@ -12,15 +12,21 @@ import BackButton from "@/components/ui/BackButton";
 import Toast from "@/components/ui/Toast";
 import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/useToast";
+import { useUserCity } from "@/hooks/useUserCity";
+import { updateUserSettings } from "@/lib/api/auth";
+import { formatCityName } from "@/lib/api/geos";
 import { useEditProfile } from "./hooks/useEditProfile";
 import { usePromoCode } from "./hooks/usePromoCode";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { useUserBalance } from "./hooks/useUserBalance";
 import BalanceCard from "./components/BalanceCard";
 import BalanceTopUp from "./components/BalanceTopUp";
+import AvatarCropper from "./components/AvatarCropper";
 import GaragePanel, { type MockCar } from "./components/GaragePanel";
 import ProfileNavRow from "./components/ProfileNavRow";
 import ProfileVersion from "./components/ProfileVersion";
+import { deleteUserPhoto, resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
+import { pickImage } from "@/lib/pickImage";
 
 type ProfileView =
   | "home"
@@ -32,7 +38,8 @@ type ProfileView =
   | "referral"
   | "support"
   | "faq"
-  | "language";
+  | "language"
+  | "city";
 
 const LANGUAGE_OPTIONS = [
   { id: "ru", label: "Русский", code: "RU" },
@@ -88,6 +95,28 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
+/** Круглый radio-индикатор в списках выбора */
+function RadioMark({ checked, busy = false }: { checked: boolean; busy?: boolean }) {
+  return (
+    <span
+      className={[
+        "relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition",
+        checked
+          ? "border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-500"
+          : "border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-900",
+        busy ? "opacity-60" : "",
+      ].join(" ")}
+      aria-hidden
+    >
+      {busy ? (
+        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-white/80" />
+      ) : checked ? (
+        <span className="h-2 w-2 rounded-full bg-white" />
+      ) : null}
+    </span>
+  );
+}
+
 function BackBar({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <div className="mb-4 flex items-center gap-2">
@@ -98,7 +127,7 @@ function BackBar({ title, onBack }: { title: string; onBack: () => void }) {
 }
 
 export default function ProfilePage() {
-  const { name, mounted } = useAuthUser();
+  const { name, photoUrl, mounted } = useAuthUser();
   const dispatch = useAppDispatch();
   const appVersion = useAppSelector((state) => state.app.version);
   const showHeaderNav = useAppSelector((state) => state.app.showHeaderNav);
@@ -118,12 +147,24 @@ export default function ProfilePage() {
   } = useUserBalance();
   const { isDark, toggleTheme } = useTheme();
   const { message: toastMessage, showToast } = useToast();
+  const {
+    geoId,
+    cityName,
+    cities,
+    loading: citiesLoading,
+    refresh: refreshCity,
+  } = useUserCity();
+  const [citySavingId, setCitySavingId] = useState<number | null>(null);
 
   const [view, setView] = useState<ProfileView>("home");
   const [cars, setCars] = useState<MockCar[]>(INITIAL_CARS);
   const [copied, setCopied] = useState(false);
   const [openFaqId, setOpenFaqId] = useState<string | null>(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const avatarSrc = resolveMediaUrl(photoUrl);
 
   useEffect(() => {
     if (!logoutConfirmOpen) return;
@@ -147,6 +188,68 @@ export default function ProfilePage() {
         .join("") || "?"
     : "…";
 
+  async function handlePickPhoto() {
+    try {
+      const dataUrl = await pickImage();
+      setCropSrc(dataUrl);
+    } catch (err) {
+      if (err instanceof Error && (err.message === "cancelled" || err.message === "timeout")) {
+        return;
+      }
+      showToast("Не удалось выбрать фото");
+    }
+  }
+
+  async function handleCroppedPhoto(blob: Blob) {
+    setPhotoBusy(true);
+    try {
+      await uploadUserPhoto(blob, "avatar.jpg");
+      setCropSrc(null);
+      showToast("Фото сохранено");
+    } catch {
+      showToast("Не удалось загрузить фото");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function handleDeletePhoto() {
+    if (!photoUrl) return;
+    setPhotoBusy(true);
+    try {
+      await deleteUserPhoto();
+      showToast("Фото удалено");
+    } catch {
+      showToast("Не удалось удалить фото");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function AvatarBubble({ size = "md" }: { size?: "md" | "lg" }) {
+    const box =
+      size === "lg"
+        ? "h-20 w-20 text-xl"
+        : "h-12 w-12 text-sm";
+    if (avatarSrc) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarSrc}
+          alt=""
+          className={`shrink-0 rounded-full object-cover ${box}`}
+        />
+      );
+    }
+    return (
+      <span
+        className={`flex shrink-0 items-center justify-center rounded-full bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900 ${box}`}
+      >
+        {initials}
+      </span>
+    );
+  }
+
   async function handleCopyReferral() {
     try {
       await navigator.clipboard.writeText(REFERRAL_LINK);
@@ -168,9 +271,7 @@ export default function ProfilePage() {
                 onClick={() => setView("edit")}
                 className="flex w-full items-center gap-3 rounded-xl text-left transition hover:opacity-90"
               >
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
-                  {initials}
-                </span>
+                <AvatarBubble />
                 <span className="min-w-0 flex-1">
                   <span className="block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
                     Профиль
@@ -216,6 +317,12 @@ export default function ProfilePage() {
                     label="Email"
                     hint={displayEmail}
                     onClick={() => setView("edit")}
+                  />
+                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                  <ProfileNavRow
+                    label="Ваш город"
+                    hint={cityName ?? "Не выбран"}
+                    onClick={() => setView("city")}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <ProfileNavRow
@@ -384,6 +491,32 @@ export default function ProfilePage() {
             <BackBar title="Профиль" onBack={() => setView("home")} />
             <div className="space-y-4">
               <SectionCard>
+                <div className="flex flex-col items-center gap-3 px-3 py-4">
+                  <AvatarBubble size="lg" />
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      disabled={photoBusy}
+                      onClick={() => void handlePickPhoto()}
+                      className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      {photoUrl ? "Изменить фото" : "Добавить фото"}
+                    </button>
+                    {photoUrl ? (
+                      <button
+                        type="button"
+                        disabled={photoBusy}
+                        onClick={() => void handleDeletePhoto()}
+                        className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 disabled:opacity-50 dark:border-red-900 dark:text-red-400"
+                      >
+                        Удалить
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard>
                 <div className="space-y-3 px-3 py-3">
                   <label className="block">
                     <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
@@ -460,6 +593,65 @@ export default function ProfilePage() {
           </>
         ) : null}
 
+        {view === "city" ? (
+          <>
+            <BackBar title="Ваш город" onBack={() => setView("home")} />
+            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+              Мойки и ЭЗС показываются только в выбранном городе.
+            </p>
+            {citiesLoading ? (
+              <div className="h-28 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900" />
+            ) : (
+              <SectionCard>
+                {cities.map((city, index) => {
+                  const selected = geoId === city.id;
+                  const busy = citySavingId === city.id;
+                  return (
+                    <div key={city.id}>
+                      {index > 0 ? (
+                        <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                      ) : null}
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        disabled={citySavingId != null}
+                        onClick={() => {
+                          void (async () => {
+                            if (selected) return;
+                            setCitySavingId(city.id);
+                            try {
+                              await updateUserSettings({ geo_id: city.id });
+                              refreshCity();
+                              showToast(`Город: ${formatCityName(city.city)}`);
+                              setView("home");
+                            } catch {
+                              showToast("Не удалось сохранить город");
+                            } finally {
+                              setCitySavingId(null);
+                            }
+                          })();
+                        }}
+                        className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 disabled:opacity-60 dark:hover:bg-zinc-900/60"
+                      >
+                        <RadioMark checked={selected} busy={busy} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                            {formatCityName(city.city)}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] text-zinc-400">
+                            {city.country}
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </SectionCard>
+            )}
+          </>
+        ) : null}
+
         {view === "language" ? (
           <>
             <BackBar title="Язык" onBack={() => setView("home")} />
@@ -471,12 +663,15 @@ export default function ProfilePage() {
                   ) : null}
                   <button
                     type="button"
+                    role="radio"
+                    aria-checked={lang.id === "ru"}
                     onClick={() =>
                       showToast("Пока переключение языков отсутствует")
                     }
-                    className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
                   >
-                    <span className="min-w-0">
+                    <RadioMark checked={lang.id === "ru"} />
+                    <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
                         {lang.label}
                       </span>
@@ -484,11 +679,6 @@ export default function ProfilePage() {
                         {lang.code}
                       </span>
                     </span>
-                    {lang.id === "ru" ? (
-                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                        Текущий
-                      </span>
-                    ) : null}
                   </button>
                 </div>
               ))}
@@ -617,6 +807,17 @@ export default function ProfilePage() {
         ) : null}
 
         <Toast message={toastMessage} />
+
+        {cropSrc ? (
+          <AvatarCropper
+            imageSrc={cropSrc}
+            busy={photoBusy}
+            onCancel={() => {
+              if (!photoBusy) setCropSrc(null);
+            }}
+            onCropped={(blob) => void handleCroppedPhoto(blob)}
+          />
+        ) : null}
 
         {logoutConfirmOpen ? (
           <div

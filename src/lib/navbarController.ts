@@ -52,11 +52,11 @@ function navigateWeb(href: string, { refresh = false, router }: NavigateOptions)
  * Flutter: action "navigate", screen, refresh (optional)
  *
  * screen: map | history | qr | chatbot | profile
- * qr — нативный QR-сканер, веб-страницы нет
+ * qr — только нативный экран во Flutter
  *
- * @example navigateNavbar("map")
- * @example navigateNavbar("qr") // только Flutter
- * @example navigateNavbar("history", { refresh: true })
+ * В приложении (есть bridge): только postMessage — Flutter сам переключает вкладку navbar.
+ * Не делаем router.push внутри текущей вкладки (иначе профиль откроется «на main»).
+ * В браузере без bridge — обычный переход по URL.
  */
 export function navigateNavbar(
   screen: NavbarScreen,

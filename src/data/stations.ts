@@ -13,6 +13,8 @@ export type Station = {
   status: "Открыто" | "Закрыто";
   /** Мойка или электростанция */
   kind: StationKind;
+  /** Город локации (mdm_geos.id) */
+  geoId: number | null;
   /** Фото локации; null → UI-заглушка */
   photoUrl: string | null;
   /** Например: «с 09:00 до 22:00» */
@@ -46,6 +48,7 @@ export const STATIONS: Station[] = [
     address: "Сакен Сейфуллин, 11/2",
     status: "Открыто",
     kind: "wash",
+    geoId: null,
     photoUrl: null,
     hoursLabel: "с 09:00 до 22:00",
     freeSlots: 2,
@@ -95,6 +98,7 @@ export const STATIONS: Station[] = [
     address: "Сауран, 18/1",
     status: "Открыто",
     kind: "wash",
+    geoId: null,
     photoUrl: null,
     hoursLabel: "с 09:00 до 22:00",
     freeSlots: 1,
@@ -144,6 +148,7 @@ export const STATIONS: Station[] = [
     address: "Қабанбай батыр, 51",
     status: "Закрыто",
     kind: "wash",
+    geoId: null,
     photoUrl: null,
     hoursLabel: "с 09:00 до 22:00",
     freeSlots: 0,

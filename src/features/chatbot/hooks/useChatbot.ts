@@ -1,24 +1,43 @@
 import { useEffect, useRef, useState } from "react";
+import { ApiError } from "@/lib/api";
+import {
+  fetchChatbotBootstrap,
+  sendChatbotMessage,
+  type HotQuestion,
+} from "@/lib/api/chatbot";
 import type { ChatMessage } from "./useChatbot.types";
-import { BOT_REPLIES, QUICK_REPLIES, formatTime } from "./useChatbot.constants";
+import { formatTime } from "./useChatbot.constants";
 
 export type { ChatMessage } from "./useChatbot.types";
-export { QUICK_REPLIES } from "./useChatbot.constants";
 
-const WELCOME_MESSAGE: ChatMessage = {
-  id: "welcome",
-  role: "bot",
-  text: "Здравствуйте! Я помощник CarWash. Помогу с оплатой, мойками и промокодами.",
-  time: "",
-};
+const FALLBACK_WELCOME =
+  "Здравствуйте! Я помощник CarWash. Помогу с оплатой, мойками и промокодами.";
+
+const FALLBACK_HOT: HotQuestion[] = [
+  { id: 1, question: "Как оплатить мойку?" },
+  { id: 2, question: "Где ближайшая мойка?" },
+  { id: 3, question: "Как использовать промокод?" },
+  { id: 4, question: "Связаться с оператором" },
+];
+
+function errorText(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body as { message?: string } | null;
+    if (body?.message) return body.message;
+  }
+  if (err instanceof Error) return err.message;
+  return "Не удалось получить ответ. Попробуйте ещё раз.";
+}
 
 export function useChatbot() {
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { id: "welcome", role: "bot", text: FALLBACK_WELCOME, time: "" },
+  ]);
+  const [hotQuestions, setHotQuestions] = useState<HotQuestion[]>(FALLBACK_HOT);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
 
-  // Время только на клиенте — иначе timezone SSR ≠ браузер → hydration mismatch
   useEffect(() => {
     setMessages((prev) =>
       prev.map((message) =>
@@ -27,6 +46,35 @@ export function useChatbot() {
           : message,
       ),
     );
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await fetchChatbotBootstrap();
+        if (cancelled) return;
+        setHotQuestions(
+          data.hot_questions.length > 0 ? data.hot_questions : FALLBACK_HOT,
+        );
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === "welcome"
+              ? {
+                  ...message,
+                  text: data.welcome_message || FALLBACK_WELCOME,
+                  time: message.time || formatTime(),
+                }
+              : message,
+          ),
+        );
+      } catch {
+        // fallback локальный
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -50,26 +98,54 @@ export function useChatbot() {
     setInput("");
     setIsTyping(true);
 
-    window.setTimeout(() => {
-      const reply =
-        BOT_REPLIES[trimmed] ??
-        "Спасибо за вопрос! Пока я в тестовом режиме, но скоро смогу отвечать на всё. А пока выберите один из быстрых вопросов ниже или напишите в поддержку через Профиль.";
+    void (async () => {
+      try {
+        const history = [...messages, userMessage]
+          .filter((m) => m.id !== "welcome")
+          .slice(-12)
+          .map((m) => ({
+            role: (m.role === "bot" ? "assistant" : "user") as
+              | "assistant"
+              | "user",
+            content: m.text,
+          }));
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `bot-${Date.now()}`,
-          role: "bot",
-          text: reply,
-          time: formatTime(),
-        },
-      ]);
-      setIsTyping(false);
-    }, 900 + Math.random() * 600);
+        // текущее сообщение уже уйдёт отдельно — не дублируем в history
+        const historyWithoutLast = history.slice(0, -1);
+
+        const { reply } = await sendChatbotMessage({
+          message: trimmed,
+          history: historyWithoutLast,
+        });
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `bot-${Date.now()}`,
+            role: "bot",
+            text: reply,
+            time: formatTime(),
+          },
+        ]);
+      } catch (err) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `bot-err-${Date.now()}`,
+            role: "bot",
+            text: errorText(err),
+            time: formatTime(),
+          },
+        ]);
+      } finally {
+        setIsTyping(false);
+      }
+    })();
   };
 
   return {
     messages,
+    hotQuestions,
     input,
     isTyping,
     messagesRef,

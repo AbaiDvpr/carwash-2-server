@@ -30,61 +30,200 @@
   @apply text-xs text-zinc-500 dark:text-zinc-400;
 }
 
-.map-marker__dot {
-  @apply relative block h-4 w-4 shrink-0 rounded-full border-2 border-white bg-blue-600 shadow-md;
+.map-marker__pin {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.28));
+}
+
+/* Зона тапа ~44×44 */
+.map-marker__pin::before {
+  content: "";
+  position: absolute;
+  inset: -8px -10px -4px;
+}
+
+.map-marker__pin-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 2.5px solid #fff;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #fff;
+}
+
+.map-marker__pin--charging .map-marker__pin-face {
+  background: #10b981;
+}
+
+.map-marker__pin-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.map-marker__pin-tip {
+  width: 0;
+  height: 0;
+  margin-top: -1px;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 8px solid #2563eb;
+}
+
+.map-marker__pin--charging .map-marker__pin-tip {
+  border-top-color: #10b981;
+}
+
+.map-marker__pin:active {
+  transform: scale(1.08);
+}
+
+/* Бандл наслоения: один тап → выбор Мойка / ЭЗС */
+.map-marker__bundle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
-.map-marker__dot--charging {
-  @apply bg-emerald-500;
-}
-
-/* Мойка + ЭЗС в одной точке: рядом, чуть внахлёст */
-.map-marker__cluster {
+.map-marker__bundle-pin {
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 2.5px solid #fff;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.28);
+}
+
+.map-marker__bundle-pin--charging {
+  background: #10b981;
+}
+
+.map-marker__bundle--pair .map-marker__bundle-pin + .map-marker__bundle-pin {
+  margin-left: -10px;
+}
+
+.map-marker__bundle--pair .map-marker__bundle-pin:first-child {
+  z-index: 2;
+}
+
+.map-marker__bundle--stack .map-marker__bundle-pin + .map-marker__bundle-pin {
+  margin-left: -8px;
+}
+
+.map-marker__bundle:active .map-marker__bundle-pin {
+  transform: scale(1.06);
+}
+
+/* Всплывающий выбор при наслоении — крупные кнопки под палец */
+.map-marker__chooser {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #e4e4e7;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
   pointer-events: auto;
 }
 
-.map-marker__cluster--pair .map-marker__dot + .map-marker__dot {
-  margin-left: -6px;
+html[data-theme="dark"] .map-marker__chooser {
+  border-color: #3f3f46;
+  background: #18181b;
 }
 
-.map-marker__cluster--pair .map-marker__dot:first-child {
-  z-index: 2;
+.map-marker__chooser-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.map-marker__cluster--pair .map-marker__dot:last-child {
-  z-index: 1;
+.map-marker__chooser-btn--charging {
+  background: #ecfdf5;
+  color: #065f46;
 }
 
-/* 3+ точки — плотный ряд с лёгким наложением */
-.map-marker__cluster--stack .map-marker__dot + .map-marker__dot {
-  margin-left: -5px;
+html[data-theme="dark"] .map-marker__chooser-btn {
+  background: #1e3a8a;
+  color: #dbeafe;
 }
 
-.map-marker__cluster--stack .map-marker__dot:nth-child(1) {
-  z-index: 3;
+html[data-theme="dark"] .map-marker__chooser-btn--charging {
+  background: #064e3b;
+  color: #a7f3d0;
 }
 
-.map-marker__cluster--stack .map-marker__dot:nth-child(2) {
-  z-index: 2;
+.map-marker__chooser-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
-.map-marker__cluster--stack .map-marker__dot:nth-child(3) {
-  z-index: 1;
+.map-marker__chooser-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #71717a;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
-.map-marker__cluster .map-marker__dot:active {
-  transform: scale(1.12);
-  z-index: 5;
+.map-marker__chooser-close:active {
+  background: #f4f4f5;
+}
+
+html[data-theme="dark"] .map-marker__chooser-close:active {
+  background: #27272a;
 }
 
 .map-page__frame {
   @apply relative w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800;
-  height: clamp(300px, calc(var(--app-height) - 14rem), 480px);
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
 @keyframes map-spin {

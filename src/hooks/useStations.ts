@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Station } from "@/data/stations";
 import { ApiError } from "@/lib/api";
 import { fetchCwStations } from "@/lib/api/cw";
@@ -10,22 +10,29 @@ type UseStationsState = {
   stations: Station[];
   loading: boolean;
   error: string | null;
+  reload: () => void;
 };
 
-/** Мойки + ЭЗС из API в одном списке */
+/** Мойки + ЭЗС по всем городам (all=1). Фильтр города — на UI списка. */
 export function useStations(): UseStationsState {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const reload = useCallback(() => {
+    setReloadKey((key) => key + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function boot() {
+      setLoading(true);
       try {
         const [washes, chargers] = await Promise.all([
-          fetchCwStations(),
-          fetchEvStations(),
+          fetchCwStations({ all: true }),
+          fetchEvStations({ all: true }),
         ]);
         if (cancelled) return;
         setStations([...washes, ...chargers]);
@@ -46,7 +53,13 @@ export function useStations(): UseStationsState {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
-  return { stations, loading, error };
+  useEffect(() => {
+    const onProfileUpdated = () => reload();
+    window.addEventListener("user-profile-updated", onProfileUpdated);
+    return () => window.removeEventListener("user-profile-updated", onProfileUpdated);
+  }, [reload]);
+
+  return { stations, loading, error, reload };
 }

@@ -74,7 +74,7 @@ export default function GarageSection() {
     setError(null);
     setMessage(null);
     try {
-      await createGarage(plate.trim());
+      await createGarage({ car_plate: plate.trim() });
       setPlate("");
       await loadGarages();
       setMessage("Авто добавлено");
@@ -91,7 +91,7 @@ export default function GarageSection() {
     setError(null);
     setMessage(null);
     try {
-      await updateGarage(id, editPlate.trim());
+      await updateGarage(id, { car_plate: editPlate.trim() });
       setEditingId(null);
       await loadGarages();
       setMessage("Авто обновлено");

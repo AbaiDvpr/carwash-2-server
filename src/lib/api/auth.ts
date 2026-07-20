@@ -11,6 +11,7 @@ export type AuthUser = {
   balance: string | number;
   photo_url: string | null;
   push_enabled: boolean;
+  geo_id: number | null;
 };
 
 type AuthResponse = {
@@ -57,6 +58,7 @@ export async function updateUserSettings(settings: {
   name?: string;
   last_name?: string | null;
   email?: string | null;
+  geo_id?: number | null;
 }): Promise<AuthUser> {
   const data = await apiFetch<UpdateSettingsResponse>("/api/auth/settings", {
     method: "PATCH",

@@ -1,6 +1,9 @@
 import type { Station } from "@/data/stations";
 import { apiFetch } from "@/lib/api";
-import { toDisplayWasherStatus } from "@/lib/api/cw";
+import {
+  toDisplayWasherStatus,
+  type FetchLocationsOptions,
+} from "@/lib/api/cw";
 import { formatOpenHoursLabel } from "@/lib/openHours";
 
 export type EvPistol = {
@@ -103,6 +106,7 @@ export function toEvStation(location: EvLocation): Station {
     address: location.address,
     status: location.status,
     kind: "charging",
+    geoId: location.geo_id ?? null,
     photoUrl: location.photo_url,
     hoursLabel: formatOpenHoursLabel(location.open_hours),
     freeSlots: pistols.filter((p) => p.status === "free").length,
@@ -119,13 +123,26 @@ export function toEvStation(location: EvLocation): Station {
   };
 }
 
-export async function fetchEvLocations(): Promise<EvLocation[]> {
-  const data = await apiFetch<LocationsResponse>("/api/ev/locations");
+export async function fetchEvLocations(
+  options: FetchLocationsOptions = {},
+): Promise<EvLocation[]> {
+  const params = new URLSearchParams();
+  if (options.all) {
+    params.set("all", "1");
+  } else if (options.geoId != null) {
+    params.set("geo_id", String(options.geoId));
+  }
+  const query = params.toString();
+  const data = await apiFetch<LocationsResponse>(
+    `/api/ev/locations${query ? `?${query}` : ""}`,
+  );
   return data.locations;
 }
 
-export async function fetchEvStations(): Promise<Station[]> {
-  const locations = await fetchEvLocations();
+export async function fetchEvStations(
+  options: FetchLocationsOptions = {},
+): Promise<Station[]> {
+  const locations = await fetchEvLocations(options);
   return locations.map(toEvStation);
 }
 

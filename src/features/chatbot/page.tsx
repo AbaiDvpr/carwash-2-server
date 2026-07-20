@@ -3,10 +3,18 @@
 import { PageLayout } from "@/components/layout";
 import BotAvatar from "./components/BotAvatar";
 import TypingIndicator from "./components/TypingIndicator";
-import { QUICK_REPLIES, useChatbot } from "./hooks/useChatbot";
+import { useChatbot } from "./hooks/useChatbot";
 
 export default function ChatbotPage() {
-  const { messages, input, isTyping, messagesRef, setInput, sendMessage } = useChatbot();
+  const {
+    messages,
+    hotQuestions,
+    input,
+    isTyping,
+    messagesRef,
+    setInput,
+    sendMessage,
+  } = useChatbot();
 
   return (
     <PageLayout title="Chatbot" description="Чат-бот CarWash" className="page--chat" bare>
@@ -58,15 +66,15 @@ export default function ChatbotPage() {
 
         <div className="shrink-0 border-t border-zinc-200 bg-white px-4 py-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-zinc-800 dark:bg-zinc-950">
           <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {QUICK_REPLIES.map((reply) => (
+            {hotQuestions.map((item) => (
               <button
-                key={reply}
+                key={item.id}
                 type="button"
-                onClick={() => sendMessage(reply)}
+                onClick={() => sendMessage(item.question)}
                 disabled={isTyping}
                 className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
               >
-                {reply}
+                {item.question}
               </button>
             ))}
           </div>

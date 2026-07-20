@@ -111,6 +111,7 @@ export function toStation(location: CwLocation): Station {
     address: location.address,
     status: location.status,
     kind,
+    geoId: location.geo_id ?? null,
     photoUrl: location.photo_url,
     hoursLabel: formatOpenHoursLabel(location.open_hours),
     freeSlots: washers.filter((w) => w.status === "free").length,
@@ -128,13 +129,32 @@ export function toStation(location: CwLocation): Station {
   };
 }
 
-export async function fetchCwLocations(): Promise<CwLocation[]> {
-  const data = await apiFetch<LocationsResponse>("/api/cw/locations");
+export type FetchLocationsOptions = {
+  /** Все города, без фильтра по geo_id */
+  all?: boolean;
+  geoId?: number | null;
+};
+
+export async function fetchCwLocations(
+  options: FetchLocationsOptions = {},
+): Promise<CwLocation[]> {
+  const params = new URLSearchParams();
+  if (options.all) {
+    params.set("all", "1");
+  } else if (options.geoId != null) {
+    params.set("geo_id", String(options.geoId));
+  }
+  const query = params.toString();
+  const data = await apiFetch<LocationsResponse>(
+    `/api/cw/locations${query ? `?${query}` : ""}`,
+  );
   return data.locations;
 }
 
-export async function fetchCwStations(): Promise<Station[]> {
-  const locations = await fetchCwLocations();
+export async function fetchCwStations(
+  options: FetchLocationsOptions = {},
+): Promise<Station[]> {
+  const locations = await fetchCwLocations(options);
   return locations.map(toStation);
 }
 

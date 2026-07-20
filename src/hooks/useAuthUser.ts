@@ -16,10 +16,12 @@ export function useAuthUser() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   const sync = useCallback(async () => {
     if (!hasAccessToken()) {
       setName("");
+      setPhotoUrl(null);
       setLoading(false);
       return;
     }
@@ -30,13 +32,13 @@ export function useAuthUser() {
     try {
       const user = await fetchUserInfo();
       setName(formatUserDisplayName(user) || cached || "");
+      setPhotoUrl(user.photo_url ?? null);
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : null;
-      // 401/403 → logout в apiFetch; остальное — не выкидываем сессию
       if (apiErr?.status === 401 || apiErr?.status === 403) {
         setName("");
+        setPhotoUrl(null);
       }
-      // иначе оставляем cached name
     } finally {
       setLoading(false);
     }
@@ -61,5 +63,5 @@ export function useAuthUser() {
     };
   }, [sync]);
 
-  return { name, loading, mounted };
+  return { name, photoUrl, loading, mounted };
 }

@@ -5,7 +5,17 @@ import type { MapRef } from "react-map-gl/maplibre";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { Station } from "@/data/stations";
-import { getUserLocation } from "@/lib/locationController";
+import Toast from "@/components/ui/Toast";
+import { useToast } from "@/hooks/useToast";
+import { useUserCity } from "@/hooks/useUserCity";
+import { useUserLocation } from "@/hooks/useUserLocation";
+import {
+  findNearestCity,
+  formatCityName,
+  getCityMapCenter,
+  type MapCenter,
+} from "@/lib/api/geos";
+import { getCachedUserLocation, getUserLocation, subscribeUserLocation } from "@/lib/locationController";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
 import HomeTabShell from "./HomeTabShell";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -22,6 +32,8 @@ type HomeMapProps = {
   stations: Station[];
   loading: boolean;
   error: string | null;
+  focusStationId?: string | null;
+  onFocusConsumed?: () => void;
   onBackToList: () => void;
 };
 
@@ -30,12 +42,6 @@ type MarkerCluster = {
   latitude: number;
   longitude: number;
   stations: Station[];
-};
-
-const MAP_CENTER = {
-  longitude: 76.889709,
-  latitude: 43.238949,
-  zoom: 11,
 };
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
@@ -95,19 +101,45 @@ function MapError() {
   );
 }
 
+function WashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 9.5 12 4l9 5.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"
+      />
+    </svg>
+  );
+}
+
+function EvIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
+    </svg>
+  );
+}
+
 function StationDot({ station, onSelect }: StationDotProps) {
   const isCharging = station.kind === "charging";
   return (
     <button
       type="button"
-      className={isCharging ? "map-marker__dot map-marker__dot--charging" : "map-marker__dot"}
+      className={isCharging ? "map-marker__pin map-marker__pin--charging" : "map-marker__pin"}
       onClick={(event) => {
         event.stopPropagation();
         onSelect(station);
       }}
+      onPointerDown={(event) => event.stopPropagation()}
       aria-label={station.name}
       title={station.name}
-    />
+    >
+      <span className="map-marker__pin-face">
+        {isCharging ? <EvIcon className="map-marker__pin-icon" /> : <WashIcon className="map-marker__pin-icon" />}
+      </span>
+      <span className="map-marker__pin-tip" />
+    </button>
   );
 }
 
@@ -116,26 +148,99 @@ type ClusterMarkerProps = {
   onSelect: (station: Station) => void;
 };
 
-/** Одна точка или плотный ряд синий+зелёный без большого разъезда */
+/**
+ * 1 точка — крупная зона тапа.
+ * 2+ в одной координате — бандл: тап → выбор Мойка / ЭЗС (на телефоне так удобнее, чем целиться в нахлёст).
+ */
 function ClusterMarker({ stations, onSelect }: ClusterMarkerProps) {
+  const [chooserOpen, setChooserOpen] = useState(false);
+
   if (stations.length === 1) {
-    return <StationDot station={stations[0]} onSelect={onSelect} />;
+    return <StationDot station={stations[0]!} onSelect={onSelect} />;
+  }
+
+  if (chooserOpen) {
+    return (
+      <div
+        className="map-marker__chooser"
+        role="listbox"
+        aria-label="Выберите точку"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {stations.map((station) => {
+          const isCharging = station.kind === "charging";
+          return (
+            <button
+              key={station.id}
+              type="button"
+              role="option"
+              className={
+                isCharging
+                  ? "map-marker__chooser-btn map-marker__chooser-btn--charging"
+                  : "map-marker__chooser-btn"
+              }
+              onClick={(event) => {
+                event.stopPropagation();
+                setChooserOpen(false);
+                onSelect(station);
+              }}
+            >
+              {isCharging ? (
+                <EvIcon className="map-marker__chooser-icon" />
+              ) : (
+                <WashIcon className="map-marker__chooser-icon" />
+              )}
+              {isCharging ? "ЭЗС" : "Мойка"}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className="map-marker__chooser-close"
+          aria-label="Закрыть"
+          onClick={(event) => {
+            event.stopPropagation();
+            setChooserOpen(false);
+          }}
+        >
+          ×
+        </button>
+      </div>
+    );
   }
 
   return (
-    <div
+    <button
+      type="button"
       className={
         stations.length === 2
-          ? "map-marker__cluster map-marker__cluster--pair"
-          : "map-marker__cluster map-marker__cluster--stack"
+          ? "map-marker__bundle map-marker__bundle--pair"
+          : "map-marker__bundle map-marker__bundle--stack"
       }
-      role="group"
-      aria-label={`${stations.length} точек рядом`}
+      aria-label={`${stations.length} точек рядом — выбрать`}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        setChooserOpen(true);
+      }}
     >
-      {stations.map((station) => (
-        <StationDot key={station.id} station={station} onSelect={onSelect} />
+      {stations.slice(0, 3).map((station) => (
+        <span
+          key={station.id}
+          className={
+            station.kind === "charging"
+              ? "map-marker__bundle-pin map-marker__bundle-pin--charging"
+              : "map-marker__bundle-pin"
+          }
+        >
+          {station.kind === "charging" ? (
+            <EvIcon className="map-marker__pin-icon" />
+          ) : (
+            <WashIcon className="map-marker__pin-icon" />
+          )}
+        </span>
       ))}
-    </div>
+    </button>
   );
 }
 
@@ -143,21 +248,30 @@ async function createMapView() {
   const { default: MapGL, Marker } = await import("react-map-gl/maplibre");
   type MapViewProps = {
     clusters: MarkerCluster[];
+    cityCenter: MapCenter;
+    focusStation: Station | null;
     selectedStation: Station | null;
     onSelectStation: (station: Station | null) => void;
   };
-  return function MapView({ clusters, onSelectStation }: MapViewProps) {
+  return function MapView({
+    clusters,
+    cityCenter,
+    focusStation,
+    onSelectStation,
+  }: MapViewProps) {
     const [status, setStatus] = useState<MapStatus>("loading");
     const [userLocation, setUserLocation] = useState<{
       latitude: number;
       longitude: number;
-    } | null>(null);
+    } | null>(() => getCachedUserLocation());
+    const { message: toastMessage, showToast } = useToast();
+    const focusedOnce = useRef<string | null>(null);
 
     const mapRef = useRef<MapRef>(null);
 
     async function handleLocation() {
       try {
-        const location = await getUserLocation();
+        const location = await getUserLocation({ force: true });
         setUserLocation(location);
         mapRef.current?.flyTo({
           center: [location.longitude, location.latitude],
@@ -165,28 +279,35 @@ async function createMapView() {
           duration: 900,
         });
       } catch {
-        alert("Не удалось получить геолокацию");
+        showToast("Не удалось определить вашу геолокацию");
       }
     }
 
+    useEffect(() => subscribeUserLocation(setUserLocation), []);
+
+    // Открыли «На карте» — летим к точке
     useEffect(() => {
-      if (!clusters.length || !mapRef.current) return;
+      if (!mapRef.current || status !== "ready" || !focusStation) return;
+      if (focusedOnce.current === focusStation.id) return;
+      focusedOnce.current = focusStation.id;
+      mapRef.current.flyTo({
+        center: [focusStation.longitude, focusStation.latitude],
+        zoom: 15,
+        duration: 900,
+      });
+    }, [focusStation, status]);
 
-      const lats = clusters.map((c) => c.latitude);
-      const lngs = clusters.map((c) => c.longitude);
-      const minLat = Math.min(...lats);
-      const maxLat = Math.max(...lats);
-      const minLng = Math.min(...lngs);
-      const maxLng = Math.max(...lngs);
+    // Обычное открытие карты — центр города по GPS
+    useEffect(() => {
+      if (!mapRef.current || status !== "ready") return;
+      if (focusStation) return;
 
-      mapRef.current.fitBounds(
-        [
-          [minLng, minLat],
-          [maxLng, maxLat],
-        ],
-        { padding: 56, duration: 700, maxZoom: 14 },
-      );
-    }, [clusters]);
+      mapRef.current.flyTo({
+        center: [cityCenter.longitude, cityCenter.latitude],
+        zoom: cityCenter.zoom,
+        duration: 700,
+      });
+    }, [cityCenter, status, focusStation]);
 
     return (
       <div className="map-root">
@@ -237,7 +358,7 @@ async function createMapView() {
 
         <MapGL
           ref={mapRef}
-          initialViewState={MAP_CENTER}
+          initialViewState={cityCenter}
           mapStyle={MAP_STYLE}
           style={{ width: "100%", height: "100%" }}
           dragRotate={false}
@@ -245,7 +366,6 @@ async function createMapView() {
           pitchWithRotate={false}
           maxPitch={0}
           attributionControl={false}
-          reuseMaps
           onLoad={() => setStatus("ready")}
           onError={() => setStatus("error")}
         >
@@ -254,7 +374,7 @@ async function createMapView() {
               key={cluster.key}
               longitude={cluster.longitude}
               latitude={cluster.latitude}
-              anchor="center"
+              anchor="bottom"
             >
               <ClusterMarker stations={cluster.stations} onSelect={onSelectStation} />
             </Marker>
@@ -270,6 +390,7 @@ async function createMapView() {
             </Marker>
           )}
         </MapGL>
+        <Toast message={toastMessage} />
       </div>
     );
   };
@@ -284,20 +405,57 @@ export default function HomeMap({
   stations,
   loading,
   error,
+  focusStationId = null,
+  onFocusConsumed,
   onBackToList,
 }: HomeMapProps) {
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const clusters = useMemo(() => buildClusters(stations), [stations]);
+  const { geoId, cities } = useUserCity();
+  const { location: userLocation, loading: locationLoading } = useUserLocation();
+
+  const focusStation = useMemo(() => {
+    if (!focusStationId) return null;
+    return stations.find((station) => station.id === focusStationId) ?? null;
+  }, [focusStationId, stations]);
+
+  // Центр карты: город по GPS, иначе город из профиля
+  const locationCity = useMemo(() => {
+    if (!userLocation || cities.length === 0) return null;
+    return findNearestCity(
+      userLocation.latitude,
+      userLocation.longitude,
+      cities,
+    );
+  }, [userLocation, cities]);
+
+  const mapGeoId = locationCity?.id ?? geoId;
+  const mapCityLabel = locationCity
+    ? formatCityName(locationCity.city)
+    : null;
+
+  const cityCenter = useMemo(
+    () => getCityMapCenter(mapGeoId, cities),
+    [mapGeoId, cities],
+  );
+
+  useEffect(() => {
+    if (!focusStation) return;
+    setSelectedStation(focusStation);
+  }, [focusStation]);
 
   return (
     <>
       <HomeTabShell
+        fill
         eyebrow="Карта"
         title="Точки рядом"
         subtitle={
-          loading
-            ? "Загрузка…"
-            : `${stations.length} точек · синие — мойки, зелёные — ЭЗС`
+          loading || locationLoading
+            ? locationLoading
+              ? "Определяем геолокацию…"
+              : "Загрузка…"
+            : `${stations.length} точек · все города${mapCityLabel ? ` · центр: ${mapCityLabel}` : ""} · синие — мойки, зелёные — ЭЗС`
         }
         action={
           <button
@@ -313,8 +471,13 @@ export default function HomeMap({
         }
       >
         <div className="map-page__frame">
-          {loading ? (
-            <MapLoading />
+          {loading || locationLoading ? (
+            <div className="map-loading">
+              <div className="map-loading__spinner" aria-hidden />
+              <p className="map-loading__text">
+                {locationLoading ? "Определяем геолокацию…" : "Загрузка карты…"}
+              </p>
+            </div>
           ) : error ? (
             <div className="map-error">
               <p className="map-error__title">Не удалось загрузить точки</p>
@@ -322,9 +485,15 @@ export default function HomeMap({
             </div>
           ) : (
             <MapView
+              key={mapGeoId ?? "all"}
               clusters={clusters}
+              cityCenter={cityCenter}
+              focusStation={focusStation}
               selectedStation={selectedStation}
-              onSelectStation={setSelectedStation}
+              onSelectStation={(station) => {
+                setSelectedStation(station);
+                if (!station) onFocusConsumed?.();
+              }}
             />
           )}
         </div>

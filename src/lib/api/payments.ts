@@ -71,10 +71,15 @@ export async function payFromBalance(input: {
 }
 
 /** Пополнение баланса */
-export async function topUpBalance(amount: number): Promise<BalancePaymentResponse> {
+export type TopUpMethod = "kaspi" | "forte";
+
+export async function topUpBalance(
+  amount: number,
+  method: TopUpMethod = "kaspi",
+): Promise<BalancePaymentResponse> {
   const data = await apiFetch<BalancePaymentResponse>("/api/payments/top-up", {
     method: "POST",
-    body: JSON.stringify({ amount }),
+    body: JSON.stringify({ amount, method }),
   });
   notifyProfileUpdated();
   return data;

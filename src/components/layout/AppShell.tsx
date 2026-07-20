@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import LocationPoller from "@/components/location/LocationPoller";
 import AuthErrorBlock from "./AuthErrorBlock";
 import Header from "./Header/header";
 import MobileAccessGate from "./MobileAccessGate";
@@ -11,6 +12,7 @@ type AppShellProps = {
 export default function AppShell({ children }: AppShellProps) {
   return (
     <MobileAccessGate>
+      <LocationPoller />
       <div className="app-layout">
         <PagePreloader />
         <Header />
