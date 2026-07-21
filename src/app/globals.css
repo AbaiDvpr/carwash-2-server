@@ -163,15 +163,23 @@ body:has(.page--chat) .app-shell {
 }
 
 /* Карта: на всю высоту, без паддингов страницы */
+body:has(.page--map) .app-root,
+body:has(.page--map) .app-layout,
 body:has(.page--map) .app-shell {
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   padding: 0;
+  margin: 0;
 }
 
 .page--map {
+  flex: 1;
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  padding: 0;
+  margin: 0;
 }
 
 .page--map .page-content {
@@ -186,6 +194,7 @@ body:has(.page--map) .app-shell {
 }
 
 .map-screen {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;

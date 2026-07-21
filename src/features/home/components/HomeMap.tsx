@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { MapRef } from "react-map-gl/maplibre";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -280,7 +281,7 @@ async function createMapView() {
           duration: 900,
         });
       } catch {
-        showToast("Не удалось определить вашу геолокацию");
+        showToast("Пожалуйста, дайте доступ к геолокации");
       }
     }
 
@@ -412,9 +413,14 @@ export default function HomeMap({
   onOpenList,
 }: HomeMapProps) {
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
   const clusters = useMemo(() => buildClusters(stations), [stations]);
   const { geoId, cities } = useUserCity();
   const { location: userLocation, loading: locationLoading } = useUserLocation();
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   const focusStation = useMemo(() => {
     if (!focusStationId) return null;
@@ -499,80 +505,83 @@ export default function HomeMap({
         </div>
       </div>
 
-      {selectedStation && (
-        <>
-          <button
-            type="button"
-            className="map-drawer__backdrop"
-            onClick={() => setSelectedStation(null)}
-            aria-label="Закрыть"
-          />
-          <div className="map-drawer" role="dialog" aria-labelledby="map-drawer-title">
-            <div className="map-drawer__handle" aria-hidden />
-            <div className="map-drawer__header">
-              <div className="map-drawer__headline">
-                <span className="map-drawer__label">
-                  {selectedStation.kind === "charging" ? "ЭЗС" : "Автомойка"}
-                </span>
-                <h2 id="map-drawer-title" className="map-drawer__title">
-                  {selectedStation.name}
-                </h2>
-                <p className="theme-description mt-1 text-xs">
-                  {selectedStation.freeSlots}/{selectedStation.washersTotal} свободно
-                </p>
+      {portalReady &&
+        selectedStation &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              className="map-drawer__backdrop"
+              onClick={() => setSelectedStation(null)}
+              aria-label="Закрыть"
+            />
+            <div className="map-drawer" role="dialog" aria-labelledby="map-drawer-title">
+              <div className="map-drawer__handle" aria-hidden />
+              <div className="map-drawer__header">
+                <div className="map-drawer__headline">
+                  <span className="map-drawer__label">
+                    {selectedStation.kind === "charging" ? "ЭЗС" : "Автомойка"}
+                  </span>
+                  <h2 id="map-drawer-title" className="map-drawer__title">
+                    {selectedStation.name}
+                  </h2>
+                  <p className="theme-description mt-1 text-xs">
+                    {selectedStation.freeSlots}/{selectedStation.washersTotal} свободно
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="map-drawer__close"
+                  onClick={() => setSelectedStation(null)}
+                  aria-label="Закрыть"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+                  </svg>
+                </button>
               </div>
-              <button
-                type="button"
-                className="map-drawer__close"
-                onClick={() => setSelectedStation(null)}
-                aria-label="Закрыть"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
-                </svg>
-              </button>
-            </div>
 
-            <p className="map-drawer__route-label">Маршрут</p>
-            <div className="map-drawer__actions">
-              <a
-                href={selectedStation.map_yandex}
-                onClick={(event) => {
-                  event.preventDefault();
-                  openYandexMap(
-                    selectedStation.latitude,
-                    selectedStation.longitude,
-                    selectedStation.map_yandex,
-                  );
-                }}
-                className="map-drawer__link map-drawer__link--yandex"
+              <p className="map-drawer__route-label">Маршрут</p>
+              <div className="map-drawer__actions">
+                <a
+                  href={selectedStation.map_yandex}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    openYandexMap(
+                      selectedStation.latitude,
+                      selectedStation.longitude,
+                      selectedStation.map_yandex,
+                    );
+                  }}
+                  className="map-drawer__link map-drawer__link--yandex"
+                >
+                  Яндекс Карты
+                </a>
+                <a
+                  href={selectedStation.map_2gis}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    open2GisMap(
+                      selectedStation.latitude,
+                      selectedStation.longitude,
+                      selectedStation.map_2gis,
+                    );
+                  }}
+                  className="map-drawer__link map-drawer__link--gis"
+                >
+                  2ГИС
+                </a>
+              </div>
+              <Link
+                href={`/station/${selectedStation.id}`}
+                className="theme-button mt-3 flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition"
               >
-                Яндекс Карты
-              </a>
-              <a
-                href={selectedStation.map_2gis}
-                onClick={(event) => {
-                  event.preventDefault();
-                  open2GisMap(
-                    selectedStation.latitude,
-                    selectedStation.longitude,
-                    selectedStation.map_2gis,
-                  );
-                }}
-                className="map-drawer__link map-drawer__link--gis"
-              >
-                2ГИС
-              </a>
+                Подробнее
+              </Link>
             </div>
-            <Link
-              href={`/station/${selectedStation.id}`}
-              className="theme-button mt-3 flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition"
-            >
-              Подробнее
-            </Link>
-          </div>
-        </>
-      )}
+          </>,
+          document.body,
+        )}
     </>
   );
 }

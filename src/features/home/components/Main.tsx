@@ -7,6 +7,7 @@ import {
   useUserBalance,
 } from "@/features/profile/hooks/useUserBalance";
 import type { StationKind } from "@/data/stations";
+import Stories from "./Stories";
 
 const CATEGORIES: {
   kind: StationKind;
@@ -33,6 +34,8 @@ export default function Main() {
 
   return (
     <div className="space-y-5">
+      <Stories />
+
       <section className="theme-block overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between gap-3 px-4 py-3.5">
           <div className="min-w-0">
