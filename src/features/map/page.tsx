@@ -183,7 +183,7 @@ function MapPageInner() {
 
   return (
     <PageLayout title="Карта" description="Точки на карте" className="page--map" bare>
-      <div className="page-content flex h-full min-h-0 flex-col overflow-hidden !pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+      <div className="map-screen">
         <HomeMap
           stations={filteredStations}
           loading={loading}

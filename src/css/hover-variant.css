@@ -1,0 +1,6 @@
+/**
+ * Отключаем все Tailwind hover:* и group-hover:* утилиты.
+ * В WebView/touch hover часто «залипает» после тапа.
+ */
+@custom-variant hover (&:where(:not(*)));
+@custom-variant group-hover (:merge(.group):where(:not(*)) &);

@@ -2,7 +2,8 @@
 @import "../../../css/dark-variant.css";
 
 .map-root {
-  @apply relative h-full w-full overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-900;
+  @apply relative h-full w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900;
+  border-radius: 0;
 }
 
 .map-loading {
@@ -220,10 +221,15 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
 }
 
 .map-page__frame {
-  @apply relative w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800;
+  position: relative;
+  width: 100%;
+  height: 100%;
   flex: 1;
   min-height: 0;
-  height: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--background);
 }
 
 .map-list-btn {
@@ -256,7 +262,7 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
 }
 
 .map-list-btn:active {
-  background: var(--app-hover);
+  background: var(--app-block);
 }
 
 .map-close-btn {
@@ -286,7 +292,7 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
 }
 
 .map-close-btn:active {
-  background: var(--app-hover);
+  background: var(--app-block);
 }
 
 .map-list-sheet {
@@ -378,7 +384,7 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
 }
 
 .map-zoom-controls__btn:active {
-  background: var(--app-hover);
+  background: var(--app-block);
 }
 
 .map-zoom-controls__btn svg {
@@ -505,11 +511,6 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
   font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
-  transition: opacity 0.15s ease;
-}
-
-.map-drawer__link:hover {
-  opacity: 0.9;
 }
 
 .map-drawer__link--yandex {
@@ -536,7 +537,7 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
 }
 
 .map-drawer__btn:active {
-  background: var(--app-button-hover);
+  background: var(--app-button);
 }
 
 @keyframes map-drawer-slide-up {

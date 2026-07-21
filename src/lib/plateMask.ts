@@ -1,7 +1,7 @@
 /**
  * Маски госномеров по типам (mdm_plate_types.code).
  *
- * kz_new  — 000 AAA 00   (новый KZ)
+ * kz_new  — 000 AA(A) 00  (2 или 3 буквы; пробел после 2 → регион)
  * kz_old  — A 000 AAA    (старый KZ, напр. Z 001 AST)
  * ru      — A 000 AA 00
  * am      — 00 AA 000
@@ -47,6 +47,11 @@ export function sanitizePlateRaw(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+/** Латиница, цифры и пробелы (пробел = переход к следующему блоку маски) */
+function sanitizePlateWithSpaces(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9\s]/g, "");
+}
+
 export function normalizePlate(value: string): string {
   return sanitizePlateRaw(value);
 }
@@ -67,14 +72,61 @@ function take(
   return out;
 }
 
-/** Новый KZ: 000 AA(A) 00 */
+/**
+ * Новый KZ: 000 AA(A) 00
+ * — букв может быть 2 или 3;
+ * — после 2 букв пробел (или сразу цифра) переводит на регион.
+ */
 export function applyKzNewMask(value: string): string {
-  const raw = sanitizePlateRaw(value);
-  const i = { n: 0 };
-  const digits = take(raw, i, 3, "digit");
-  const letters = take(raw, i, 3, "letter");
-  const region =
-    letters.length >= 2 ? take(raw, i, 2, "digit") : "";
+  const cleaned = sanitizePlateWithSpaces(value);
+  let digits = "";
+  let letters = "";
+  let region = "";
+  /** 0 — цифры, 1 — буквы, 2 — регион */
+  let stage: 0 | 1 | 2 = 0;
+
+  for (const ch of cleaned) {
+    if (ch === " " || ch === "\t") {
+      if (stage === 0 && digits.length > 0) stage = 1;
+      else if (stage === 1 && letters.length >= 2) stage = 2;
+      continue;
+    }
+
+    if (stage === 0) {
+      if (/\d/.test(ch) && digits.length < 3) {
+        digits += ch;
+        if (digits.length === 3) stage = 1;
+      } else if (/[A-Z]/.test(ch) && digits.length === 3) {
+        stage = 1;
+        letters += ch;
+      }
+      continue;
+    }
+
+    if (stage === 1) {
+      if (/[A-Z]/.test(ch) && letters.length < 3) {
+        letters += ch;
+        if (letters.length === 3) stage = 2;
+      } else if (/\d/.test(ch) && letters.length >= 2) {
+        stage = 2;
+        if (region.length < 2) region += ch;
+      }
+      continue;
+    }
+
+    if (/\d/.test(ch) && region.length < 2) {
+      region += ch;
+    }
+  }
+
+  // Хвост с пробелом = пользователь уже перешёл к следующему блоку
+  if (stage === 1 && digits.length > 0 && letters.length === 0) {
+    return `${digits} `;
+  }
+  if (stage === 2 && letters.length >= 2 && region.length === 0) {
+    return `${digits} ${letters} `;
+  }
+
   return [digits, letters, region].filter(Boolean).join(" ");
 }
 

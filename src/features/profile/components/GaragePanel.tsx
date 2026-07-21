@@ -31,8 +31,8 @@ const FALLBACK_TYPES: PlateType[] = [
     country_code: "kz",
     code: "kz_new",
     name: "Казахстан · новый",
-    mask: "000 AAA 00",
-    example: "123 ABC 01",
+    mask: "000 AA(A) 00",
+    example: "123 AB 01",
     flag: "🇰🇿",
     sort_order: 10,
   },
@@ -259,7 +259,7 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
         <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
           Страна номера
         </p>
-        <div className="relative">
+        <div className="relative z-30">
           <button
             type="button"
             onClick={() => setFlagOpen((v) => !v)}
@@ -275,7 +275,10 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
             </span>
             <span className="text-xs text-zinc-400">{activeType.mask}</span>
             <svg
-              className="h-4 w-4 text-zinc-400"
+              className={[
+                "h-4 w-4 text-zinc-400 transition",
+                flagOpen ? "rotate-180" : "",
+              ].join(" ")}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -289,7 +292,7 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
           {flagOpen ? (
             <ul
               role="listbox"
-              className="absolute left-0 right-0 z-20 mt-1 max-h-64 overflow-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
+              className="mt-1 max-h-[min(40dvh,16rem)] overflow-y-auto overscroll-contain rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
             >
               {COUNTRY_META.map((item) => (
                 <li key={item.code}>
@@ -350,8 +353,12 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
             })}
           </div>
           <p className="text-[11px] text-zinc-400">
-            Пример: {activeType.example ?? "любой формат"} · маска{" "}
-            <span className="font-mono">{activeType.mask}</span>
+            {activeType.code === "kz_new"
+              ? "Можно 2 или 3 буквы. После 2 букв пробел — сразу регион (например 123 AB 01)."
+              : `Пример: ${activeType.example ?? "любой формат"} · маска `}
+            {activeType.code !== "kz_new" ? (
+              <span className="font-mono">{activeType.mask}</span>
+            ) : null}
           </p>
         </div>
       ) : (
