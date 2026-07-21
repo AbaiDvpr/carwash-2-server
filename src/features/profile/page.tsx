@@ -11,7 +11,11 @@ import HistoryList from "@/features/history/components/HistoryList";
 import BackButton from "@/components/ui/BackButton";
 import Toast from "@/components/ui/Toast";
 import { useTheme } from "@/hooks/useTheme";
+import { useThemePalette } from "@/hooks/useThemePalette";
 import { useToast } from "@/hooks/useToast";
+import type { AppTheme } from "@/lib/theme";
+import type { ThemeMode } from "@/lib/themeColors";
+import { isHexColor, PALETTE_FIELD_META } from "@/lib/themeColors";
 import { useUserCity } from "@/hooks/useUserCity";
 import { updateUserSettings } from "@/lib/api/auth";
 import { formatCityName } from "@/lib/api/geos";
@@ -39,7 +43,13 @@ type ProfileView =
   | "support"
   | "faq"
   | "language"
-  | "city";
+  | "city"
+  | "appearance";
+
+const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
+  { id: "light", label: "Светлая", hint: "Белый фон и тёмный текст" },
+  { id: "dark", label: "Тёмная", hint: "Тёмный фон и светлый текст" },
+];
 
 const LANGUAGE_OPTIONS = [
   { id: "ru", label: "Русский", code: "RU" },
@@ -81,7 +91,7 @@ const INITIAL_CARS: MockCar[] = [
 
 function SectionCard({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="theme-block overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
       {children}
     </div>
   );
@@ -89,7 +99,7 @@ function SectionCard({ children }: { children: ReactNode }) {
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <p className="mb-1.5 px-0.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+    <p className="theme-description mb-1.5 px-0.5 text-[11px] font-medium uppercase tracking-wider">
       {children}
     </p>
   );
@@ -126,6 +136,63 @@ function BackBar({ title, onBack }: { title: string; onBack: () => void }) {
   );
 }
 
+function PaletteColorRow({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (hex: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  return (
+    <div className="theme-hover flex items-center gap-3 px-3 py-2.5">
+      <label className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-700">
+        <span
+          className="absolute inset-0"
+          style={{ backgroundColor: value }}
+          aria-hidden
+        />
+        <input
+          type="color"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="absolute inset-0 cursor-pointer opacity-0"
+          aria-label={label}
+        />
+      </label>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium" style={{ color: "var(--app-text)" }}>
+          {label}
+        </p>
+        <p className="theme-description text-[11px]">{hint}</p>
+      </div>
+      <input
+        type="text"
+        value={draft}
+        onChange={(event) => {
+          const next = event.target.value.trim();
+          setDraft(next);
+          if (isHexColor(next)) onChange(next.toLowerCase());
+          else if (isHexColor(`#${next}`)) onChange(`#${next}`.toLowerCase());
+        }}
+        onBlur={() => setDraft(value)}
+        spellCheck={false}
+        className="w-[7.25rem] rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-xs uppercase text-zinc-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+        aria-label={`${label} hex`}
+      />
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { name, photoUrl, mounted } = useAuthUser();
   const dispatch = useAppDispatch();
@@ -145,7 +212,9 @@ export default function ProfilePage() {
     loading: balanceLoading,
     refresh: refreshBalance,
   } = useUserBalance();
-  const { isDark, toggleTheme } = useTheme();
+  const { theme, isDark, setTheme, mounted: themeMounted } = useTheme();
+  const { palettes, setField, reset: resetPalette } = useThemePalette();
+  const [editPaletteMode, setEditPaletteMode] = useState<ThemeMode>("light");
   const { message: toastMessage, showToast } = useToast();
   const {
     geoId,
@@ -331,33 +400,18 @@ export default function ProfilePage() {
                     onClick={() => setView("language")}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <button
-                    type="button"
-                    onClick={() => toggleTheme()}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                        Тёмный режим
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-zinc-400">
-                        {isDark ? "Включён" : "Выключен · светлая тема"}
-                      </span>
-                    </span>
-                    <span
-                      className={[
-                        "relative h-5 w-9 shrink-0 rounded-full transition",
-                        isDark ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-700",
-                      ].join(" ")}
-                    >
-                      <span
-                        className={[
-                          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition",
-                          isDark ? "left-4" : "left-0.5",
-                        ].join(" ")}
-                      />
-                    </span>
-                  </button>
+                  <ProfileNavRow
+                    label="Оформление"
+                    hint={
+                      themeMounted
+                        ? `${isDark ? "Тёмная" : "Светлая"} · фон / кнопки / текст`
+                        : "Тема и цвета"
+                    }
+                    onClick={() => {
+                      setEditPaletteMode(theme);
+                      setView("appearance");
+                    }}
+                  />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <button
                     type="button"
@@ -683,6 +737,171 @@ export default function ProfilePage() {
                 </div>
               ))}
             </SectionCard>
+          </>
+        ) : null}
+
+        {view === "appearance" ? (
+          <>
+            <BackBar title="Оформление" onBack={() => setView("home")} />
+
+            <section className="mb-5">
+              <SectionTitle>Тема</SectionTitle>
+              <SectionCard>
+                {THEME_OPTIONS.map((option, index) => (
+                  <div key={option.id}>
+                    {index > 0 ? (
+                      <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                    ) : null}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={theme === option.id}
+                      onClick={() => {
+                        setTheme(option.id);
+                        setEditPaletteMode(option.id);
+                      }}
+                      className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                    >
+                      <RadioMark checked={theme === option.id} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                          {option.label}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-zinc-400">
+                          {option.hint}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </SectionCard>
+            </section>
+
+            <section className="mb-5">
+              <SectionTitle>Цвета</SectionTitle>
+              <div
+                className="mb-2 flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-800 dark:bg-zinc-900/60"
+                role="tablist"
+                aria-label="Палитра темы"
+              >
+                {(
+                  [
+                    { id: "light" as const, label: "Светлая" },
+                    { id: "dark" as const, label: "Тёмная" },
+                  ] as const
+                ).map((tab) => {
+                  const active = editPaletteMode === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setEditPaletteMode(tab.id)}
+                      className={[
+                        "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition",
+                        active
+                          ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
+                          : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
+                      ].join(" ")}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <SectionCard>
+                {(() => {
+                  const palette = palettes[editPaletteMode];
+                  return (
+                    <>
+                      <div
+                        className="m-3 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800"
+                        style={{ backgroundColor: palette.background }}
+                      >
+                        <div
+                          className="m-2 space-y-2 rounded-lg border border-black/5 p-3 transition"
+                          style={{ backgroundColor: palette.block }}
+                        >
+                          <p
+                            className="text-sm font-semibold"
+                            style={{ color: palette.text }}
+                          >
+                            Превью блока
+                          </p>
+                          <p
+                            className="text-xs"
+                            style={{ color: palette.description }}
+                          >
+                            Description · подпись вторичного текста
+                          </p>
+                          <div
+                            className="rounded-lg px-2.5 py-2 text-xs font-medium transition"
+                            style={{
+                              backgroundColor: palette.hover,
+                              color: palette.text,
+                            }}
+                          >
+                            Hover состояние строки
+                          </div>
+                          <button
+                            type="button"
+                            className="rounded-lg px-3 py-2 text-xs font-semibold text-white"
+                            style={{ backgroundColor: palette.button }}
+                          >
+                            Button
+                          </button>
+                        </div>
+                      </div>
+
+                      {PALETTE_FIELD_META.map((field, index) => (
+                        <div key={field.key}>
+                          {index > 0 ? (
+                            <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                          ) : null}
+                          <PaletteColorRow
+                            label={field.label}
+                            hint={field.hint}
+                            value={palette[field.key]}
+                            onChange={(hex) =>
+                              setField(editPaletteMode, field.key, hex)
+                            }
+                          />
+                        </div>
+                      ))}
+
+                      <div className="space-y-2 border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
+                        <p className="theme-description text-[11px]">
+                          Сохраняется в localStorage
+                        </p>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() => resetPalette(editPaletteMode)}
+                            className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                          >
+                            Сбросить эту тему
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              resetPalette();
+                              setTheme("light");
+                              setEditPaletteMode("light");
+                              showToast("Цвета возвращены к значениям по умолчанию");
+                            }}
+                            className="theme-button flex-1 rounded-lg px-3 py-2 text-xs font-semibold"
+                          >
+                            Всё по умолчанию
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </SectionCard>
+            </section>
           </>
         ) : null}
 

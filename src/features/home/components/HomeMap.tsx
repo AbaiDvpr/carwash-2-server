@@ -11,13 +11,11 @@ import { useUserCity } from "@/hooks/useUserCity";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import {
   findNearestCity,
-  formatCityName,
   getCityMapCenter,
   type MapCenter,
 } from "@/lib/api/geos";
 import { getCachedUserLocation, getUserLocation, subscribeUserLocation } from "@/lib/locationController";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
-import HomeTabShell from "./HomeTabShell";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./map.css";
 
@@ -430,9 +428,6 @@ export default function HomeMap({
   }, [userLocation, cities]);
 
   const mapGeoId = locationCity?.id ?? geoId;
-  const mapCityLabel = locationCity
-    ? formatCityName(locationCity.city)
-    : null;
 
   const cityCenter = useMemo(
     () => getCityMapCenter(mapGeoId, cities),
@@ -446,58 +441,48 @@ export default function HomeMap({
 
   return (
     <>
-      <HomeTabShell
-        fill
-        eyebrow="Карта"
-        title="Точки рядом"
-        subtitle={
-          loading || locationLoading
-            ? locationLoading
-              ? "Определяем геолокацию…"
-              : "Загрузка…"
-            : `${stations.length} точек · все города${mapCityLabel ? ` · центр: ${mapCityLabel}` : ""} · синие — мойки, зелёные — ЭЗС`
-        }
-        action={
-          <button
-            type="button"
-            onClick={onBackToList}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-            </svg>
-            Список
-          </button>
-        }
-      >
-        <div className="map-page__frame">
-          {loading || locationLoading ? (
-            <div className="map-loading">
-              <div className="map-loading__spinner" aria-hidden />
-              <p className="map-loading__text">
-                {locationLoading ? "Определяем геолокацию…" : "Загрузка карты…"}
-              </p>
-            </div>
-          ) : error ? (
-            <div className="map-error">
-              <p className="map-error__title">Не удалось загрузить точки</p>
-              <p className="map-error__text">{error}</p>
-            </div>
-          ) : (
-            <MapView
-              key={mapGeoId ?? "all"}
-              clusters={clusters}
-              cityCenter={cityCenter}
-              focusStation={focusStation}
-              selectedStation={selectedStation}
-              onSelectStation={(station) => {
-                setSelectedStation(station);
-                if (!station) onFocusConsumed?.();
-              }}
-            />
-          )}
+      <div className="map-page">
+        <div className="map-page__body">
+          <div className="map-page__frame">
+            <button
+              type="button"
+              onClick={onBackToList}
+              className="map-list-btn"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+              </svg>
+              Список
+            </button>
+
+            {loading || locationLoading ? (
+              <div className="map-loading">
+                <div className="map-loading__spinner" aria-hidden />
+                <p className="map-loading__text">
+                  {locationLoading ? "Определяем геолокацию…" : "Загрузка карты…"}
+                </p>
+              </div>
+            ) : error ? (
+              <div className="map-error">
+                <p className="map-error__title">Не удалось загрузить точки</p>
+                <p className="map-error__text">{error}</p>
+              </div>
+            ) : (
+              <MapView
+                key={mapGeoId ?? "all"}
+                clusters={clusters}
+                cityCenter={cityCenter}
+                focusStation={focusStation}
+                selectedStation={selectedStation}
+                onSelectStation={(station) => {
+                  setSelectedStation(station);
+                  if (!station) onFocusConsumed?.();
+                }}
+              />
+            )}
+          </div>
         </div>
-      </HomeTabShell>
+      </div>
 
       {selectedStation && (
         <>

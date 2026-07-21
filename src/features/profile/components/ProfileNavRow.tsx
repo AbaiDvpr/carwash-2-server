@@ -18,20 +18,27 @@ export default function ProfileNavRow({
   danger,
 }: ProfileNavRowProps) {
   const className = [
-    "flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition",
-    "hover:bg-zinc-50 active:bg-zinc-100 dark:hover:bg-zinc-900/60 dark:active:bg-zinc-900",
-    danger ? "text-red-600 dark:text-red-400" : "text-zinc-800 dark:text-zinc-100",
+    "theme-hover flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition",
+    danger ? "text-red-600 dark:text-red-400" : "",
   ].join(" ");
 
   const content = (
     <>
       <span className="min-w-0">
-        <span className="block text-sm font-medium">{label}</span>
-        {hint ? <span className="mt-0.5 block text-[11px] text-zinc-400">{hint}</span> : null}
+        <span
+          className="block text-sm font-medium"
+          style={danger ? undefined : { color: "var(--app-text)" }}
+        >
+          {label}
+        </span>
+        {hint ? (
+          <span className="theme-description mt-0.5 block text-[11px]">{hint}</span>
+        ) : null}
       </span>
       {!danger ? (
         <svg
-          className="h-3.5 w-3.5 shrink-0 text-zinc-300"
+          className="h-3.5 w-3.5 shrink-0"
+          style={{ color: "var(--app-description)" }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

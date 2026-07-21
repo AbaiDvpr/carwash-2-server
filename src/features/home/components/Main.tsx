@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Station, StationKind } from "@/data/stations";
 import { useUserCity } from "@/hooks/useUserCity";
 import { useUserLocation } from "@/hooks/useUserLocation";
-import { formatCityName, findNearestCity } from "@/lib/api/geos";
+import { distanceKm, formatCityName, findNearestCity } from "@/lib/api/geos";
 import {
   readListCityFilter,
   resolveListCityFilter,
@@ -90,17 +90,25 @@ function StationPhoto({ station }: { station: Station }) {
   );
 }
 
+function formatDistanceLabel(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} м`;
+  if (km < 10) return `${km.toFixed(1)} км`;
+  return `${Math.round(km)} км`;
+}
+
 function StationCard({
   station,
+  distanceKmValue,
   onShowOnMap,
 }: {
   station: Station;
+  distanceKmValue?: number | null;
   onShowOnMap: (stationId: string) => void;
 }) {
   const isOpen = station.status === "Открыто";
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <article className="theme-block flex flex-col overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
       <StationPhoto station={station} />
 
       <div className="flex flex-1 flex-col p-3">
@@ -114,7 +122,11 @@ function StationCard({
           >
             {station.status}
           </span>
-          <span className="text-[10px] text-zinc-400">{station.hoursLabel}</span>
+          <span className="text-[10px] text-zinc-400">
+            {distanceKmValue != null
+              ? `${formatDistanceLabel(distanceKmValue)} · ${station.hoursLabel}`
+              : station.hoursLabel}
+          </span>
         </div>
 
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{station.name}</h2>
@@ -236,9 +248,30 @@ export default function Main({
   }, [cityFilter, stations]);
 
   const filtered = useMemo(() => {
-    if (kindFilter === "all") return cityFiltered;
-    return cityFiltered.filter((station) => station.kind === kindFilter);
-  }, [kindFilter, cityFiltered]);
+    const byKind =
+      kindFilter === "all"
+        ? cityFiltered
+        : cityFiltered.filter((station) => station.kind === kindFilter);
+
+    // Ближайшие первыми (ASC по радиусу от геолокации)
+    if (!userLocation) return byKind;
+
+    return [...byKind].sort((a, b) => {
+      const da = distanceKm(
+        userLocation.latitude,
+        userLocation.longitude,
+        a.latitude,
+        a.longitude,
+      );
+      const db = distanceKm(
+        userLocation.latitude,
+        userLocation.longitude,
+        b.latitude,
+        b.longitude,
+      );
+      return da - db;
+    });
+  }, [kindFilter, cityFiltered, userLocation]);
 
   const washCount = cityFiltered.filter((s) => s.kind === "wash").length;
   const chargingCount = cityFiltered.filter((s) => s.kind === "charging").length;
@@ -404,13 +437,25 @@ export default function Main({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((station) => (
-                <StationCard
-                  key={station.id}
-                  station={station}
-                  onShowOnMap={onShowOnMap}
-                />
-              ))}
+              {filtered.map((station) => {
+                const km = userLocation
+                  ? distanceKm(
+                      userLocation.latitude,
+                      userLocation.longitude,
+                      station.latitude,
+                      station.longitude,
+                    )
+                  : null;
+
+                return (
+                  <StationCard
+                    key={station.id}
+                    station={station}
+                    distanceKmValue={km}
+                    onShowOnMap={onShowOnMap}
+                  />
+                );
+              })}
             </div>
           )}
         </>

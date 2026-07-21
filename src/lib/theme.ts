@@ -1,3 +1,5 @@
+import { applyThemePalette } from "@/lib/themeColors";
+
 export type AppTheme = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "theme";
@@ -29,6 +31,7 @@ export function applyTheme(theme: AppTheme): void {
   root.classList.add("theme-switching");
   root.setAttribute("data-theme", theme);
   root.style.colorScheme = theme;
+  applyThemePalette(theme);
 
   if (themeSwitchTimer != null) {
     window.clearTimeout(themeSwitchTimer);

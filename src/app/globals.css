@@ -4,6 +4,12 @@
 :root {
   --background: #ffffff;
   --foreground: #18181b;
+  --app-block: #ffffff;
+  --app-hover: #f4f4f5;
+  --app-button: #2563eb;
+  --app-button-hover: #1d4ed8;
+  --app-text: #18181b;
+  --app-description: #a1a1aa;
   --app-height: 100dvh;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   color-scheme: light;
@@ -13,12 +19,24 @@
 html[data-theme="dark"] {
   --background: #09090b;
   --foreground: #f4f4f5;
+  --app-block: #09090b;
+  --app-hover: #18181b;
+  --app-button: #3b82f6;
+  --app-button-hover: #2563eb;
+  --app-text: #f4f4f5;
+  --app-description: #a1a1aa;
   color-scheme: dark;
 }
 
 html[data-theme="light"] {
   --background: #ffffff;
   --foreground: #18181b;
+  --app-block: #ffffff;
+  --app-hover: #f4f4f5;
+  --app-button: #2563eb;
+  --app-button-hover: #1d4ed8;
+  --app-text: #18181b;
+  --app-description: #a1a1aa;
   color-scheme: light;
 }
 
@@ -105,8 +123,33 @@ body {
 }
 
 .page__description {
-  color: #71717a;
+  color: var(--app-description);
   font-size: 0.8125rem;
+}
+
+/* Блоки / строки, завязанные на палитру оформления */
+.theme-block {
+  background-color: var(--app-block);
+  color: var(--app-text);
+}
+
+.theme-hover:hover,
+.theme-hover:active {
+  background-color: var(--app-hover);
+}
+
+.theme-description {
+  color: var(--app-description);
+}
+
+.theme-button {
+  background-color: var(--app-button);
+  color: #ffffff;
+}
+
+.theme-button:hover,
+.theme-button:active {
+  background-color: var(--app-button-hover);
 }
 
 /* Чат: скролл только в ленте сообщений */
