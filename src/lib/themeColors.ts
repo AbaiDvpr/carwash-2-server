@@ -49,13 +49,53 @@ export const PALETTE_FIELD_META: {
   key: keyof ThemePalette;
   label: string;
   hint: string;
+  /** CSS-переменные, которые пишутся из этого цвета */
+  cssVars: string[];
+  /** Где используется в UI */
+  uses: string;
 }[] = [
-  { key: "background", label: "Background", hint: "Фон страницы" },
-  { key: "block", label: "Block", hint: "Фон карточек и блоков" },
-  { key: "hover", label: "Hover", hint: "Подсветка при наведении" },
-  { key: "button", label: "Button", hint: "Кнопки и акценты" },
-  { key: "text", label: "Text", hint: "Основной текст" },
-  { key: "description", label: "Description", hint: "Подписи и вторичный текст" },
+  {
+    key: "background",
+    label: "Background",
+    hint: "Фон страницы / приложения",
+    cssVars: ["--background"],
+    uses: "body, .app-layout, .app-shell",
+  },
+  {
+    key: "block",
+    label: "Block",
+    hint: "Фон карточек, секций, drawer",
+    cssVars: ["--app-block", "--color-white"],
+    uses: ".theme-block, .map-drawer, .map-list-sheet, карточки",
+  },
+  {
+    key: "hover",
+    label: "Hover",
+    hint: "Подсветка строк и кнопок",
+    cssVars: ["--app-hover"],
+    uses: ".theme-hover, закрытие drawer, zoom :active",
+  },
+  {
+    key: "button",
+    label: "Button",
+    hint: "Кнопки, акценты, ссылки CTA",
+    cssVars: ["--app-button", "--app-button-hover", "--color-blue-500/600/700"],
+    uses: ".theme-button, drawer label/2ГИС, иконки категорий",
+  },
+  {
+    key: "text",
+    label: "Text",
+    hint: "Основной текст",
+    cssVars: ["--app-text", "--foreground"],
+    uses: "заголовки, телефон, баланс, drawer title",
+  },
+  {
+    key: "description",
+    label: "Description",
+    hint: "Подписи и вторичный текст",
+    cssVars: ["--app-description"],
+    uses: ".theme-description, drawer coords / route-label",
+  },
 ];
 
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;

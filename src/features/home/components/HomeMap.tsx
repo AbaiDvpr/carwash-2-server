@@ -32,7 +32,10 @@ type HomeMapProps = {
   error: string | null;
   focusStationId?: string | null;
   onFocusConsumed?: () => void;
-  onBackToList: () => void;
+  /** Закрыть карту (кнопка X) */
+  onClose: () => void;
+  /** Открыть список точек снизу */
+  onOpenList: () => void;
 };
 
 type MarkerCluster = {
@@ -405,7 +408,8 @@ export default function HomeMap({
   error,
   focusStationId = null,
   onFocusConsumed,
-  onBackToList,
+  onClose,
+  onOpenList,
 }: HomeMapProps) {
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const clusters = useMemo(() => buildClusters(stations), [stations]);
@@ -446,13 +450,24 @@ export default function HomeMap({
           <div className="map-page__frame">
             <button
               type="button"
-              onClick={onBackToList}
+              onClick={onOpenList}
               className="map-list-btn"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
               </svg>
               Список
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="map-close-btn"
+              aria-label="Закрыть карту"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+              </svg>
             </button>
 
             {loading || locationLoading ? (
@@ -502,7 +517,7 @@ export default function HomeMap({
                 <h2 id="map-drawer-title" className="map-drawer__title">
                   {selectedStation.name}
                 </h2>
-                <p className="mt-1 text-xs text-zinc-500">
+                <p className="theme-description mt-1 text-xs">
                   {selectedStation.freeSlots}/{selectedStation.washersTotal} свободно
                 </p>
               </div>
@@ -551,7 +566,7 @@ export default function HomeMap({
             </div>
             <Link
               href={`/station/${selectedStation.id}`}
-              className="mt-3 flex w-full items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+              className="theme-button mt-3 flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition"
             >
               Подробнее
             </Link>

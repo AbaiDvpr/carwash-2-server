@@ -139,11 +139,15 @@ function BackBar({ title, onBack }: { title: string; onBack: () => void }) {
 function PaletteColorRow({
   label,
   hint,
+  cssVars,
+  uses,
   value,
   onChange,
 }: {
   label: string;
   hint: string;
+  cssVars: string[];
+  uses: string;
   value: string;
   onChange: (hex: string) => void;
 }) {
@@ -154,41 +158,60 @@ function PaletteColorRow({
   }, [value]);
 
   return (
-    <div className="theme-hover flex items-center gap-3 px-3 py-2.5">
-      <label className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-700">
-        <span
-          className="absolute inset-0"
-          style={{ backgroundColor: value }}
-          aria-hidden
-        />
+    <div className="theme-hover px-3 py-3">
+      <div className="flex items-start gap-3">
+        <label className="relative mt-0.5 h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-700">
+          <span
+            className="absolute inset-0"
+            style={{ backgroundColor: value }}
+            aria-hidden
+          />
+          <input
+            type="color"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="absolute inset-0 cursor-pointer opacity-0"
+            aria-label={label}
+          />
+        </label>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium" style={{ color: "var(--app-text)" }}>
+            {label}
+          </p>
+          <p className="theme-description mt-0.5 text-[11px]">{hint}</p>
+          <p className="theme-description mt-1 text-[10px] leading-relaxed">
+            Где: {uses}
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {cssVars.map((cssVar) => (
+              <code
+                key={cssVar}
+                className="rounded-md px-1.5 py-0.5 font-mono text-[10px]"
+                style={{
+                  backgroundColor: "var(--app-hover)",
+                  color: "var(--app-button)",
+                }}
+              >
+                {cssVar}
+              </code>
+            ))}
+          </div>
+        </div>
         <input
-          type="color"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="absolute inset-0 cursor-pointer opacity-0"
-          aria-label={label}
+          type="text"
+          value={draft}
+          onChange={(event) => {
+            const next = event.target.value.trim();
+            setDraft(next);
+            if (isHexColor(next)) onChange(next.toLowerCase());
+            else if (isHexColor(`#${next}`)) onChange(`#${next}`.toLowerCase());
+          }}
+          onBlur={() => setDraft(value)}
+          spellCheck={false}
+          className="w-[7.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-xs uppercase text-zinc-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          aria-label={`${label} hex`}
         />
-      </label>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium" style={{ color: "var(--app-text)" }}>
-          {label}
-        </p>
-        <p className="theme-description text-[11px]">{hint}</p>
       </div>
-      <input
-        type="text"
-        value={draft}
-        onChange={(event) => {
-          const next = event.target.value.trim();
-          setDraft(next);
-          if (isHexColor(next)) onChange(next.toLowerCase());
-          else if (isHexColor(`#${next}`)) onChange(`#${next}`.toLowerCase());
-        }}
-        onBlur={() => setDraft(value)}
-        spellCheck={false}
-        className="w-[7.25rem] rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-xs uppercase text-zinc-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-        aria-label={`${label} hex`}
-      />
     </div>
   );
 }
@@ -863,6 +886,8 @@ export default function ProfilePage() {
                           <PaletteColorRow
                             label={field.label}
                             hint={field.hint}
+                            cssVars={field.cssVars}
+                            uses={field.uses}
                             value={palette[field.key]}
                             onChange={(hex) =>
                               setField(editPaletteMode, field.key, hex)

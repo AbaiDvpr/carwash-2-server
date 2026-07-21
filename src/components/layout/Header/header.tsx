@@ -26,7 +26,7 @@ export default function Header() {
 
   const showNav = showHeaderNavFromStore || showNavFromStorage;
 
-  if (pathname.startsWith("/payment")) {
+  if (pathname.startsWith("/payment") || pathname.startsWith("/map")) {
     return null;
   }
 
