@@ -7,6 +7,9 @@ import { forceLogout } from "@/lib/forceLogout";
 import { openTelegram, openWhatsApp } from "@/lib/messengerController";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleHeaderNav } from "@/store/slices/appSlice";
+import { setLocale } from "@/store/slices/i18nSlice";
+import { useLocale, useT } from "@/hooks/useT";
+import { notifyLocaleChanged } from "@/lib/localeController";
 import HistoryList from "@/features/history/components/HistoryList";
 import BackButton from "@/components/ui/BackButton";
 import Toast from "@/components/ui/Toast";
@@ -237,6 +240,10 @@ export default function ProfilePage() {
   } = useUserBalance();
   const { theme, isDark, setTheme, mounted: themeMounted } = useTheme();
   const { palettes, setField, reset: resetPalette } = useThemePalette();
+  const locale = useLocale();
+  const t = useT();
+  const languageHint =
+    LANGUAGE_OPTIONS.find((lang) => lang.id === locale)?.label ?? "Русский";
   const [editPaletteMode, setEditPaletteMode] = useState<ThemeMode>("light");
   const { message: toastMessage, showToast } = useToast();
   const {
@@ -366,13 +373,13 @@ export default function ProfilePage() {
                 <AvatarBubble />
                 <span className="min-w-0 flex-1">
                   <span className="block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-                    Профиль
+                    {t("profile.title", "Профиль")}
                   </span>
                   <span className="mt-0.5 block truncate text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
                     {displayName}
                   </span>
                   <span className="mt-0.5 block text-[11px] text-blue-600 dark:text-blue-400">
-                    Изменить профиль
+                    {t("profile.edit", "Изменить профиль")}
                   </span>
                 </span>
                 <svg
@@ -397,10 +404,10 @@ export default function ProfilePage() {
               />
 
               <section>
-                <SectionTitle>Настройки</SectionTitle>
+                <SectionTitle>{t("profile.settings", "Настройки")}</SectionTitle>
                 <SectionCard>
                   <ProfileNavRow
-                    label="Имя и фамилия"
+                    label={t("profile.full_name", "Имя и фамилия")}
                     hint={displayName}
                     onClick={() => setView("edit")}
                   />
@@ -412,19 +419,19 @@ export default function ProfilePage() {
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <ProfileNavRow
-                    label="Ваш город"
-                    hint={cityName ?? "Не выбран"}
+                    label={t("profile.city", "Ваш город")}
+                    hint={cityName ?? t("profile.not_selected", "Не выбран")}
                     onClick={() => setView("city")}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <ProfileNavRow
-                    label="Язык"
-                    hint="Русский"
+                    label={t("profile.language", "Язык")}
+                    hint={languageHint}
                     onClick={() => setView("language")}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <ProfileNavRow
-                    label="Оформление"
+                    label={t("profile.appearance", "Оформление")}
                     hint={
                       themeMounted
                         ? `${isDark ? "Тёмная" : "Светлая"} · фон / кнопки / текст`
@@ -444,7 +451,7 @@ export default function ProfilePage() {
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                        Уведомления
+                        {t("profile.notifications", "Уведомления")}
                       </span>
                       <span className="mt-0.5 block text-[11px] text-zinc-400">
                         {pushHint}
@@ -500,40 +507,44 @@ export default function ProfilePage() {
               </section>
 
               <section>
-                <SectionTitle>Разделы</SectionTitle>
+                <SectionTitle>{t("profile.sections", "Разделы")}</SectionTitle>
                 <SectionCard>
                   <ProfileNavRow
-                    label="Гараж"
+                    label={t("profile.garage", "Гараж")}
                     hint={`${cars.length} авто`}
                     onClick={() => setView("garage")}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <ProfileNavRow
-                    label="Промокод"
+                    label={t("profile.promo", "Промокод")}
                     hint="Применить скидку"
                     onClick={() => setView("promo")}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <ProfileNavRow
-                    label="Рефералка"
+                    label={t("profile.referral", "Рефералка")}
                     hint={REFERRAL_CODE}
                     onClick={() => setView("referral")}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   <ProfileNavRow
-                    label="Поддержка"
+                    label={t("profile.support", "Поддержка")}
                     hint="Telegram · WhatsApp"
                     onClick={() => setView("support")}
                   />
                   <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow label="FAQ" hint="Частые вопросы" onClick={() => setView("faq")} />
+                  <ProfileNavRow
+                    label={t("profile.faq", "FAQ")}
+                    hint={t("profile.faq", "Частые вопросы")}
+                    onClick={() => setView("faq")}
+                  />
                 </SectionCard>
               </section>
 
               <section>
                 <SectionCard>
                   <ProfileNavRow
-                    label="Выйти"
+                    label={t("profile.logout", "Выйти")}
                     danger
                     onClick={() => setLogoutConfirmOpen(true)}
                   />
@@ -547,7 +558,7 @@ export default function ProfilePage() {
 
         {view === "balance" ? (
           <>
-            <BackBar title="Пополнить" onBack={() => setView("home")} />
+            <BackBar title={t("profile.top_up", "Пополнить")} onBack={() => setView("home")} />
             <BalanceTopUp
               balance={balance}
               loading={balanceLoading}
@@ -558,14 +569,14 @@ export default function ProfilePage() {
 
         {view === "history" ? (
           <>
-            <BackBar title="История" onBack={() => setView("home")} />
+            <BackBar title={t("common.nav_history", "История")} onBack={() => setView("home")} />
             <HistoryList />
           </>
         ) : null}
 
         {view === "edit" ? (
           <>
-            <BackBar title="Профиль" onBack={() => setView("home")} />
+            <BackBar title={t("profile.title", "Профиль")} onBack={() => setView("home")} />
             <div className="space-y-4">
               <SectionCard>
                 <div className="flex flex-col items-center gap-3 px-3 py-4">
@@ -653,7 +664,9 @@ export default function ProfilePage() {
                 }}
                 className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
               >
-                {profileEdit.saving ? "Сохранение…" : "Сохранить"}
+                {profileEdit.saving
+                  ? t("common.saving", "Сохранение…")
+                  : t("common.save", "Сохранить")}
               </button>
 
               {profileEdit.message ? (
@@ -672,7 +685,7 @@ export default function ProfilePage() {
 
         {view === "city" ? (
           <>
-            <BackBar title="Ваш город" onBack={() => setView("home")} />
+            <BackBar title={t("profile.city", "Ваш город")} onBack={() => setView("home")} />
             <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
               Мойки и ЭЗС показываются только в выбранном городе.
             </p>
@@ -731,7 +744,7 @@ export default function ProfilePage() {
 
         {view === "language" ? (
           <>
-            <BackBar title="Язык" onBack={() => setView("home")} />
+            <BackBar title={t("profile.language", "Язык")} onBack={() => setView("home")} />
             <SectionCard>
               {LANGUAGE_OPTIONS.map((lang, index) => (
                 <div key={lang.id}>
@@ -741,13 +754,15 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     role="radio"
-                    aria-checked={lang.id === "ru"}
-                    onClick={() =>
-                      showToast("Пока переключение языков отсутствует")
-                    }
+                    aria-checked={lang.id === locale}
+                    onClick={() => {
+                      dispatch(setLocale(lang.id));
+                      notifyLocaleChanged(lang.id);
+                      showToast(lang.label);
+                    }}
                     className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
                   >
-                    <RadioMark checked={lang.id === "ru"} />
+                    <RadioMark checked={lang.id === locale} />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
                         {lang.label}
@@ -765,7 +780,7 @@ export default function ProfilePage() {
 
         {view === "appearance" ? (
           <>
-            <BackBar title="Оформление" onBack={() => setView("home")} />
+            <BackBar title={t("profile.appearance", "Оформление")} onBack={() => setView("home")} />
 
             <section className="mb-5">
               <SectionTitle>Тема</SectionTitle>
@@ -932,14 +947,14 @@ export default function ProfilePage() {
 
         {view === "garage" ? (
           <>
-            <BackBar title="Гараж" onBack={() => setView("home")} />
+            <BackBar title={t("profile.garage", "Гараж")} onBack={() => setView("home")} />
             <GaragePanel cars={cars} onChange={setCars} />
           </>
         ) : null}
 
         {view === "promo" ? (
           <>
-            <BackBar title="Промокод" onBack={() => setView("home")} />
+            <BackBar title={t("profile.promo", "Промокод")} onBack={() => setView("home")} />
             <div className="flex gap-2">
               <input
                 type="text"
@@ -966,7 +981,7 @@ export default function ProfilePage() {
 
         {view === "referral" ? (
           <>
-            <BackBar title="Рефералка" onBack={() => setView("home")} />
+            <BackBar title={t("profile.referral", "Рефералка")} onBack={() => setView("home")} />
             <SectionCard>
               <div className="px-3 py-3">
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -989,7 +1004,7 @@ export default function ProfilePage() {
 
         {view === "support" ? (
           <>
-            <BackBar title="Поддержка" onBack={() => setView("home")} />
+            <BackBar title={t("profile.support", "Поддержка")} onBack={() => setView("home")} />
             <SectionCard>
               <ProfileNavRow
                 label="Telegram"
@@ -1008,7 +1023,7 @@ export default function ProfilePage() {
 
         {view === "faq" ? (
           <>
-            <BackBar title="FAQ" onBack={() => setView("home")} />
+            <BackBar title={t("profile.faq", "FAQ")} onBack={() => setView("home")} />
             <SectionCard>
               {FAQ_ITEMS.map((item, index) => {
                 const isOpen = openFaqId === item.id;
@@ -1082,10 +1097,10 @@ export default function ProfilePage() {
                   id="logout-modal-title"
                   className="text-center text-lg font-bold text-zinc-900 dark:text-zinc-50"
                 >
-                  Выйти из аккаунта?
+                  {t("profile.logout_title", "Выйти из аккаунта?")}
                 </p>
                 <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                  Вы уверены, что хотите выйти?
+                  {t("profile.logout_confirm", "Вы уверены, что хотите выйти?")}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 p-4">
@@ -1094,7 +1109,7 @@ export default function ProfilePage() {
                   onClick={() => setLogoutConfirmOpen(false)}
                   className="flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 >
-                  Отмена
+                  {t("common.cancel", "Отмена")}
                 </button>
                 <button
                   type="button"
@@ -1108,7 +1123,7 @@ export default function ProfilePage() {
                   }}
                   className="flex items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
                 >
-                  Да, выйти
+                  {t("profile.logout_yes", "Да, выйти")}
                 </button>
               </div>
             </div>

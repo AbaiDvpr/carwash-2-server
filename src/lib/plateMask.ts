@@ -74,8 +74,12 @@ function take(
 
 /**
  * Новый KZ: 000 AA(A) 00
- * — букв может быть 2 или 3;
- * — после 2 букв пробел (или сразу цифра) переводит на регион.
+ * — в начале 1–3 цифры (обычно 3);
+ * — букв 2 или 3;
+ * — после 2 букв пробел или цифра → регион (2 цифры).
+ *
+ * Важно: буква после цифр сразу открывает блок букв
+ * (иначе «11AA2» без пробелов схлопывалось в «112»).
  */
 export function applyKzNewMask(value: string): string {
   const cleaned = sanitizePlateWithSpaces(value);
@@ -96,9 +100,9 @@ export function applyKzNewMask(value: string): string {
       if (/\d/.test(ch) && digits.length < 3) {
         digits += ch;
         if (digits.length === 3) stage = 1;
-      } else if (/[A-Z]/.test(ch) && digits.length === 3) {
+      } else if (/[A-Z]/.test(ch) && digits.length >= 1) {
         stage = 1;
-        letters += ch;
+        if (letters.length < 3) letters += ch;
       }
       continue;
     }

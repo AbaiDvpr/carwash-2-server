@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useT } from "@/hooks/useT";
 
 const backClassName =
   "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-medium text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40";
@@ -35,20 +36,22 @@ export default function BackButton({
   href,
   disabled,
   className,
-  children = "Назад",
+  children,
 }: BackButtonProps) {
+  const t = useT();
+  const label = children ?? t("common.back", "Назад");
   const classes = [backClassName, className].filter(Boolean).join(" ");
 
   const content = (
     <>
       <BackIcon />
-      <span>{children}</span>
+      <span>{label}</span>
     </>
   );
 
   if (href) {
     return (
-      <Link href={href} className={classes} aria-label="Назад">
+      <Link href={href} className={classes} aria-label={String(label)}>
         {content}
       </Link>
     );
@@ -60,7 +63,7 @@ export default function BackButton({
       onClick={onClick}
       disabled={disabled}
       className={`${classes} disabled:cursor-not-allowed disabled:opacity-40`}
-      aria-label="Назад"
+      aria-label={String(label)}
     >
       {content}
     </button>

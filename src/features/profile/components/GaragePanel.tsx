@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchPlateTypes, type PlateType } from "@/lib/api/garage";
+import { useT } from "@/hooks/useT";
 import {
   applyPlateMask,
   formatPlateDisplay,
@@ -51,7 +52,7 @@ const FALLBACK_TYPES: PlateType[] = [
     country_code: "ru",
     code: "ru",
     name: "Россия",
-    mask: "A 000 AA 00",
+    mask: "A 000 AA 00(0)",
     example: "A 123 BC 77",
     flag: "🇷🇺",
     sort_order: 30,
@@ -140,6 +141,7 @@ const selectClassName =
   "rounded-lg border border-zinc-200 bg-white px-2 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
 
 export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
+  const t = useT();
   const [types, setTypes] = useState<PlateType[]>(FALLBACK_TYPES);
   const [country, setCountry] = useState<PlateCountryCode>("kz");
   const [typeCode, setTypeCode] = useState<string>("kz_new");
@@ -326,7 +328,7 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
       {countryTypes.length > 1 ? (
         <div className="space-y-1.5">
           <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-            Тип маски
+            {t("garage.mask_type", "Тип маски")}
           </p>
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900">
             {countryTypes.map((item) => {
@@ -344,9 +346,9 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
                   ].join(" ")}
                 >
                   {item.code === "kz_new"
-                    ? "Новый"
+                    ? t("garage.new", "Новый")
                     : item.code === "kz_old"
-                      ? "Старый"
+                      ? t("garage.old", "Старый")
                       : item.name}
                 </button>
               );
@@ -393,12 +395,14 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
           type="submit"
           className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
         >
-          Добавить
+          {t("common.add", "Добавить")}
         </button>
       </form>
 
       {cars.length === 0 ? (
-        <p className="py-6 text-center text-xs text-zinc-400">Пока нет авто</p>
+        <p className="py-6 text-center text-xs text-zinc-400">
+          {t("garage.empty", "Пока нет авто")}
+        </p>
       ) : (
         <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
           {cars.map((car) => {
@@ -432,8 +436,8 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
                         value={editPlate}
                         onChange={(e) => handlePlateChange(e.target.value, true)}
                         placeholder={
-                          types.find((t) => t.code === editTypeCode)?.example ??
-                          "Госномер"
+                          types.find((pt) => pt.code === editTypeCode)?.example ??
+                          t("garage.plate", "Госномер")
                         }
                         maxLength={plateMaxLength(editTypeCode)}
                         autoCapitalize="characters"
@@ -446,14 +450,14 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
                         onClick={() => handleSave(car.id)}
                         className="text-xs font-medium text-blue-600"
                       >
-                        Сохранить
+                        {t("common.save", "Сохранить")}
                       </button>
                       <button
                         type="button"
                         onClick={() => setEditingId(null)}
                         className="text-xs text-zinc-400"
                       >
-                        Отмена
+                        {t("common.cancel", "Отмена")}
                       </button>
                     </div>
                   </div>
@@ -488,14 +492,14 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
                         }}
                         className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                       >
-                        Изменить
+                        {t("common.edit", "Изменить")}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(car.id)}
                         className="text-xs text-red-500 hover:text-red-600"
                       >
-                        Удалить
+                        {t("common.delete", "Удалить")}
                       </button>
                     </div>
                   </div>

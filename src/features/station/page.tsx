@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useT } from "@/hooks/useT";
 import { useStation } from "@/hooks/useStation";
 import StationDetail from "./components/StationDetail";
 
@@ -9,6 +10,7 @@ type StationPageProps = {
 };
 
 export default function StationPage({ id }: StationPageProps) {
+  const t = useT();
   const { station, loading, error, notFound } = useStation(id);
 
   if (loading) {
@@ -24,7 +26,9 @@ export default function StationPage({ id }: StationPageProps) {
   if (notFound) {
     return (
       <div className="page-content text-center">
-        <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Точка не найдена</h1>
+        <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+          {t("station.not_found", "Точка не найдена")}
+        </h1>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Такой мойки или ЭЗС нет в списке.
         </p>
@@ -32,7 +36,7 @@ export default function StationPage({ id }: StationPageProps) {
           href="/"
           className="mt-4 inline-flex rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white"
         >
-          На главную
+          {t("common.nav_map", "Карта")}
         </Link>
       </div>
     );
@@ -41,7 +45,9 @@ export default function StationPage({ id }: StationPageProps) {
   if (error || !station) {
     return (
       <div className="page-content text-center">
-        <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Не удалось загрузить</h1>
+        <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+          {t("station.load_error", "Не удалось загрузить")}
+        </h1>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           {error || "Проверьте авторизацию и попробуйте снова."}
         </p>
@@ -49,7 +55,7 @@ export default function StationPage({ id }: StationPageProps) {
           href="/"
           className="mt-4 inline-flex rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white"
         >
-          На главную
+          {t("common.nav_map", "Карта")}
         </Link>
       </div>
     );

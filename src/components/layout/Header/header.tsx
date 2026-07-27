@@ -1,21 +1,25 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import UserSessionInfo from "@/components/session/UserSessionInfo";
-import { NAVBAR_ROUTES } from "@/lib/navbarController";
+import { useT } from "@/hooks/useT";
+import {
+  navigateNavbar,
+  type WebNavbarScreen,
+} from "@/lib/navbarController";
 import { getHeaderVisible } from "@/lib/userSession";
 import { useAppSelector } from "@/store/hooks";
 
-const NAV_LINKS = [
-  { href: NAVBAR_ROUTES.map, label: "Карта" },
-  { href: NAVBAR_ROUTES.history, label: "История" },
-  { href: NAVBAR_ROUTES.chatbot, label: "Чат" },
-  { href: NAVBAR_ROUTES.profile, label: "Профиль" },
+const NAV_LINKS: { screen: WebNavbarScreen; key: string; fallback: string }[] = [
+  { screen: "map", key: "common.nav_map", fallback: "Карта" },
+  { screen: "history", key: "common.nav_history", fallback: "История" },
+  { screen: "chatbot", key: "common.nav_chat", fallback: "Чат" },
+  { screen: "profile", key: "common.nav_profile", fallback: "Профиль" },
 ];
 
 export default function Header() {
+  const t = useT();
   const pathname = usePathname();
   const showHeaderNavFromStore = useAppSelector((state) => state.app.showHeaderNav);
   const [showNavFromStorage, setShowNavFromStorage] = useState(false);
@@ -40,19 +44,28 @@ export default function Header() {
       <div className="flex flex-row items-center gap-4 px-4 py-2.5">
         {showNav ? (
           <nav className="flex flex-row gap-3 text-xs">
-            {NAV_LINKS.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className={
-                  pathname === href
-                    ? "font-medium text-blue-600"
-                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-                }
-              >
-                {label}
-              </Link>
-            ))}
+            {NAV_LINKS.map(({ screen, key, fallback }) => {
+              const active =
+                (screen === "map" && (pathname === "/" || pathname.startsWith("/map"))) ||
+                (screen === "history" && pathname.startsWith("/history")) ||
+                (screen === "chatbot" && pathname.startsWith("/chatbot")) ||
+                (screen === "profile" && pathname.startsWith("/profile"));
+
+              return (
+                <button
+                  key={screen}
+                  type="button"
+                  onClick={() => navigateNavbar(screen)}
+                  className={
+                    active
+                      ? "font-medium text-blue-600"
+                      : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  }
+                >
+                  {t(key, fallback)}
+                </button>
+              );
+            })}
           </nav>
         ) : null}
 

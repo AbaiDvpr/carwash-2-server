@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 import type { Station } from "@/data/stations";
 import Toast from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
+import { useT } from "@/hooks/useT";
 import { useUserCity } from "@/hooks/useUserCity";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import {
@@ -86,19 +87,23 @@ function buildClusters(stations: Station[]): MarkerCluster[] {
 }
 
 function MapLoading() {
+  const t = useT();
   return (
     <div className="map-loading">
       <div className="map-loading__spinner" />
-      <p className="map-loading__text">Загрузка карты…</p>
+      <p className="map-loading__text">{t("map.loading", "Загрузка карты…")}</p>
     </div>
   );
 }
 
 function MapError() {
+  const t = useT();
   return (
     <div className="map-error">
-      <p className="map-error__title">Карта недоступна</p>
-      <p className="map-error__text">Проверьте интернет и обновите страницу</p>
+      <p className="map-error__title">{t("map.unavailable", "Карта недоступна")}</p>
+      <p className="map-error__text">
+        {t("map.check_internet", "Проверьте интернет и обновите страницу")}
+      </p>
     </div>
   );
 }
@@ -155,6 +160,7 @@ type ClusterMarkerProps = {
  * 2+ в одной координате — бандл: тап → выбор Мойка / ЭЗС (на телефоне так удобнее, чем целиться в нахлёст).
  */
 function ClusterMarker({ stations, onSelect }: ClusterMarkerProps) {
+  const t = useT();
   const [chooserOpen, setChooserOpen] = useState(false);
 
   if (stations.length === 1) {
@@ -166,7 +172,7 @@ function ClusterMarker({ stations, onSelect }: ClusterMarkerProps) {
       <div
         className="map-marker__chooser"
         role="listbox"
-        aria-label="Выберите точку"
+        aria-label={t("map.points", "Точки на карте")}
         onPointerDown={(event) => event.stopPropagation()}
       >
         {stations.map((station) => {
@@ -192,14 +198,14 @@ function ClusterMarker({ stations, onSelect }: ClusterMarkerProps) {
               ) : (
                 <WashIcon className="map-marker__chooser-icon" />
               )}
-              {isCharging ? "ЭЗС" : "Мойка"}
+              {isCharging ? t("common.charging", "ЭЗС") : t("common.wash", "Мойка")}
             </button>
           );
         })}
         <button
           type="button"
           className="map-marker__chooser-close"
-          aria-label="Закрыть"
+          aria-label={t("common.close", "Закрыть")}
           onClick={(event) => {
             event.stopPropagation();
             setChooserOpen(false);
@@ -267,6 +273,7 @@ async function createMapView() {
       longitude: number;
     } | null>(() => getCachedUserLocation());
     const { message: toastMessage, showToast } = useToast();
+    const t = useT();
     const focusedOnce = useRef<string | null>(null);
 
     const mapRef = useRef<MapRef>(null);
@@ -281,7 +288,7 @@ async function createMapView() {
           duration: 900,
         });
       } catch {
-        showToast("Пожалуйста, дайте доступ к геолокации");
+        showToast(t("map.geo_permission", "Пожалуйста, дайте доступ к геолокации"));
       }
     }
 
@@ -412,6 +419,7 @@ export default function HomeMap({
   onClose,
   onOpenList,
 }: HomeMapProps) {
+  const t = useT();
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [portalReady, setPortalReady] = useState(false);
   const clusters = useMemo(() => buildClusters(stations), [stations]);
@@ -462,14 +470,14 @@ export default function HomeMap({
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
               </svg>
-              Список
+              {t("map.list", "Список")}
             </button>
 
             <button
               type="button"
               onClick={onClose}
               className="map-close-btn"
-              aria-label="Закрыть карту"
+              aria-label={t("common.close", "Закрыть")}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
@@ -480,12 +488,16 @@ export default function HomeMap({
               <div className="map-loading">
                 <div className="map-loading__spinner" aria-hidden />
                 <p className="map-loading__text">
-                  {locationLoading ? "Определяем геолокацию…" : "Загрузка карты…"}
+                  {locationLoading
+                    ? t("map.locating", "Определяем геолокацию…")
+                    : t("map.loading", "Загрузка карты…")}
                 </p>
               </div>
             ) : error ? (
               <div className="map-error">
-                <p className="map-error__title">Не удалось загрузить точки</p>
+                <p className="map-error__title">
+                  {t("map.load_error", "Не удалось загрузить точки")}
+                </p>
                 <p className="map-error__text">{error}</p>
               </div>
             ) : (
@@ -513,27 +525,30 @@ export default function HomeMap({
               type="button"
               className="map-drawer__backdrop"
               onClick={() => setSelectedStation(null)}
-              aria-label="Закрыть"
+              aria-label={t("common.close", "Закрыть")}
             />
             <div className="map-drawer" role="dialog" aria-labelledby="map-drawer-title">
               <div className="map-drawer__handle" aria-hidden />
               <div className="map-drawer__header">
                 <div className="map-drawer__headline">
                   <span className="map-drawer__label">
-                    {selectedStation.kind === "charging" ? "ЭЗС" : "Автомойка"}
+                    {selectedStation.kind === "charging"
+                      ? t("common.charging", "ЭЗС")
+                      : t("map.car_wash", "Автомойка")}
                   </span>
                   <h2 id="map-drawer-title" className="map-drawer__title">
                     {selectedStation.name}
                   </h2>
                   <p className="theme-description mt-1 text-xs">
-                    {selectedStation.freeSlots}/{selectedStation.washersTotal} свободно
+                    {selectedStation.freeSlots}/{selectedStation.washersTotal}{" "}
+                    {t("map.free", "свободно")}
                   </p>
                 </div>
                 <button
                   type="button"
                   className="map-drawer__close"
                   onClick={() => setSelectedStation(null)}
-                  aria-label="Закрыть"
+                  aria-label={t("common.close", "Закрыть")}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
@@ -541,7 +556,7 @@ export default function HomeMap({
                 </button>
               </div>
 
-              <p className="map-drawer__route-label">Маршрут</p>
+              <p className="map-drawer__route-label">{t("map.route", "Маршрут")}</p>
               <div className="map-drawer__actions">
                 <a
                   href={selectedStation.map_yandex}
@@ -576,7 +591,7 @@ export default function HomeMap({
                 href={`/station/${selectedStation.id}`}
                 className="theme-button mt-3 flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition"
               >
-                Подробнее
+                {t("common.more", "Подробнее")}
               </Link>
             </div>
           </>,

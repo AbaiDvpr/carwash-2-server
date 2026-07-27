@@ -7,6 +7,7 @@ import type { Station } from "@/data/stations";
 import { ApiError } from "@/lib/api";
 import { parseEvStationId } from "@/lib/api/ev";
 import { payCarWash, payEv, payFromBalance } from "@/lib/api/payments";
+import { useT } from "@/hooks/useT";
 import { navigateNavbar } from "@/lib/navbarController";
 import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
 import type { ModalStep } from "../hooks/usePaymentModal";
@@ -51,6 +52,7 @@ function paymentErrorMessage(err: unknown): string {
 }
 
 export default function CarWashPayment({ station }: CarWashPaymentProps) {
+  const t = useT();
   const router = useRouter();
   const { balance, loading: balanceLoading, refresh: refreshBalance } = useUserBalance();
   const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(null);
@@ -168,7 +170,9 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
       >
         <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           <div className="border-b border-zinc-100 px-3 py-3 dark:border-zinc-800">
-            <p className="text-[11px] font-medium text-zinc-400">Оплата</p>
+            <p className="text-[11px] font-medium text-zinc-400">
+              {t("payment.title", "Оплата")}
+            </p>
             <h1 className="mt-0.5 text-base font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
               {station.paymentTitle}
             </h1>
@@ -179,28 +183,35 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-                  Баланс
+                  {t("home.balance", "Баланс")}
                 </p>
                 <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                   {balanceLoading && balance == null ? "…" : formatBalance(balanceValue)}
                 </p>
               </div>
-              <p className="text-[11px] text-zinc-400">Списание с баланса</p>
+              <p className="text-[11px] text-zinc-400">
+                {t("payment.from_balance", "Списание с баланса")}
+              </p>
             </div>
           </div>
 
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
             <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-              {station.kind === "charging" ? "Оплата зарядки" : "Оплата мойки"}
+              {station.kind === "charging"
+                ? t("payment.charge", "Оплата зарядки")
+                : t("payment.wash", "Оплата мойки")}
             </p>
             <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
-              Выберите тариф — сумма спишется с вашего баланса.
+              {t(
+                "payment.select_hint",
+                "Выберите тариф — сумма спишется с вашего баланса.",
+              )}
             </p>
           </div>
 
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
             <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-              Тарифы
+              {t("payment.tariffs", "Тарифы")}
             </p>
             <div className="space-y-1.5">
               {station.tariff.map((tariff) => {
@@ -260,14 +271,14 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                 </p>
                 {!canAfford && !balanceLoading ? (
                   <p className="text-red-600 dark:text-red-400">
-                    Недостаточно средств. Нужно {selected.price} ₸, на балансе{" "}
-                    {formatBalance(balanceValue)}
+                    {t("payment.insufficient", "Недостаточно средств")}. Нужно{" "}
+                    {selected.price} ₸, на балансе {formatBalance(balanceValue)}
                   </p>
                 ) : null}
               </div>
             ) : (
               <p className="mb-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
-                Выберите тариф для оплаты
+                {t("payment.select_tariff", "Выберите тариф для оплаты")}
               </p>
             )}
             <button
@@ -276,7 +287,9 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
               onClick={handlePayClick}
               className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {station.kind === "charging" ? "Оплатить зарядку" : "Оплатить мойку"}
+              {station.kind === "charging"
+                ? t("payment.pay_charge", "Оплатить зарядку")
+                : t("payment.pay_wash", "Оплатить мойку")}
             </button>
           </div>
         </article>
@@ -307,34 +320,42 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                     id="payment-modal-title"
                     className="text-center text-lg font-bold text-zinc-900 dark:text-zinc-50"
                   >
-                    Вы точно уверены?
+                    {t("payment.confirm_title", "Вы точно уверены?")}
                   </p>
                   <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    Сумма спишется с баланса
+                    {t("payment.confirm_hint", "Сумма спишется с баланса")}
                   </p>
                 </div>
 
                 <div className="space-y-3 px-5 py-4 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-zinc-500 dark:text-zinc-400">Мойка</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">
+                      {t("common.wash", "Мойка")}
+                    </span>
                     <span className="font-semibold text-zinc-900 dark:text-zinc-50">
                       {station.paymentTitle}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-zinc-500 dark:text-zinc-400">Тариф</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">
+                      {t("payment.tariffs", "Тарифы")}
+                    </span>
                     <span className="font-semibold text-zinc-900 dark:text-zinc-50">
                       {selected.title}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-zinc-500 dark:text-zinc-400">Баланс</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">
+                      {t("home.balance", "Баланс")}
+                    </span>
                     <span className="font-semibold text-zinc-900 dark:text-zinc-50">
                       {formatBalance(balanceValue)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
-                    <span className="text-zinc-500 dark:text-zinc-400">К оплате</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">
+                      {t("payment.to_pay", "К оплате")}
+                    </span>
                     <span className="text-base font-bold text-blue-600 dark:text-blue-400">
                       {selected.price} ₸
                     </span>
@@ -352,14 +373,14 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                     onClick={closeModal}
                     className="flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                   >
-                    Отмена
+                    {t("common.cancel", "Отмена")}
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleConfirmPay()}
                     className="flex items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
                   >
-                    Да, оплатить
+                    {t("payment.yes_pay", "Да, оплатить")}
                   </button>
                 </div>
               </>
@@ -369,10 +390,10 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
               <div className="px-5 py-10 text-center">
                 <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-blue-600 dark:border-zinc-700 dark:border-t-blue-400" />
                 <p className="mt-5 text-lg font-bold text-zinc-900 dark:text-zinc-50">
-                  Оплата...
+                  {t("payment.processing", "Оплата...")}
                 </p>
                 <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  Списываем с баланса
+                  {t("payment.deducting", "Списываем с баланса")}
                 </p>
               </div>
             ) : null}
@@ -381,7 +402,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
               <div className="px-5 py-8 text-center">
                 <SuccessIcon />
                 <p className="mt-5 text-lg font-bold text-zinc-900 dark:text-zinc-50">
-                  Оплата прошла успешно
+                  {t("payment.success", "Оплата прошла успешно")}
                 </p>
                 <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
                   С баланса списано {selected.price} ₸

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/layout/PageLayout";
 import type { Station, StationKind } from "@/data/stations";
 import { useStations } from "@/hooks/useStations";
+import { useT } from "@/hooks/useT";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { distanceKm } from "@/lib/api/geos";
 import HomeMap from "@/features/home/components/HomeMap";
@@ -74,21 +75,26 @@ function KindFilterButtons({
   onChange: (next: KindSelection) => void;
   className?: string;
 }) {
+  const t = useT();
   return (
-    <div className={`map-kind-filters ${className}`.trim()} role="group" aria-label="Тип точек">
+    <div
+      className={`map-kind-filters ${className}`.trim()}
+      role="group"
+      aria-label={t("map.title", "Карта")}
+    >
       <button
         type="button"
         className={`map-kind-filters__btn${kinds.wash ? " is-active" : ""}`}
         onClick={() => onChange(toggleKind(kinds, "wash"))}
       >
-        Мойка
+        {t("common.wash", "Мойка")}
       </button>
       <button
         type="button"
         className={`map-kind-filters__btn${kinds.charging ? " is-active" : ""}`}
         onClick={() => onChange(toggleKind(kinds, "charging"))}
       >
-        ЭЗС
+        {t("common.charging", "ЭЗС")}
       </button>
     </div>
   );
@@ -101,6 +107,7 @@ function StationListItem({
   station: StationWithDistance;
   onSelect: (station: Station) => void;
 }) {
+  const t = useT();
   return (
     <li>
       <button
@@ -154,8 +161,10 @@ function StationListItem({
             {station.address}
           </span>
           <span className="theme-description mt-1 block text-[11px]">
-            {station.kind === "charging" ? "ЭЗС" : "Мойка"} ·{" "}
-            {station.freeSlots}/{station.washersTotal} свободно
+            {station.kind === "charging"
+              ? t("common.charging", "ЭЗС")
+              : t("common.wash", "Мойка")}{" "}
+            · {station.freeSlots}/{station.washersTotal} {t("map.free", "свободно")}
           </span>
         </span>
       </button>
@@ -212,6 +221,7 @@ function MapStationList({
   onSelect: (station: Station) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [portalReady, setPortalReady] = useState(false);
   const empty = nearby.length === 0 && others.length === 0;
 
@@ -227,27 +237,27 @@ function MapStationList({
         type="button"
         className="map-drawer__backdrop"
         onClick={onClose}
-        aria-label="Закрыть список"
+        aria-label={t("common.close", "Закрыть")}
       />
-      <div className="map-list-sheet" role="dialog" aria-label="Список точек">
+      <div className="map-list-sheet" role="dialog" aria-label={t("map.list", "Список")}>
         <div className="map-drawer__handle" aria-hidden />
         <div className="mb-3 flex items-center justify-between gap-2 px-1">
           <div>
             <p className="theme-description text-[11px] font-medium uppercase tracking-wider">
-              Список
+              {t("map.list", "Список")}
             </p>
             <h2
               className="text-base font-semibold"
               style={{ color: "var(--app-text)" }}
             >
-              Точки на карте
+              {t("map.points", "Точки на карте")}
             </h2>
           </div>
           <button
             type="button"
             className="map-drawer__close"
             onClick={onClose}
-            aria-label="Закрыть"
+            aria-label={t("common.close", "Закрыть")}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
@@ -264,7 +274,7 @@ function MapStationList({
             type="search"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Поиск по названию или адресу"
+            placeholder={t("map.search", "Поиск по названию или адресу")}
             autoComplete="off"
           />
         </label>
@@ -275,25 +285,25 @@ function MapStationList({
           {empty ? (
             <p className="theme-description px-1 py-8 text-center text-xs">
               {!hasLocation
-                ? "Включите геолокацию, чтобы увидеть точки в списке"
+                ? t("map.enable_geo", "Включите геолокацию, чтобы увидеть точки в списке")
                 : search.trim()
-                  ? "Ничего не найдено в радиусе 100 км"
-                  : "В радиусе 100 км пока нет точек"}
+                  ? t("map.not_found", "Ничего не найдено в радиусе 100 км")
+                  : t("map.no_points", "В радиусе 100 км пока нет точек")}
             </p>
           ) : (
             <>
               <StationSection
-                title="Ближайшие точки"
+                title={t("map.nearby", "Ближайшие точки")}
                 hint={
                   hasLocation
                     ? `0–${NEARBY_MAX_KM} км`
-                    : "Включите геолокацию, чтобы видеть точки рядом"
+                    : t("map.enable_geo", "Включите геолокацию, чтобы увидеть точки в списке")
                 }
                 stations={nearby}
                 onSelect={onSelect}
               />
               <StationSection
-                title="Остальные"
+                title={t("map.others", "Остальные")}
                 hint={
                   hasLocation
                     ? `${NEARBY_MAX_KM}–${LIST_MAX_KM} км`
@@ -312,6 +322,7 @@ function MapStationList({
 }
 
 function MapPageInner() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { stations, loading, error } = useStations();
@@ -379,7 +390,12 @@ function MapPageInner() {
   }, [sortedList, userLocation]);
 
   return (
-    <PageLayout title="Карта" description="Точки на карте" className="page--map" bare>
+    <PageLayout
+      title={t("map.title", "Карта")}
+      description={t("map.points", "Точки на карте")}
+      className="page--map"
+      bare
+    >
       <div className="map-screen">
         <HomeMap
           stations={filteredStations}
@@ -418,12 +434,13 @@ function MapPageInner() {
 }
 
 export default function MapPage() {
+  const t = useT();
   return (
     <Suspense
       fallback={
-        <PageLayout title="Карта" className="page--map" bare>
+        <PageLayout title={t("map.title", "Карта")} className="page--map" bare>
           <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-            Загрузка карты…
+            {t("map.loading", "Загрузка карты…")}
           </div>
         </PageLayout>
       }

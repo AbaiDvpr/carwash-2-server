@@ -92,6 +92,11 @@ body {
   flex-shrink: 0;
 }
 
+/** Сторис открыт: скрыть веб-хедер (нативный navbar прячет Flutter по action fullscreen) */
+html.fullscreen .app-header {
+  display: none;
+}
+
 .app-shell {
   flex: 1;
   min-height: 0;

@@ -40,6 +40,15 @@
   );
 }
 
+.stories__tile--viewed .stories__tile-ring {
+  background: color-mix(in oklab, var(--app-muted, #94a3b8) 55%, var(--app-block));
+  opacity: 0.7;
+}
+
+.stories__tile--viewed .stories__tile-inner {
+  opacity: 0.78;
+}
+
 .stories__tile-inner {
   position: absolute;
   inset: 2px;
@@ -88,6 +97,30 @@
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+  overflow: hidden;
+}
+
+.story-viewer__viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.story-viewer__track {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.story-viewer__slide {
+  position: relative;
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .story-viewer__bg {
@@ -95,15 +128,46 @@
   inset: 0;
 }
 
-.story-viewer__top,
 .story-viewer__content,
 .story-viewer__hint {
   position: relative;
   z-index: 1;
+  pointer-events: none;
 }
 
 .story-viewer__top {
+  position: relative;
+  z-index: 3;
   padding: max(0.75rem, env(safe-area-inset-top, 0px)) 0.85rem 0;
+  pointer-events: none;
+}
+
+.story-viewer__tap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.story-viewer__tap:disabled {
+  pointer-events: none;
+}
+
+.story-viewer__tap--prev {
+  left: 0;
+  width: 30%;
+}
+
+.story-viewer__tap--next {
+  right: 0;
+  width: 70%;
 }
 
 .story-viewer__bars {
@@ -141,16 +205,22 @@
 }
 
 .story-viewer__close {
+  position: relative;
+  z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.35rem -0.35rem -0.35rem 0;
   border: 0;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.12);
+  background: rgb(255 255 255 / 0.18);
   color: #fff;
   cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .story-viewer__close svg {
@@ -163,7 +233,9 @@
   flex: 1;
   flex-direction: column;
   justify-content: flex-end;
+  height: 100%;
   padding: 1.5rem 1.25rem 5.5rem;
+  box-sizing: border-box;
 }
 
 .story-viewer__eyebrow {
@@ -191,22 +263,13 @@
   color: rgb(255 255 255 / 0.86);
 }
 
-.story-viewer__art {
-  position: absolute;
-  top: 28%;
-  right: 1.25rem;
-  opacity: 0.35;
-}
-
-.story-viewer__art svg {
-  width: 7rem;
-  height: 7rem;
-}
-
 .story-viewer__hint {
+  position: relative;
+  z-index: 3;
   margin-top: auto;
   padding: 0 1rem max(1rem, env(safe-area-inset-bottom, 0px));
   text-align: center;
   font-size: 0.6875rem;
   color: rgb(255 255 255 / 0.45);
+  pointer-events: none;
 }

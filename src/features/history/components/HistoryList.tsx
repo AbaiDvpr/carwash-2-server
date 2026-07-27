@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useT } from "@/hooks/useT";
 import { ApiError } from "@/lib/api";
 import { fetchAllSessions, type HistorySession } from "@/lib/api/sessions";
 
@@ -15,11 +16,6 @@ function formatDateTime(value: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatMinutes(value: number | null): string {
-  if (value === null || value === undefined) return "—";
-  return `${value} мин`;
 }
 
 function statusTone(status: string | null) {
@@ -38,20 +34,12 @@ function statusTone(status: string | null) {
   }
 }
 
-function errorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    const body = err.body as { message?: string } | null;
-    if (body?.message) return body.message;
-  }
-  if (err instanceof Error) return err.message;
-  return "Не удалось загрузить историю";
-}
-
 function sessionKey(session: HistorySession): string {
   return `${session.kind ?? "wash"}-${session.id}`;
 }
 
 export default function HistoryList() {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<HistorySession[]>([]);
   const [total, setTotal] = useState(0);
@@ -79,7 +67,15 @@ export default function HistoryList() {
           return;
         }
         setSessions([]);
-        setError(errorMessage(err));
+        let message = t("history.load_error", "Не удалось загрузить историю");
+        if (err instanceof ApiError) {
+          const body = err.body as { message?: string } | null;
+          if (body?.message) message = body.message;
+          else if (err.message) message = err.message;
+        } else if (err instanceof Error && err.message) {
+          message = err.message;
+        }
+        setError(message);
         setLoading(false);
       }
     }
@@ -88,7 +84,7 @@ export default function HistoryList() {
     return () => {
       cancelled = true;
     };
-  }, [loadSessions]);
+  }, [loadSessions, t]);
 
   if (loading) {
     return (
@@ -114,7 +110,7 @@ export default function HistoryList() {
   if (sessions.length === 0) {
     return (
       <p className="rounded-xl border border-zinc-200 px-3 py-6 text-center text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        Пока нет моек и зарядок
+        {t("history.empty", "Пока нет моек и зарядок")}
       </p>
     );
   }
@@ -122,12 +118,21 @@ export default function HistoryList() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        Всего: <span className="font-medium text-zinc-900 dark:text-zinc-50">{total}</span>
+        {t("history.total", "Всего")}:{" "}
+        <span className="font-medium text-zinc-900 dark:text-zinc-50">{total}</span>
       </p>
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
         {sessions.map((session, index) => {
           const isCharging = session.kind === "charging";
+          const kindLabel = isCharging
+            ? t("common.charging", "ЭЗС")
+            : t("common.wash", "Мойка");
+          const duration =
+            session.duration_minutes == null
+              ? "—"
+              : `${session.duration_minutes} ${t("history.min", "мин")}`;
+
           return (
             <article
               key={sessionKey(session)}
@@ -139,11 +144,10 @@ export default function HistoryList() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-                    {isCharging ? "ЭЗС" : "Мойка"}
+                    {kindLabel}
                   </p>
                   <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                    {session.address ??
-                      `${isCharging ? "ЭЗС" : "Мойка"} #${session.location_id}`}
+                    {session.address ?? `${kindLabel} #${session.location_id}`}
                   </p>
                   <p className="mt-0.5 font-mono text-[11px] tracking-wide text-zinc-500">
                     {session.car_plate ?? "—"}
@@ -161,21 +165,25 @@ export default function HistoryList() {
 
               <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px]">
                 <div>
-                  <p className="text-zinc-400">Начало</p>
+                  <p className="text-zinc-400">{t("history.start", "Начало")}</p>
                   <p className="mt-0.5 font-medium text-zinc-800 dark:text-zinc-200">
                     {formatDateTime(session.entered_at ?? session.start_at)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-zinc-400">Конец</p>
+                  <p className="text-zinc-400">{t("history.end", "Конец")}</p>
                   <p className="mt-0.5 font-medium text-zinc-800 dark:text-zinc-200">
                     {formatDateTime(session.exited_at ?? session.end_at)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-zinc-400">{isCharging ? "Сессия" : "Мыли"}</p>
+                  <p className="text-zinc-400">
+                    {isCharging
+                      ? t("history.session", "Сессия")
+                      : t("history.washed", "Мыли")}
+                  </p>
                   <p className="mt-0.5 font-medium text-zinc-800 dark:text-zinc-200">
-                    {formatMinutes(session.duration_minutes)}
+                    {duration}
                   </p>
                 </div>
               </div>

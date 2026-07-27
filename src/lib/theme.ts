@@ -1,4 +1,5 @@
 import { applyThemePalette } from "@/lib/themeColors";
+import { notifyThemeChanged } from "@/lib/themeController";
 
 export type AppTheme = "light" | "dark";
 
@@ -53,6 +54,7 @@ export function setTheme(theme: AppTheme): void {
 
   window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   applyTheme(theme);
+  notifyThemeChanged(theme);
   window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: theme }));
 }
 

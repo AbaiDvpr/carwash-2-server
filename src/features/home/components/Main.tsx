@@ -6,31 +6,41 @@ import {
   formatBalance,
   useUserBalance,
 } from "@/features/profile/hooks/useUserBalance";
+import { useT } from "@/hooks/useT";
+import { navigateNavbar } from "@/lib/navbarController";
 import type { StationKind } from "@/data/stations";
 import Stories from "./Stories";
 
 const CATEGORIES: {
   kind: StationKind;
-  title: string;
+  titleKey: string;
+  fallback: string;
   href: string;
 }[] = [
   {
     kind: "charging",
-    title: "Зарядить автомобиль",
+    titleKey: "home.charge_car",
+    fallback: "Зарядить автомобиль",
     href: "/map?kind=charging",
   },
   {
     kind: "wash",
-    title: "Помыть машину",
+    titleKey: "home.wash_car",
+    fallback: "Помыть машину",
     href: "/map?kind=wash",
   },
 ];
 
 export default function Main() {
+  const t = useT();
   const { phone, mounted: userMounted } = useAuthUser();
   const { balance, loading: balanceLoading, formatted } = useUserBalance();
   const balanceLabel =
     balanceLoading && balance == null ? "…" : formatted || formatBalance(0);
+
+  const openProfile = () => {
+    navigateNavbar("profile");
+  };
 
   return (
     <div className="space-y-5">
@@ -39,7 +49,9 @@ export default function Main() {
       <section className="theme-block overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between gap-3 px-4 py-3.5">
           <div className="min-w-0">
-            <p className="theme-description text-[11px] font-medium">Телефон</p>
+            <p className="theme-description text-[11px] font-medium">
+              {t("home.phone", "Телефон")}
+            </p>
             <p
               className="mt-0.5 truncate text-[16px] font-semibold tracking-tight"
               style={{ color: "var(--app-text)" }}
@@ -48,24 +60,29 @@ export default function Main() {
             </p>
           </div>
 
-          <Link href="/profile" className="shrink-0 text-right">
-            <p className="theme-description text-[11px] font-medium">Баланс</p>
+          <button type="button" onClick={openProfile} className="shrink-0 text-right">
+            <p className="theme-description text-[11px] font-medium">
+              {t("home.balance", "Баланс")}
+            </p>
             <p
               className="mt-0.5 text-[16px] font-semibold tracking-tight tabular-nums"
               style={{ color: "var(--app-text)" }}
             >
               {balanceLabel}
             </p>
-          </Link>
+          </button>
         </div>
 
-        <Link
-          href="/profile"
-          className="theme-button flex items-center justify-between gap-2 border-t border-black/5 px-4 py-3 transition"
+        <button
+          type="button"
+          onClick={openProfile}
+          className="theme-button flex w-full items-center justify-between gap-2 border-t border-black/5 px-4 py-3 text-left transition"
         >
-          <span className="text-[13px] font-semibold">Пополнить баланс</span>
+          <span className="text-[13px] font-semibold">
+            {t("home.top_up", "Пополнить баланс")}
+          </span>
           <span className="inline-flex items-center gap-0.5 text-[13px] font-semibold opacity-90">
-            Перейти
+            {t("home.go", "Перейти")}
             <svg
               className="h-4 w-4"
               viewBox="0 0 24 24"
@@ -77,7 +94,7 @@ export default function Main() {
               <path strokeLinecap="round" d="m9 6 6 6-6 6" />
             </svg>
           </span>
-        </Link>
+        </button>
       </section>
 
       <section>
@@ -86,14 +103,14 @@ export default function Main() {
             className="text-[16px] font-semibold tracking-tight"
             style={{ color: "var(--app-text)" }}
           >
-            Категории
+            {t("home.categories", "Категории")}
           </h2>
           <Link
             href="/map"
             className="inline-flex items-center gap-0.5 text-[13px] font-medium"
             style={{ color: "var(--app-button)" }}
           >
-            Карта
+            {t("common.nav_map", "Карта")}
             <svg
               className="h-3.5 w-3.5"
               viewBox="0 0 24 24"
@@ -129,7 +146,7 @@ export default function Main() {
                     className="text-[14px] font-semibold leading-snug"
                     style={{ color: "var(--app-text)" }}
                   >
-                    {category.title}
+                    {t(category.titleKey, category.fallback)}
                   </h3>
 
                   <div

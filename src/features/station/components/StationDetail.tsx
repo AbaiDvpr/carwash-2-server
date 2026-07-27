@@ -3,6 +3,7 @@
 import Link from "next/link";
 import BackButton from "@/components/ui/BackButton";
 import type { Station } from "@/data/stations";
+import { useT } from "@/hooks/useT";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
 
 function washerTone(status: string | null) {
@@ -29,11 +30,14 @@ function washerTone(status: string | null) {
 }
 
 export default function StationDetail({ station }: { station: Station }) {
+  const t = useT();
   const isOpen = station.status === "Открыто";
   const isCharging = station.kind === "charging";
   const totalPosts = station.washers.length || station.washersTotal;
   const freeCount = station.washers.filter((w) => w.status === "free").length;
-  const slotsTitle = isCharging ? "Коннекторы" : "Посты";
+  const slotsTitle = isCharging
+    ? t("station.connectors", "Коннекторы")
+    : t("station.posts", "Посты");
 
   return (
     <div className="page-content">
@@ -59,7 +63,9 @@ export default function StationDetail({ station }: { station: Station }) {
               ].join(" ")}
             >
               <p className="text-xs font-medium text-white/90">
-                {isCharging ? "Электростанция" : "Фото появится позже"}
+                {isCharging
+                  ? t("station.ev", "Электростанция")
+                  : t("station.photo_later", "Фото появится позже")}
               </p>
             </div>
           )}
@@ -86,7 +92,7 @@ export default function StationDetail({ station }: { station: Station }) {
           <div className="grid grid-cols-2 gap-px bg-zinc-100 dark:bg-zinc-800">
             <div className="bg-white px-3 py-2.5 dark:bg-zinc-950">
               <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-                Свободно
+                {t("station.free", "Свободно")}
               </p>
               <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                 {freeCount}
@@ -94,7 +100,7 @@ export default function StationDetail({ station }: { station: Station }) {
             </div>
             <div className="bg-white px-3 py-2.5 dark:bg-zinc-950">
               <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-                Всего
+                {t("station.total", "Всего")}
               </p>
               <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                 {totalPosts}
@@ -147,7 +153,7 @@ export default function StationDetail({ station }: { station: Station }) {
 
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
             <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-              На карте
+              {t("station.on_map", "На карте")}
             </p>
             <Link
               href={`/map?station=${encodeURIComponent(station.id)}`}
@@ -157,10 +163,10 @@ export default function StationDetail({ station }: { station: Station }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 20 3 17V4l6 3 6-3 6 3v13l-6-3-6 3Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 7v13M15 4v13" />
               </svg>
-              Посмотреть на карте
+              {t("station.view_map", "Посмотреть на карте")}
             </Link>
             <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-              Маршрут
+              {t("map.route", "Маршрут")}
             </p>
             <div className="grid grid-cols-2 gap-1.5">
               <a
@@ -189,7 +195,7 @@ export default function StationDetail({ station }: { station: Station }) {
           {station.tariff.length > 0 ? (
             <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
               <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-                Тарифы
+                {t("payment.tariffs", "Тарифы")}
               </p>
               <div className="space-y-1.5">
                 {station.tariff.map((tariff) => (
@@ -215,7 +221,7 @@ export default function StationDetail({ station }: { station: Station }) {
           {station.market.length > 0 ? (
             <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
               <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-                Маркет
+                {t("station.market", "Маркет")}
               </p>
               <div className="space-y-1.5">
                 {station.market.map((market) => (

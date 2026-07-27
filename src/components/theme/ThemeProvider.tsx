@@ -7,6 +7,7 @@ import {
   readThemePalettes,
   THEME_PALETTE_STORAGE_KEY,
 } from "@/lib/themeColors";
+import { notifyThemeChanged } from "@/lib/themeController";
 
 type ThemeProviderProps = {
   children: ReactNode;
@@ -18,11 +19,15 @@ type ThemeProviderProps = {
  */
 export default function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
-    applyTheme(readTheme());
+    const theme = readTheme();
+    applyTheme(theme);
+    notifyThemeChanged(theme);
 
     const onStorage = (event: StorageEvent) => {
       if (event.key === THEME_STORAGE_KEY) {
-        applyTheme(readTheme());
+        const next = readTheme();
+        applyTheme(next);
+        notifyThemeChanged(next);
         return;
       }
       if (event.key === THEME_PALETTE_STORAGE_KEY) {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { topUpBalance, type TopUpMethod } from "@/lib/api/payments";
+import { useT } from "@/hooks/useT";
 import { formatBalance } from "../hooks/useUserBalance";
 
 const PRESETS = [1000, 2000, 5000, 10000];
@@ -37,6 +38,7 @@ export default function BalanceTopUp({
   loading,
   onSuccess,
 }: BalanceTopUpProps) {
+  const t = useT();
   const [amount, setAmount] = useState("2000");
   const [method, setMethod] = useState<TopUpMethod>("kaspi");
   const [message, setMessage] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export default function BalanceTopUp({
 
   async function handleSubmit() {
     if (!Number.isFinite(parsed) || parsed < 100) {
-      setError("Минимальная сумма — 100 ₸");
+      setError(t("payment.min_amount", "Минимальная сумма — 100 ₸"));
       setMessage(null);
       return;
     }
@@ -75,7 +77,9 @@ export default function BalanceTopUp({
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-        <p className="text-[11px] text-zinc-400">Текущий баланс</p>
+        <p className="text-[11px] text-zinc-400">
+          {t("payment.current_balance", "Текущий баланс")}
+        </p>
         <p className="mt-0.5 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
           {loading && balance == null ? "…" : formatBalance(balance ?? 0)}
         </p>
@@ -83,7 +87,7 @@ export default function BalanceTopUp({
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
         <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-          Способ оплаты
+          {t("payment.method", "Способ оплаты")}
         </p>
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Банк">
           {METHODS.map((item) => {
@@ -129,7 +133,7 @@ export default function BalanceTopUp({
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
         <label className="block">
           <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-            Сумма пополнения
+            {t("payment.amount", "Сумма пополнения")}
           </span>
           <input
             type="text"
@@ -188,7 +192,9 @@ export default function BalanceTopUp({
         disabled={!canSubmit}
         className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {saving ? "Пополняем…" : `Пополнить через ${methodLabel}`}
+        {saving
+          ? t("payment.topping_up", "Пополняем…")
+          : `Пополнить через ${methodLabel}`}
       </button>
     </div>
   );
