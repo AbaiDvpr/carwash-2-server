@@ -99,7 +99,25 @@ html[data-theme="dark"] {
   transform: scale(1.08);
 }
 
-/* Бандл наслоения: один тап → выбор Мойка / ЭЗС */
+/* Линии от центра к разнесённым пинам (одинаковые координаты) */
+.map-marker__spider-legs {
+  display: block;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.map-marker__spider-leg {
+  stroke: color-mix(in oklab, var(--app-text) 45%, transparent);
+  stroke-width: 1.5;
+}
+
+.map-marker__spider-hub {
+  fill: var(--app-block);
+  stroke: color-mix(in oklab, var(--app-text) 55%, transparent);
+  stroke-width: 1.5;
+}
+
+/* Бандл наслоения (legacy fallback) */
 .map-marker__bundle {
   position: relative;
   display: flex;

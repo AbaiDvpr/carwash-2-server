@@ -66,6 +66,108 @@ function sortClusterStations(stations: Station[]): Station[] {
   });
 }
 
+/** Радиус разнесения в пикселях — с запасом под тап, ещё шире при сильном зуме */
+function spiderRadiusPx(total: number, zoom = CLUSTER_MAX_ZOOM): number {
+  if (total <= 1) return 0;
+  // Чем сильнее приблизили — тем дальше разводим (чтобы не жались)
+  const zoomBoost = Math.max(0, zoom - (CLUSTER_MAX_ZOOM - 0.5)) * 22;
+  if (total === 2) return 62 + zoomBoost;
+  if (total === 3) return 70 + zoomBoost;
+  return Math.min(78 + (total - 4) * 12 + zoomBoost, 160);
+}
+
+function spiderAngle(index: number, total: number): number {
+  if (total === 2) return index === 0 ? Math.PI : 0; // влево / вправо
+  return (2 * Math.PI * index) / total - Math.PI / 2;
+}
+
+/**
+ * Смещает точки в экранных пикселях (project/unproject),
+ * чтобы на любом зуме расстояние между пинами не схлопывалось.
+ */
+function spiderfyOffset(
+  longitude: number,
+  latitude: number,
+  index: number,
+  total: number,
+  zoom: number,
+  map: MapRef | null,
+): { longitude: number; latitude: number } {
+  if (total <= 1) return { longitude, latitude };
+
+  const radiusPx = spiderRadiusPx(total, zoom);
+  const angle = spiderAngle(index, total);
+
+  if (map) {
+    const center = map.project([longitude, latitude]);
+    const point = map.unproject([
+      center.x + radiusPx * Math.cos(angle),
+      center.y + radiusPx * Math.sin(angle),
+    ]);
+    return { longitude: point.lng, latitude: point.lat };
+  }
+
+  // fallback без map (до onLoad)
+  const latRad = (latitude * Math.PI) / 180;
+  const metersPerPx =
+    (156543.03392 * Math.cos(latRad)) / 2 ** Math.max(zoom, 1);
+  const dxM = Math.cos(angle) * radiusPx * metersPerPx;
+  const dyM = Math.sin(angle) * radiusPx * metersPerPx;
+  const dLng = dxM / (111320 * Math.max(Math.cos(latRad), 0.01));
+  const dLat = -dyM / 110540;
+
+  return {
+    longitude: longitude + dLng,
+    latitude: latitude + dLat,
+  };
+}
+
+/** Группирует точки, которые на экране накладываются (одна ячейка пикселей). */
+function groupOverlappingStations(
+  items: { station: Station; longitude: number; latitude: number }[],
+  map: MapRef | null,
+): { longitude: number; latitude: number; stations: Station[] }[] {
+  const groups = new Map<
+    string,
+    { longitude: number; latitude: number; stations: Station[]; n: number }
+  >();
+
+  for (const item of items) {
+    let key: string;
+    if (map) {
+      const p = map.project([item.longitude, item.latitude]);
+      // ~половина диаметра пина — всё что ближе, считаем наложением
+      const cell = 36;
+      key = `${Math.round(p.x / cell)}:${Math.round(p.y / cell)}`;
+    } else {
+      key = `${item.longitude.toFixed(5)}:${item.latitude.toFixed(5)}`;
+    }
+
+    const existing = groups.get(key);
+    if (existing) {
+      existing.stations.push(item.station);
+      existing.longitude =
+        (existing.longitude * existing.n + item.longitude) / (existing.n + 1);
+      existing.latitude =
+        (existing.latitude * existing.n + item.latitude) / (existing.n + 1);
+      existing.n += 1;
+    } else {
+      groups.set(key, {
+        longitude: item.longitude,
+        latitude: item.latitude,
+        stations: [item.station],
+        n: 1,
+      });
+    }
+  }
+
+  return [...groups.values()].map((group) => ({
+    longitude: group.longitude,
+    latitude: group.latitude,
+    stations: sortClusterStations(group.stations),
+  }));
+}
+
 
 function MapLoading() {
   const t = useT();
@@ -127,108 +229,37 @@ function StationDot({ station, onSelect }: StationDotProps) {
   );
 }
 
-type ClusterMarkerProps = {
-  stations: Station[];
-  onSelect: (station: Station) => void;
-};
-
-/**
- * 1 точка — крупная зона тапа.
- * 2+ в одной координате — бандл: тап → выбор Мойка / ЭЗС (на телефоне так удобнее, чем целиться в нахлёст).
- */
-function ClusterMarker({ stations, onSelect }: ClusterMarkerProps) {
-  const t = useT();
-  const [chooserOpen, setChooserOpen] = useState(false);
-
-  if (stations.length === 1) {
-    return <StationDot station={stations[0]!} onSelect={onSelect} />;
-  }
-
-  if (chooserOpen) {
-    return (
-      <div
-        className="map-marker__chooser"
-        role="listbox"
-        aria-label={t("map.points", "Точки на карте")}
-        onPointerDown={(event) => event.stopPropagation()}
-      >
-        {stations.map((station) => {
-          const isCharging = station.kind === "charging";
-          return (
-            <button
-              key={station.id}
-              type="button"
-              role="option"
-              className={
-                isCharging
-                  ? "map-marker__chooser-btn map-marker__chooser-btn--charging"
-                  : "map-marker__chooser-btn"
-              }
-              onClick={(event) => {
-                event.stopPropagation();
-                setChooserOpen(false);
-                onSelect(station);
-              }}
-            >
-              {isCharging ? (
-                <EvIcon className="map-marker__chooser-icon" />
-              ) : (
-                <WashIcon className="map-marker__chooser-icon" />
-              )}
-              {isCharging ? t("common.charging", "ЭЗС") : t("common.wash", "Мойка")}
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          className="map-marker__chooser-close"
-          aria-label={t("common.close", "Закрыть")}
-          onClick={(event) => {
-            event.stopPropagation();
-            setChooserOpen(false);
-          }}
-        >
-          ×
-        </button>
-      </div>
-    );
-  }
+function SpiderLegs({ count, zoom }: { count: number; zoom: number }) {
+  const radius = spiderRadiusPx(count, zoom);
+  const size = radius * 2 + 16;
+  const cx = size / 2;
+  const cy = size / 2;
 
   return (
-    <button
-      type="button"
-      className={
-        stations.length === 2
-          ? "map-marker__bundle map-marker__bundle--pair"
-          : "map-marker__bundle map-marker__bundle--stack"
-      }
-      aria-label={`${stations.length} точек рядом — выбрать`}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.stopPropagation();
-        setChooserOpen(true);
-      }}
+    <svg
+      className="map-marker__spider-legs"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      aria-hidden
     >
-      {stations.slice(0, 3).map((station) => (
-        <span
-          key={station.id}
-          className={
-            station.kind === "charging"
-              ? "map-marker__bundle-pin map-marker__bundle-pin--charging"
-              : "map-marker__bundle-pin"
-          }
-        >
-          {station.kind === "charging" ? (
-            <EvIcon className="map-marker__pin-icon" />
-          ) : (
-            <WashIcon className="map-marker__pin-icon" />
-          )}
-        </span>
-      ))}
-      {stations.length > 3 ? (
-        <span className="map-marker__bundle-more">+{stations.length - 3}</span>
-      ) : null}
-    </button>
+      {Array.from({ length: count }, (_, index) => {
+        const angle = spiderAngle(index, count);
+        const x = cx + radius * Math.cos(angle);
+        const y = cy + radius * Math.sin(angle);
+        return (
+          <line
+            key={index}
+            x1={cx}
+            y1={cy}
+            x2={x}
+            y2={y}
+            className="map-marker__spider-leg"
+          />
+        );
+      })}
+      <circle cx={cx} cy={cy} r={3.5} className="map-marker__spider-hub" />
+    </svg>
   );
 }
 
@@ -364,6 +395,47 @@ async function createMapView() {
       return clusterIndex.getClusters(bounds, Math.round(zoom));
     }, [bounds, clusterIndex, zoom]);
 
+    /**
+     * На высоком зуме Supercluster отдаёт совпадающие точки по отдельности —
+     * без группировки они снова накладываются. Собираем листья и spiderfy.
+     */
+    const highZoomPins = useMemo(() => {
+      if (zoom < CLUSTER_MAX_ZOOM - 0.2 || !bounds) return null;
+
+      const items: { station: Station; longitude: number; latitude: number }[] =
+        [];
+      const seen = new Set<string>();
+
+      for (const feature of visibleClusters) {
+        const props = feature.properties as Record<string, unknown>;
+        if (props.cluster) {
+          const leaves = clusterIndex.getLeaves(Number(props.cluster_id), Infinity);
+          for (const leaf of leaves) {
+            const station = stationsById.get(String(leaf.properties.stationId));
+            if (!station || seen.has(station.id)) continue;
+            seen.add(station.id);
+            items.push({
+              station,
+              longitude: station.longitude,
+              latitude: station.latitude,
+            });
+          }
+          continue;
+        }
+
+        const station = stationsById.get(String(props.stationId));
+        if (!station || seen.has(station.id)) continue;
+        seen.add(station.id);
+        items.push({
+          station,
+          longitude: station.longitude,
+          latitude: station.latitude,
+        });
+      }
+
+      return groupOverlappingStations(items, mapRef.current);
+    }, [bounds, clusterIndex, stationsById, visibleClusters, zoom]);
+
     const expandCluster = useCallback(
       (clusterId: number, longitude: number, latitude: number) => {
         const map = mapRef.current;
@@ -375,7 +447,7 @@ async function createMapView() {
         );
         const currentZoom = map.getZoom();
 
-        // Дальше разгруппировать нельзя — доводим до max zoom, там откроется бандл/выбор
+        // Дальше разгруппировать нельзя — доводим до max zoom, там пины разъедутся
         if (expansionZoom <= currentZoom + 0.15) {
           map.flyTo({
             center: [longitude, latitude],
@@ -499,70 +571,97 @@ async function createMapView() {
           onError={() => setStatus("error")}
           onMove={syncViewport}
         >
-          {visibleClusters.map((feature) => {
-            const [longitude, latitude] = feature.geometry.coordinates;
-            const props = feature.properties as Record<string, unknown>;
-            const isCluster = Boolean(props.cluster);
-
-            if (isCluster) {
-              const clusterId = Number(props.cluster_id);
-              const count = Number(props.point_count ?? 0);
-              const wash = Number(props.wash ?? 0);
-              const charging = Number(props.charging ?? 0);
-
-              // На максимальном зуме кластер = точки почти в одной координате
-              if (zoom >= CLUSTER_MAX_ZOOM - 0.2) {
-                const leaves = clusterIndex.getLeaves(clusterId, Infinity);
-                const leafStations = sortClusterStations(
-                  leaves
-                    .map((leaf) => stationsById.get(String(leaf.properties.stationId)))
-                    .filter((station): station is Station => Boolean(station)),
-                );
-                if (leafStations.length > 0) {
-                  return (
+          {highZoomPins
+            ? highZoomPins.flatMap((group, groupIndex) => {
+                if (group.stations.length === 1) {
+                  const station = group.stations[0]!;
+                  return [
                     <Marker
-                      key={`cluster-leaves-${clusterId}`}
-                      longitude={longitude}
-                      latitude={latitude}
+                      key={`pin-${station.id}`}
+                      longitude={group.longitude}
+                      latitude={group.latitude}
                       anchor="bottom"
                     >
-                      <ClusterMarker stations={leafStations} onSelect={onSelectStation} />
-                    </Marker>
-                  );
+                      <StationDot station={station} onSelect={onSelectStation} />
+                    </Marker>,
+                  ];
                 }
-              }
 
-              return (
-                <Marker
-                  key={`cluster-${clusterId}`}
-                  longitude={longitude}
-                  latitude={latitude}
-                  anchor="center"
-                >
-                  <ZoomClusterBubble
-                    count={count}
-                    wash={wash}
-                    charging={charging}
-                    onExpand={() => expandCluster(clusterId, longitude, latitude)}
-                  />
-                </Marker>
-              );
-            }
+                return [
+                  <Marker
+                    key={`spider-hub-${groupIndex}`}
+                    longitude={group.longitude}
+                    latitude={group.latitude}
+                    anchor="center"
+                  >
+                    <SpiderLegs count={group.stations.length} zoom={zoom} />
+                  </Marker>,
+                  ...group.stations.map((station, index) => {
+                    const pos = spiderfyOffset(
+                      group.longitude,
+                      group.latitude,
+                      index,
+                      group.stations.length,
+                      zoom,
+                      mapRef.current,
+                    );
+                    return (
+                      <Marker
+                        key={`spider-${groupIndex}-${station.id}`}
+                        longitude={pos.longitude}
+                        latitude={pos.latitude}
+                        anchor="bottom"
+                      >
+                        <StationDot station={station} onSelect={onSelectStation} />
+                      </Marker>
+                    );
+                  }),
+                ];
+              })
+            : visibleClusters.flatMap((feature) => {
+                const [longitude, latitude] = feature.geometry.coordinates;
+                const props = feature.properties as Record<string, unknown>;
+                const isCluster = Boolean(props.cluster);
 
-            const station = stationsById.get(String(props.stationId));
-            if (!station) return null;
+                if (isCluster) {
+                  const clusterId = Number(props.cluster_id);
+                  const count = Number(props.point_count ?? 0);
+                  const wash = Number(props.wash ?? 0);
+                  const charging = Number(props.charging ?? 0);
 
-            return (
-              <Marker
-                key={`station-${station.id}`}
-                longitude={longitude}
-                latitude={latitude}
-                anchor="bottom"
-              >
-                <ClusterMarker stations={[station]} onSelect={onSelectStation} />
-              </Marker>
-            );
-          })}
+                  return [
+                    <Marker
+                      key={`cluster-${clusterId}`}
+                      longitude={longitude}
+                      latitude={latitude}
+                      anchor="center"
+                    >
+                      <ZoomClusterBubble
+                        count={count}
+                        wash={wash}
+                        charging={charging}
+                        onExpand={() =>
+                          expandCluster(clusterId, longitude, latitude)
+                        }
+                      />
+                    </Marker>,
+                  ];
+                }
+
+                const station = stationsById.get(String(props.stationId));
+                if (!station) return [];
+
+                return [
+                  <Marker
+                    key={`station-${station.id}`}
+                    longitude={longitude}
+                    latitude={latitude}
+                    anchor="bottom"
+                  >
+                    <StationDot station={station} onSelect={onSelectStation} />
+                  </Marker>,
+                ];
+              })}
 
           {userLocation && (
             <Marker

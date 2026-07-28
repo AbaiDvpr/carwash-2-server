@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import BackButton from "@/components/ui/BackButton";
 import type { Station } from "@/data/stations";
 import { useT } from "@/hooks/useT";
@@ -34,6 +35,7 @@ function washerTone(status: string | null) {
 
 export default function StationDetail({ station }: { station: Station }) {
   const t = useT();
+  const router = useRouter();
   const isOpen = station.status === "Открыто";
   const isCharging = station.kind === "charging";
   const totalPosts = station.washers.length || station.washersTotal;
@@ -42,10 +44,18 @@ export default function StationDetail({ station }: { station: Station }) {
     ? t("station.connectors", "Коннекторы")
     : t("station.posts", "Посты");
 
+  function handleBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/");
+  }
+
   return (
     <div className="page-content">
         <div className="mb-3">
-          <BackButton href="/" />
+          <BackButton onClick={handleBack} />
         </div>
 
         <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
