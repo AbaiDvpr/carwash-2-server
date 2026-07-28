@@ -91,14 +91,20 @@ export default function StationDetail({ station }: { station: Station }) {
                   : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
               }`}
             >
-              {station.status}
+              {isOpen
+                ? t("station.open_short", "Открыто")
+                : t("station.closed_short", "Закрыто")}
             </span>
             <h1 className="mt-1.5 text-base font-semibold text-zinc-900 dark:text-zinc-50">
               {station.name}
             </h1>
             <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{station.address}</p>
-            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-              {isOpen ? `Открыто · ${station.hoursLabel}` : `Закрыто · ${station.hoursLabel}`}
+            <p className="mt-2 text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+              <span className="font-normal text-zinc-400 dark:text-zinc-500">
+                {t("station.hours_today", "Режим сегодня")}
+                {": "}
+              </span>
+              {station.hoursLabel || t("station.hours_unknown", "Часы уточняйте")}
             </p>
           </div>
 

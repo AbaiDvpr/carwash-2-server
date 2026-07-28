@@ -28,9 +28,9 @@ import { distanceKm } from "@/lib/api/geos";
 import HomeMap from "@/features/home/components/HomeMap";
 import "@/features/home/components/map.css";
 
-/** Ближайшие в списке: 0–10 км */
-const NEARBY_MAX_KM = 10;
-/** В списке только до 100 км; дальше — только на карте */
+/** Ближайшие в списке: 0–2 км */
+const NEARBY_MAX_KM = 2;
+/** Остальные в списке: 2–100 км; дальше — только на карте */
 const LIST_MAX_KM = 100;
 
 type StationWithDistance = Station & { distanceKm: number | null };
@@ -421,23 +421,46 @@ function ChargingListCard({
         onClick={() => onSelect(station)}
         className="map-ev-card theme-block theme-hover"
       >
-        <div className="map-ev-card__head">
-          <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
-            {isOpen
-              ? t("station.open_short", "в работе")
-              : t("station.closed_short", "закрыто")}
+        <div className="map-ev-card__top">
+          <span className="map-ev-card__icon" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
+            </svg>
           </span>
-          <svg className="map-ev-card__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-            <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-          </svg>
-        </div>
+          <div className="map-ev-card__main">
+            <div className="map-ev-card__head">
+              <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
+                {isOpen
+                  ? t("station.open_short", "Открыто")
+                  : t("station.closed_short", "Закрыто")}
+              </span>
+              <svg
+                className="map-ev-card__chevron"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                aria-hidden
+              >
+                <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+              </svg>
+            </div>
 
-        <div className="map-ev-card__title">{station.name}</div>
-        <div className="map-ev-card__meta">
-          {station.freeSlots}/{station.washersTotal} {t("map.free", "свободно")}
-          {station.maxPowerKw != null
-            ? ` · max ${formatPowerKw(station.maxPowerKw)}`
-            : null}
+            <div className="map-ev-card__title">{station.name}</div>
+            {station.address ? (
+              <div className="map-ev-card__address">{station.address}</div>
+            ) : null}
+            <div className="map-ev-card__hours">
+              {station.hoursLabel || t("station.hours_unknown", "Часы уточняйте")}
+            </div>
+            <div className="map-ev-card__meta">
+              {t("common.charging", "ЭЗС")} · {station.freeSlots}/
+              {station.washersTotal} {t("map.free", "свободно")}
+              {station.maxPowerKw != null
+                ? ` · max ${formatPowerKw(station.maxPowerKw)}`
+                : null}
+            </div>
+          </div>
         </div>
 
         {visible.length > 0 ? (
@@ -464,7 +487,13 @@ function ChargingListCard({
         ) : null}
 
         <div className="map-ev-card__foot">
-          <span>{formatPricePerKwh(station.pricePerKwh)}</span>
+          <span
+            className={
+              station.pricePerKwh == null ? "map-ev-card__foot-muted" : undefined
+            }
+          >
+            {formatPricePerKwh(station.pricePerKwh)}
+          </span>
           <span>
             {station.distanceKm != null
               ? formatDistanceLabel(station.distanceKm)
@@ -518,6 +547,9 @@ function WashListCard({
             {station.address}
           </span>
           <span className="theme-description mt-1 block text-[11px]">
+            {station.hoursLabel || t("station.hours_unknown", "Часы уточняйте")}
+          </span>
+          <span className="theme-description mt-0.5 block text-[11px]">
             {t("common.wash", "Мойка")} · {station.freeSlots}/{station.washersTotal}{" "}
             {t("map.free", "свободно")}
           </span>

@@ -133,7 +133,7 @@ export function parsePricePerKwh(
 }
 
 export function formatPricePerKwh(price: number | null | undefined): string {
-  if (price == null) return "—";
+  if (price == null) return "Информация отсутствует";
   if (price === 0) return "Бесплатно";
   const formatted = Number.isInteger(price)
     ? String(price)
@@ -142,7 +142,7 @@ export function formatPricePerKwh(price: number | null | undefined): string {
 }
 
 export function formatPowerKw(power: number | null | undefined): string {
-  if (power == null) return "—";
+  if (power == null) return "Информация отсутствует";
   if (power >= POWER_MAX_CAP) return `${POWER_MAX_CAP}+ кВт`;
   return `${Math.round(power)} кВт`;
 }

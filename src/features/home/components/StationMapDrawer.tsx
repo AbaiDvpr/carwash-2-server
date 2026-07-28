@@ -86,9 +86,11 @@ export default function StationMapDrawer({
     );
   }, [userLocation, station.latitude, station.longitude]);
 
+  const hours =
+    station.hoursLabel || t("station.hours_unknown", "Часы уточняйте");
   const statusLine = isOpen
-    ? `${station.hoursLabel || t("station.open_short", "в работе")} · ${station.freeSlots} ${t("map.free", "свободно")}`
-    : `${t("station.closed_short", "закрыто")} · ${station.hoursLabel || "—"}`;
+    ? `${t("station.open_short", "Открыто")} · ${hours} · ${station.freeSlots} ${t("map.free", "свободно")}`
+    : `${t("station.closed_short", "Закрыто")} · ${hours}`;
 
   const connectors = (station.connectors ?? []).slice(0, 4);
   const tariffs = station.tariff.slice(0, 6);
@@ -157,7 +159,7 @@ export default function StationMapDrawer({
             />
           </div>
 
-          {isCharging && connectors.length > 0 ? (
+          {isCharging ? (
             <div className="map-station-sheet__connectors">
               {connectors.map((connector) => (
                 <span key={connector.slug} className="map-station-sheet__chip">
@@ -169,15 +171,17 @@ export default function StationMapDrawer({
                     : connector.label}
                 </span>
               ))}
-              {station.pricePerKwh != null ? (
-                <span className="map-station-sheet__chip is-price">
-                  {formatPricePerKwh(station.pricePerKwh)}
-                </span>
-              ) : null}
+              <span
+                className={`map-station-sheet__chip${
+                  station.pricePerKwh != null ? " is-price" : " is-muted"
+                }`}
+              >
+                {formatPricePerKwh(station.pricePerKwh)}
+              </span>
             </div>
           ) : null}
 
-          {isCharging && station.maxPowerKw != null ? (
+          {isCharging ? (
             <p className="map-station-sheet__hint">
               {t("map.max_power", "Макс. мощность")}:{" "}
               {formatPowerKw(station.maxPowerKw)}

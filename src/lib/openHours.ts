@@ -1,44 +1,117 @@
-/** Метка режима работы для карточки (напр. «до 22:00»). */
+/** День недели: 0 = вс … 6 = сб (как в Date.getDay()). */
+const DAY_KEYS: Record<number, string[]> = {
+  0: ["sunday", "sun", "вс", "воскресенье", "0", "7"],
+  1: ["monday", "mon", "пн", "понедельник", "1"],
+  2: ["tuesday", "tue", "вт", "вторник", "2"],
+  3: ["wednesday", "wed", "ср", "среда", "3"],
+  4: ["thursday", "thu", "чт", "четверг", "4"],
+  5: ["friday", "fri", "пт", "пятница", "5"],
+  6: ["saturday", "sat", "сб", "суббота", "6"],
+};
+
+function normalizeKey(key: string): string {
+  return key.trim().toLowerCase().replace(/\./g, "");
+}
+
+function findTodayRawHours(
+  openHours: Record<string, string>,
+  now = new Date(),
+): string | null {
+  const aliases = DAY_KEYS[now.getDay()] ?? [];
+  const entries = Object.entries(openHours);
+
+  for (const alias of aliases) {
+    for (const [key, value] of entries) {
+      if (normalizeKey(key) === alias && value?.trim()) {
+        return value.trim();
+      }
+    }
+  }
+
+  // иногда ключи вида "mon-fri" / "пн-пт"
+  for (const [key, value] of entries) {
+    const nk = normalizeKey(key);
+    if (!value?.trim()) continue;
+    if (
+      (nk.includes("mon") && nk.includes("fri") && now.getDay() >= 1 && now.getDay() <= 5) ||
+      (nk.includes("пн") && nk.includes("пт") && now.getDay() >= 1 && now.getDay() <= 5) ||
+      (nk.includes("weekday") && now.getDay() >= 1 && now.getDay() <= 5) ||
+      (nk.includes("weekend") && (now.getDay() === 0 || now.getDay() === 6))
+    ) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function formatRangeLabel(raw: string): string {
+  const value = raw.trim();
+  if (!value) return "Часы уточняйте";
+
+  if (/24\s*\/\s*7|круглосуточ/i.test(value) || value === "00:00-24:00") {
+    return "Круглосуточно";
+  }
+
+  // "09:00-22:00" → "с 09:00 до 22:00"
+  const range = value.match(/(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})/);
+  if (range) {
+    return `с ${range[1]} до ${range[2]}`;
+  }
+
+  const until = value.match(/(?:до|until)\s*(\d{1,2}:\d{2})/i);
+  if (until) {
+    return `до ${until[1]}`;
+  }
+
+  return value;
+}
+
+/**
+ * Метка режима работы на сегодня.
+ * Пример: «сегодня с 09:00 до 22:00», «сегодня круглосуточно».
+ */
 export function formatOpenHoursLabel(
   openHours: Record<string, string> | null | undefined,
+  now = new Date(),
 ): string {
   if (!openHours || Object.keys(openHours).length === 0) {
     return "Часы уточняйте";
   }
 
-  const values = Object.values(openHours).map((v) => v.trim()).filter(Boolean);
-  if (values.length === 0) return "Часы уточняйте";
+  const todayRaw = findTodayRawHours(openHours, now);
+  const sample =
+    todayRaw ??
+    Object.values(openHours)
+      .map((v) => v.trim())
+      .find(Boolean);
 
-  const unique = [...new Set(values)];
-  const sample = unique[0];
+  if (!sample) return "Часы уточняйте";
 
-  if (unique.every((v) => /24\s*\/\s*7|круглосуточ/i.test(v) || v === "00:00-24:00")) {
-    return "Круглосуточно";
+  const range = formatRangeLabel(sample);
+  if (range === "Часы уточняйте") return range;
+  if (range === "Круглосуточно") {
+    return todayRaw ? "сегодня круглосуточно" : "Круглосуточно";
   }
 
-  // "09:00-22:00" → "с 09:00 до 22:00"
-  const range = sample.match(/(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})/);
-  if (range) {
-    return `с ${range[1]} до ${range[2]}`;
+  // если взяли именно сегодняшний день — префикс «сегодня»
+  if (todayRaw) {
+    return `сегодня ${range}`;
   }
 
-  // только конец дня
-  const until = sample.match(/(?:до|until)\s*(\d{1,2}:\d{2})/i);
-  if (until) {
-    return `до ${until[1]}`;
-  }
-
-  return sample;
+  return range;
 }
 
 export function formatHoursUntilClose(
   openHours: Record<string, string> | null | undefined,
 ): string {
   const label = formatOpenHoursLabel(openHours);
-  if (label.startsWith("с ") && label.includes(" до ")) {
-    return `Работает ${label}`;
+  if (label.startsWith("сегодня ")) {
+    return `Сегодня работает ${label.replace(/^сегодня\s+/i, "")}`;
   }
-  if (label === "Круглосуточно") return "Работает круглосуточно";
+  if (label === "Круглосуточно" || label === "сегодня круглосуточно") {
+    return "Работает круглосуточно";
+  }
   if (label === "Часы уточняйте") return "Время работы уточняйте на месте";
   return `Работает ${label}`;
 }
