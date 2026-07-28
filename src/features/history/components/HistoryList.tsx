@@ -109,21 +109,23 @@ export default function HistoryList() {
 
   if (sessions.length === 0) {
     return (
-      <p className="rounded-xl border border-zinc-200 px-3 py-6 text-center text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+      <p className="app-section theme-description px-[var(--app-row-pad-x)] py-6 text-center text-xs">
         {t("history.empty", "Пока нет моек и зарядок")}
       </p>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+    <div className="app-stack" style={{ gap: "0.75rem" }}>
+      <p className="theme-description text-xs">
         {t("history.total", "Всего")}:{" "}
-        <span className="font-medium text-zinc-900 dark:text-zinc-50">{total}</span>
+        <span className="font-medium" style={{ color: "var(--app-text)" }}>
+          {total}
+        </span>
       </p>
 
-      <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
-        {sessions.map((session, index) => {
+      <div className="app-section">
+        {sessions.map((session) => {
           const isCharging = session.kind === "charging";
           const kindLabel = isCharging
             ? t("common.charging", "ЭЗС")
@@ -134,22 +136,19 @@ export default function HistoryList() {
               : `${session.duration_minutes} ${t("history.min", "мин")}`;
 
           return (
-            <article
-              key={sessionKey(session)}
-              className={[
-                "px-3 py-2.5",
-                index > 0 ? "border-t border-zinc-100 dark:border-zinc-800" : "",
-              ].join(" ")}
-            >
-              <div className="flex items-start justify-between gap-2">
+            <article key={sessionKey(session)} className="app-row" style={{ alignItems: "flex-start", flexDirection: "column" }}>
+              <div className="flex w-full items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                  <p className="theme-description text-[10px] font-medium uppercase tracking-wider">
                     {kindLabel}
                   </p>
-                  <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                  <p
+                    className="truncate text-sm font-medium"
+                    style={{ color: "var(--app-text)" }}
+                  >
                     {session.address ?? `${kindLabel} #${session.location_id}`}
                   </p>
-                  <p className="mt-0.5 font-mono text-[11px] tracking-wide text-zinc-500">
+                  <p className="theme-description mt-0.5 font-mono text-[11px] tracking-wide">
                     {session.car_plate ?? "—"}
                     {session.payment_amount != null
                       ? ` · ${new Intl.NumberFormat("ru-RU").format(Number(session.payment_amount))} ₸`
@@ -163,26 +162,26 @@ export default function HistoryList() {
                 </span>
               </div>
 
-              <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px]">
+              <div className="mt-2 grid w-full grid-cols-3 gap-1.5 text-[11px]">
                 <div>
-                  <p className="text-zinc-400">{t("history.start", "Начало")}</p>
-                  <p className="mt-0.5 font-medium text-zinc-800 dark:text-zinc-200">
+                  <p className="theme-description">{t("history.start", "Начало")}</p>
+                  <p className="mt-0.5 font-medium" style={{ color: "var(--app-text)" }}>
                     {formatDateTime(session.entered_at ?? session.start_at)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-zinc-400">{t("history.end", "Конец")}</p>
-                  <p className="mt-0.5 font-medium text-zinc-800 dark:text-zinc-200">
+                  <p className="theme-description">{t("history.end", "Конец")}</p>
+                  <p className="mt-0.5 font-medium" style={{ color: "var(--app-text)" }}>
                     {formatDateTime(session.exited_at ?? session.end_at)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-zinc-400">
+                  <p className="theme-description">
                     {isCharging
                       ? t("history.session", "Сессия")
                       : t("history.washed", "Мыли")}
                   </p>
-                  <p className="mt-0.5 font-medium text-zinc-800 dark:text-zinc-200">
+                  <p className="mt-0.5 font-medium" style={{ color: "var(--app-text)" }}>
                     {duration}
                   </p>
                 </div>

@@ -6,6 +6,14 @@ export type StationWasher = {
   statusLabel: string;
 };
 
+/** Сводка коннектора ЭЗС для списка / фильтров */
+export type StationConnector = {
+  slug: string;
+  label: string;
+  powerKw: number | null;
+  status: string | null;
+};
+
 export type Station = {
   id: string;
   name: string;
@@ -39,6 +47,16 @@ export type Station = {
     price: number;
     description: string;
   }[];
+  /** ЭЗС: макс. мощность среди зарядников, кВт */
+  maxPowerKw?: number | null;
+  /** ЭЗС: цена за кВт·ч; null = неизвестна, 0 = бесплатно */
+  pricePerKwh?: number | null;
+  /** ЭЗС: есть DC / быстрые */
+  hasDc?: boolean;
+  /** ЭЗС: есть AC / медленные */
+  hasAc?: boolean;
+  /** ЭЗС: уникальные коннекторы для чипов и фильтра */
+  connectors?: StationConnector[];
 };
 
 export const STATIONS: Station[] = [

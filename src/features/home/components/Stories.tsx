@@ -17,29 +17,6 @@ import "./stories.css";
 
 export type StoryItem = StoryDto;
 
-const FALLBACK_STORIES: StoryItem[] = [
-  {
-    id: 1,
-    code: "wash",
-    label_ru: "Мойка\nза 5 мин",
-    label_en: "Wash\nin 5 min",
-    label_kz: "Жуу\n5 мин",
-    title_ru: "Быстрая мойка",
-    title_en: "Quick wash",
-    title_kz: "Жылдам жуу",
-    text_ru: "Найдите свободный пост рядом и начните мойку без очереди.",
-    text_en: "Find a free bay nearby and start washing without a queue.",
-    text_kz: "Жақын бос постты тауып, кезексіз жууды бастаңыз.",
-    accent: "#2563eb",
-    ru_photo: null,
-    en_photo: null,
-    kz_photo: null,
-    viewed: false,
-    starts_at: null,
-    ends_at: null,
-  },
-];
-
 const PAGE_MS = 5000;
 const CLOSE_DRAG_PX = 120;
 const SWIPE_X_PX = 56;
@@ -372,7 +349,7 @@ function StoryViewer({
 
 export default function Stories() {
   const lang = useLocale();
-  const [stories, setStories] = useState<StoryItem[]>(FALLBACK_STORIES);
+  const [stories, setStories] = useState<StoryItem[]>([]);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const touchOpenedRef = useRef(false);
@@ -381,11 +358,11 @@ export default function Stories() {
     let cancelled = false;
     fetchStories()
       .then((items) => {
-        if (cancelled || items.length === 0) return;
-        setStories(items);
+        if (cancelled) return;
+        setStories(items ?? []);
       })
       .catch(() => {
-        /* fallback already set */
+        if (!cancelled) setStories([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -412,7 +389,7 @@ export default function Stories() {
     setOpenIndex(index);
   }, []);
 
-  if (!loading && stories.length === 0) {
+  if (loading || stories.length === 0) {
     return null;
   }
 

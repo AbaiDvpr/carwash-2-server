@@ -28,20 +28,36 @@ const themeBootScript = `
 
     var defaults = {
       light: {
-        background: "#ffffff",
+        background: "#f4f4f5",
         block: "#ffffff",
-        hover: "#f4f4f5",
+        hover: "#ececef",
         button: "#2563eb",
+        buttonHover: "#1d4ed8",
+        buttonText: "#ffffff",
         text: "#18181b",
-        description: "#a1a1aa"
+        description: "#a1a1aa",
+        border: "#e4e4e7",
+        danger: "#dc2626",
+        success: "#16a34a",
+        warning: "#d97706",
+        mapWash: "#38bdf8",
+        mapCharging: "#facc15"
       },
       dark: {
         background: "#09090b",
-        block: "#09090b",
-        hover: "#18181b",
+        block: "#18181b",
+        hover: "#27272a",
         button: "#3b82f6",
+        buttonHover: "#2563eb",
+        buttonText: "#ffffff",
         text: "#f4f4f5",
-        description: "#a1a1aa"
+        description: "#a1a1aa",
+        border: "#3f3f46",
+        danger: "#f87171",
+        success: "#4ade80",
+        warning: "#fbbf24",
+        mapWash: "#38bdf8",
+        mapCharging: "#facc15"
       }
     };
     var palette = Object.assign({}, defaults[t]);
@@ -51,10 +67,11 @@ const themeBootScript = `
         var parsed = JSON.parse(raw);
         if (parsed && parsed[t]) {
           var p = parsed[t];
-          ["background", "block", "hover", "button", "text", "description"].forEach(function (k) {
+          ["background", "block", "hover", "button", "buttonHover", "buttonText", "text", "description", "border", "danger", "success", "warning", "mapWash", "mapCharging"].forEach(function (k) {
             if (p[k]) palette[k] = p[k];
           });
           if (!p.block && p.background) palette.block = p.background;
+          if (!p.buttonHover && p.button) palette.buttonHover = adj(p.button, -20);
         }
       }
     } catch (e2) {}
@@ -74,13 +91,26 @@ const themeBootScript = `
     root.style.setProperty("--app-block", palette.block);
     root.style.setProperty("--app-hover", palette.hover);
     root.style.setProperty("--app-button", palette.button);
-    root.style.setProperty("--app-button-hover", adj(palette.button, -20));
+    root.style.setProperty("--app-button-hover", palette.buttonHover || adj(palette.button, -20));
+    root.style.setProperty("--app-button-text", palette.buttonText || "#ffffff");
     root.style.setProperty("--app-text", palette.text);
     root.style.setProperty("--app-description", palette.description);
+    root.style.setProperty("--app-border", palette.border);
+    root.style.setProperty("--app-danger", palette.danger);
+    root.style.setProperty("--app-success", palette.success);
+    root.style.setProperty("--app-warning", palette.warning);
+    root.style.setProperty("--map-wash", palette.mapWash);
+    root.style.setProperty("--map-charging", palette.mapCharging);
     root.style.setProperty("--color-white", palette.block);
     root.style.setProperty("--color-blue-500", adj(palette.button, 25));
     root.style.setProperty("--color-blue-600", palette.button);
-    root.style.setProperty("--color-blue-700", adj(palette.button, -20));
+    root.style.setProperty("--color-blue-700", palette.buttonHover || adj(palette.button, -20));
+    root.style.setProperty("--color-red-500", palette.danger);
+    root.style.setProperty("--color-red-600", palette.danger);
+    root.style.setProperty("--color-emerald-500", palette.success);
+    root.style.setProperty("--color-emerald-600", palette.success);
+    root.style.setProperty("--color-amber-500", palette.warning);
+    root.style.setProperty("--color-amber-600", palette.warning);
     if (t === "light") {
       root.style.setProperty("--color-zinc-50", palette.hover);
       root.style.setProperty("--color-zinc-100", adj(palette.hover, -8));
@@ -92,6 +122,51 @@ const themeBootScript = `
       root.style.setProperty("--color-zinc-900", palette.hover);
       root.style.setProperty("--color-zinc-950", palette.block);
     }
+
+    var layoutDefaults = {
+      pagePadX: "1rem",
+      pagePadTop: "0.25rem",
+      pagePadBottom: "2rem",
+      rowPadX: "1rem",
+      rowPadY: "0.75rem",
+      rowGap: "0.75rem",
+      stackGap: "1rem",
+      sectionRadius: "1rem",
+      sectionRadiusSm: "0.75rem",
+      buttonRadius: "0.5rem",
+      buttonPadX: "0.75rem",
+      buttonPadY: "0.5rem",
+      borderWidth: "1px",
+      fontSize: "14px",
+      lineHeight: "1.45"
+    };
+    var layout = Object.assign({}, layoutDefaults);
+    try {
+      var layoutRaw = localStorage.getItem("theme_layout");
+      if (layoutRaw) {
+        var layoutParsed = JSON.parse(layoutRaw);
+        if (layoutParsed && typeof layoutParsed === "object") {
+          Object.keys(layoutDefaults).forEach(function (k) {
+            if (layoutParsed[k]) layout[k] = layoutParsed[k];
+          });
+        }
+      }
+    } catch (e3) {}
+    root.style.setProperty("--app-page-pad-x", layout.pagePadX);
+    root.style.setProperty("--app-page-pad-top", layout.pagePadTop);
+    root.style.setProperty("--app-page-pad-bottom", layout.pagePadBottom);
+    root.style.setProperty("--app-row-pad-x", layout.rowPadX);
+    root.style.setProperty("--app-row-pad-y", layout.rowPadY);
+    root.style.setProperty("--app-row-gap", layout.rowGap);
+    root.style.setProperty("--app-stack-gap", layout.stackGap);
+    root.style.setProperty("--app-section-radius", layout.sectionRadius);
+    root.style.setProperty("--app-section-radius-sm", layout.sectionRadiusSm);
+    root.style.setProperty("--app-button-radius", layout.buttonRadius);
+    root.style.setProperty("--app-button-pad-x", layout.buttonPadX);
+    root.style.setProperty("--app-button-pad-y", layout.buttonPadY);
+    root.style.setProperty("--app-border-width", layout.borderWidth);
+    root.style.setProperty("--app-font-size", layout.fontSize);
+    root.style.setProperty("--app-line-height", layout.lineHeight);
   } catch (e) {
     document.documentElement.setAttribute("data-theme", "light");
     document.documentElement.style.colorScheme = "light";

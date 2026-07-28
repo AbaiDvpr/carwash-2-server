@@ -1,4 +1,12 @@
-import type { Station } from "@/data/stations";
+import type { Station, StationConnector } from "@/data/stations";
+import {
+  connectorLabel,
+  isAcSlug,
+  isDcSlug,
+  normalizeConnectorType,
+  parsePricePerKwh,
+  type ConnectorSlug,
+} from "@/features/map/evConnectors";
 import { apiFetch } from "@/lib/api";
 import {
   toDisplayWasherStatus,
@@ -76,6 +84,92 @@ export function parseEvStationId(id: string): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
+function buildEvConnectors(chargers: EvCharger[]): {
+  connectors: StationConnector[];
+  maxPowerKw: number | null;
+  pricePerKwh: number | null;
+  hasDc: boolean;
+  hasAc: boolean;
+} {
+  const bySlug = new Map<string, StationConnector>();
+  let maxPowerKw: number | null = null;
+  let pricePerKwh: number | null = null;
+  let hasDc = false;
+  let hasAc = false;
+
+  for (const charger of chargers) {
+    const power =
+      charger.power != null && Number.isFinite(Number(charger.power))
+        ? Number(charger.power)
+        : null;
+    if (power != null) {
+      maxPowerKw = maxPowerKw == null ? power : Math.max(maxPowerKw, power);
+    }
+
+    const price = parsePricePerKwh(charger.price_per_kwh);
+    if (price != null) {
+      pricePerKwh =
+        pricePerKwh == null ? price : Math.min(pricePerKwh, price);
+    }
+
+    const chargerType = (charger.type ?? "").toLowerCase();
+    if (chargerType.includes("dc") || (power != null && power >= 50)) {
+      hasDc = true;
+    }
+    if (chargerType.includes("ac") || (power != null && power < 50)) {
+      hasAc = true;
+    }
+
+    for (const pistol of charger.pistols ?? []) {
+      const slug = normalizeConnectorType(pistol.type);
+      if (isDcSlug(slug)) hasDc = true;
+      if (isAcSlug(slug)) hasAc = true;
+
+      const display = toDisplayWasherStatus(pistol.status);
+      const prev = bySlug.get(slug);
+      const label =
+        slug === "other" && pistol.type
+          ? pistol.type
+          : connectorLabel(slug as ConnectorSlug);
+
+      if (!prev) {
+        bySlug.set(slug, {
+          slug,
+          label,
+          powerKw: power,
+          status: display.status,
+        });
+        continue;
+      }
+
+      const nextPower =
+        power != null && (prev.powerKw == null || power > prev.powerKw)
+          ? power
+          : prev.powerKw;
+      const nextStatus =
+        prev.status === "free" || display.status === "free"
+          ? "free"
+          : display.status === "busy" || prev.status === "busy"
+            ? "busy"
+            : display.status ?? prev.status;
+
+      bySlug.set(slug, {
+        ...prev,
+        powerKw: nextPower,
+        status: nextStatus,
+      });
+    }
+  }
+
+  return {
+    connectors: Array.from(bySlug.values()),
+    maxPowerKw,
+    pricePerKwh,
+    hasDc,
+    hasAc,
+  };
+}
+
 /** Маппинг EV API → Station (kind=charging), id вида ev-{n} */
 export function toEvStation(location: EvLocation): Station {
   const lat = location.latitude ?? location.coordinates?.lat ?? 0;
@@ -100,9 +194,17 @@ export function toEvStation(location: EvLocation): Station {
     description: tariff.description ?? `${tariff.kwh} кВт·ч`,
   }));
 
+  const evMeta = buildEvConnectors(location.chargers ?? []);
+  const tariffMin = tariffs.length
+    ? Math.min(...tariffs.map((item) => item.price).filter((n) => Number.isFinite(n)))
+    : null;
+  const pricePerKwh =
+    evMeta.pricePerKwh ??
+    (tariffMin != null && Number.isFinite(tariffMin) ? tariffMin : null);
+
   return {
     id: evStationId(location.id),
-    name: `ЭЗС · ${location.address}`,
+    name: location.address,
     address: location.address,
     status: location.status,
     kind: "charging",
@@ -120,6 +222,11 @@ export function toEvStation(location: EvLocation): Station {
     paymentTitle: location.address,
     market: [],
     tariff: tariffs,
+    maxPowerKw: evMeta.maxPowerKw,
+    pricePerKwh,
+    hasDc: evMeta.hasDc,
+    hasAc: evMeta.hasAc,
+    connectors: evMeta.connectors,
   };
 }
 

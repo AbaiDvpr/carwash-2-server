@@ -1,4 +1,5 @@
 import { applyThemePalette } from "@/lib/themeColors";
+import { applyThemeLayout } from "@/lib/themeLayout";
 import { notifyThemeChanged } from "@/lib/themeController";
 
 export type AppTheme = "light" | "dark";
@@ -33,6 +34,7 @@ export function applyTheme(theme: AppTheme): void {
   root.setAttribute("data-theme", theme);
   root.style.colorScheme = theme;
   applyThemePalette(theme);
+  applyThemeLayout();
 
   if (themeSwitchTimer != null) {
     window.clearTimeout(themeSwitchTimer);

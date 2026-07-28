@@ -76,7 +76,7 @@ export default function BalanceTopUp({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="app-section" style={{ padding: "var(--app-row-pad-y) var(--app-row-pad-x)" }}>
         <p className="text-[11px] text-zinc-400">
           {t("payment.current_balance", "Текущий баланс")}
         </p>
@@ -85,7 +85,7 @@ export default function BalanceTopUp({
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="app-section" style={{ padding: "var(--app-row-pad-y) var(--app-row-pad-x)" }}>
         <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
           {t("payment.method", "Способ оплаты")}
         </p>
@@ -130,7 +130,7 @@ export default function BalanceTopUp({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="app-section" style={{ padding: "var(--app-row-pad-y) var(--app-row-pad-x)" }}>
         <label className="block">
           <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
             {t("payment.amount", "Сумма пополнения")}

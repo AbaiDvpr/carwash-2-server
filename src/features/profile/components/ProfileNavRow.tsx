@@ -17,17 +17,14 @@ export default function ProfileNavRow({
   external,
   danger,
 }: ProfileNavRowProps) {
-  const className = [
-    "theme-hover flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition",
-    danger ? "text-red-600 dark:text-red-400" : "",
-  ].join(" ");
+  const className = "theme-hover app-row app-row--between transition";
 
   const content = (
     <>
       <span className="min-w-0">
         <span
           className="block text-sm font-medium"
-          style={danger ? undefined : { color: "var(--app-text)" }}
+          style={{ color: danger ? "var(--app-danger)" : "var(--app-text)" }}
         >
           {label}
         </span>

@@ -7,6 +7,11 @@ import {
   readThemePalettes,
   THEME_PALETTE_STORAGE_KEY,
 } from "@/lib/themeColors";
+import {
+  applyThemeLayout,
+  readThemeLayout,
+  THEME_LAYOUT_STORAGE_KEY,
+} from "@/lib/themeLayout";
 import { notifyThemeChanged } from "@/lib/themeController";
 
 type ThemeProviderProps = {
@@ -21,6 +26,7 @@ export default function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     const theme = readTheme();
     applyTheme(theme);
+    applyThemeLayout(readThemeLayout());
     notifyThemeChanged(theme);
 
     const onStorage = (event: StorageEvent) => {
@@ -32,6 +38,10 @@ export default function ThemeProvider({ children }: ThemeProviderProps) {
       }
       if (event.key === THEME_PALETTE_STORAGE_KEY) {
         applyThemePalette(readTheme(), readThemePalettes());
+        return;
+      }
+      if (event.key === THEME_LAYOUT_STORAGE_KEY) {
+        applyThemeLayout(readThemeLayout());
       }
     };
 

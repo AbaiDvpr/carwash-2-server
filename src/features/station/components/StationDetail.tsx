@@ -6,6 +6,9 @@ import type { Station } from "@/data/stations";
 import { useT } from "@/hooks/useT";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
 
+const YANDEX_LOGO = "/img/yandex_logo.svg";
+const GIS_LOGO = "/img/gis_logo.svg";
+
 function washerTone(status: string | null) {
   switch (status) {
     case "free":
@@ -175,8 +178,9 @@ export default function StationDetail({ station }: { station: Station }) {
                   event.preventDefault();
                   openYandexMap(station.latitude, station.longitude, station.map_yandex);
                 }}
-                className="flex items-center justify-center rounded-lg bg-zinc-900 px-2 py-2 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-2 text-xs font-medium text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               >
+                <img src={YANDEX_LOGO} alt="" width={18} height={18} />
                 Яндекс
               </a>
               <a
@@ -185,8 +189,9 @@ export default function StationDetail({ station }: { station: Station }) {
                   event.preventDefault();
                   open2GisMap(station.latitude, station.longitude, station.map_2gis);
                 }}
-                className="flex items-center justify-center rounded-lg bg-blue-600 px-2 py-2 text-xs font-medium text-white hover:bg-blue-700"
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-2 text-xs font-medium text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               >
+                <img src={GIS_LOGO} alt="" width={18} height={18} />
                 2ГИС
               </a>
             </div>

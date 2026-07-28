@@ -43,11 +43,11 @@ export default function Main() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="app-stack">
       <Stories />
 
-      <section className="theme-block overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+      <section className="app-section">
+        <div className="app-row app-row--between">
           <div className="min-w-0">
             <p className="theme-description text-[11px] font-medium">
               {t("home.phone", "Телефон")}
@@ -76,7 +76,7 @@ export default function Main() {
         <button
           type="button"
           onClick={openProfile}
-          className="theme-button flex w-full items-center justify-between gap-2 border-t border-black/5 px-4 py-3 text-left transition"
+          className="theme-button app-row app-row--between border-t border-black/5 text-left transition"
         >
           <span className="text-[13px] font-semibold">
             {t("home.top_up", "Пополнить баланс")}
@@ -131,7 +131,7 @@ export default function Main() {
               <Link
                 key={category.kind}
                 href={category.href}
-                className="theme-block theme-hover group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border border-zinc-200 transition active:scale-[0.98] dark:border-zinc-800"
+                className="app-section group relative flex min-h-[168px] flex-col transition active:scale-[0.98]"
               >
                 <div
                   className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 opacity-25"
@@ -141,7 +141,12 @@ export default function Main() {
                   aria-hidden
                 />
 
-                <div className="relative z-[1] flex h-full flex-col p-3.5">
+                <div
+                  className="relative z-[1] flex h-full flex-col"
+                  style={{
+                    padding: "var(--app-row-pad-y) var(--app-row-pad-x)",
+                  }}
+                >
                   <h3
                     className="text-[14px] font-semibold leading-snug"
                     style={{ color: "var(--app-text)" }}

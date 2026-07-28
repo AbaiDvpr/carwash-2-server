@@ -3,14 +3,39 @@
 @import "../css/hover-variant.css";
 
 :root {
-  --background: #ffffff;
+  /* ——— Цвета (меняются темой / палитрой) ——— */
+  --background: #f4f4f5;
   --foreground: #18181b;
   --app-block: #ffffff;
   --app-hover: #f4f4f5;
   --app-button: #2563eb;
   --app-button-hover: #1d4ed8;
+  --app-button-text: #ffffff;
   --app-text: #18181b;
   --app-description: #a1a1aa;
+  --app-border: #e4e4e7;
+  --app-danger: #dc2626;
+  --app-success: #16a34a;
+  --app-warning: #d97706;
+  --map-wash: #38bdf8;
+  --map-charging: #facc15;
+
+  /* ——— Layout (общий стиль оформления) ——— */
+  --app-page-pad-x: 1rem;
+  --app-page-pad-top: 0.25rem;
+  --app-page-pad-bottom: 2rem;
+  --app-section-radius: 1rem;
+  --app-section-radius-sm: 0.75rem;
+  --app-row-pad-x: 1rem;
+  --app-row-pad-y: 0.75rem;
+  --app-row-gap: 0.75rem;
+  --app-stack-gap: 1rem;
+  --app-button-radius: 0.5rem;
+  --app-button-pad-x: 0.75rem;
+  --app-button-pad-y: 0.5rem;
+  --app-border-width: 1px;
+  --app-font-size: 14px;
+  --app-line-height: 1.45;
   --app-height: 100dvh;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   color-scheme: light;
@@ -20,24 +45,38 @@
 html[data-theme="dark"] {
   --background: #09090b;
   --foreground: #f4f4f5;
-  --app-block: #09090b;
-  --app-hover: #18181b;
+  --app-block: #18181b;
+  --app-hover: #27272a;
   --app-button: #3b82f6;
   --app-button-hover: #2563eb;
+  --app-button-text: #ffffff;
   --app-text: #f4f4f5;
   --app-description: #a1a1aa;
+  --app-border: #3f3f46;
+  --app-danger: #f87171;
+  --app-success: #4ade80;
+  --app-warning: #fbbf24;
+  --map-wash: #38bdf8;
+  --map-charging: #facc15;
   color-scheme: dark;
 }
 
 html[data-theme="light"] {
-  --background: #ffffff;
+  --background: #f4f4f5;
   --foreground: #18181b;
   --app-block: #ffffff;
-  --app-hover: #f4f4f5;
+  --app-hover: #ececef;
   --app-button: #2563eb;
   --app-button-hover: #1d4ed8;
+  --app-button-text: #ffffff;
   --app-text: #18181b;
   --app-description: #a1a1aa;
+  --app-border: #e4e4e7;
+  --app-danger: #dc2626;
+  --app-success: #16a34a;
+  --app-warning: #d97706;
+  --map-wash: #38bdf8;
+  --map-charging: #facc15;
   color-scheme: light;
 }
 
@@ -63,8 +102,8 @@ body {
 
 body {
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: var(--app-font-size);
+  line-height: var(--app-line-height);
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -113,14 +152,14 @@ html.fullscreen .app-header {
 }
 
 /**
- * Единые паддинги контента на всех страницах:
- * по бокам 16px, сверху 4px, снизу 32px.
+ * Единые паддинги контента на всех страницах.
+ * Меняются через --app-page-pad-*.
  */
 .page-content {
   width: 100%;
   max-width: 64rem;
   margin-inline: auto;
-  padding: 0.25rem 1rem 2rem;
+  padding: var(--app-page-pad-top) var(--app-page-pad-x) var(--app-page-pad-bottom);
 }
 
 .page__title {
@@ -150,11 +189,70 @@ html.fullscreen .app-header {
 
 .theme-button {
   background-color: var(--app-button);
-  color: #ffffff;
+  color: var(--app-button-text);
+  border-radius: var(--app-button-radius);
+  padding: var(--app-button-pad-y) var(--app-button-pad-x);
 }
 
 .theme-button:active {
-  background-color: var(--app-button);
+  background-color: var(--app-button-hover);
+}
+
+.theme-danger {
+  color: var(--app-danger);
+}
+
+.theme-success {
+  color: var(--app-success);
+}
+
+.theme-warning {
+  color: var(--app-warning);
+}
+
+/**
+ * Секция / карточка: общий фон блока, бордюр, скругление сверху и снизу.
+ * Радиус: --app-section-radius
+ */
+.app-section {
+  overflow: hidden;
+  border: var(--app-border-width) solid var(--app-border);
+  border-radius: var(--app-section-radius);
+  background: var(--app-block);
+  color: var(--app-text);
+}
+
+.app-section--sm {
+  border-radius: var(--app-section-radius-sm);
+}
+
+/**
+ * Строка внутри секции: единые боковые паддинги.
+ * Паддинги: --app-row-pad-x / --app-row-pad-y
+ */
+.app-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--app-row-gap);
+  padding: var(--app-row-pad-y) var(--app-row-pad-x);
+  background: transparent;
+  color: var(--app-text);
+  text-align: left;
+}
+
+.app-row--between {
+  justify-content: space-between;
+}
+
+.app-row + .app-row {
+  border-top: var(--app-border-width) solid var(--app-border);
+}
+
+.app-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-stack-gap);
 }
 /* Чат: скролл только в ленте сообщений */
 body:has(.page--chat) .app-shell {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { MapRef } from "react-map-gl/maplibre";
-import Link from "next/link";
 import dynamic from "next/dynamic";
-import type { Station } from "@/data/stations";
+import Supercluster from "supercluster";
+import type { Station, StationKind } from "@/data/stations";
 import Toast from "@/components/ui/Toast";
+import StationMapDrawer from "@/features/home/components/StationMapDrawer";
 import { useToast } from "@/hooks/useToast";
 import { useT } from "@/hooks/useT";
 import { useUserCity } from "@/hooks/useUserCity";
@@ -17,7 +18,6 @@ import {
   type MapCenter,
 } from "@/lib/api/geos";
 import { getCachedUserLocation, getUserLocation, subscribeUserLocation } from "@/lib/locationController";
-import { open2GisMap, openYandexMap } from "@/lib/mapController";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./map.css";
 
@@ -40,23 +40,23 @@ type HomeMapProps = {
   onOpenList: () => void;
 };
 
-type MarkerCluster = {
-  key: string;
-  latitude: number;
-  longitude: number;
-  stations: Station[];
+type StationPointProps = {
+  stationId: string;
+  kind: StationKind;
+  wash: number;
+  charging: number;
 };
 
+type StationClusterProps = {
+  wash: number;
+  charging: number;
+};
+
+type LngLatBoundsLike = [number, number, number, number];
+
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
-
-/** ~12–15 м: точки в одном месте / рядом группируем */
-const CLUSTER_GRID = 0.00012;
-
-function clusterKey(lat: number, lng: number): string {
-  return `${(Math.round(lat / CLUSTER_GRID) * CLUSTER_GRID).toFixed(5)}_${(
-    Math.round(lng / CLUSTER_GRID) * CLUSTER_GRID
-  ).toFixed(5)}`;
-}
+const CLUSTER_RADIUS_PX = 56;
+const CLUSTER_MAX_ZOOM = 17;
 
 /** Мойка (синий) слева, ЭЗС (зелёный) справа — удобно различать наслоение */
 function sortClusterStations(stations: Station[]): Station[] {
@@ -66,25 +66,6 @@ function sortClusterStations(stations: Station[]): Station[] {
   });
 }
 
-function buildClusters(stations: Station[]): MarkerCluster[] {
-  const groups = new Map<string, Station[]>();
-
-  for (const station of stations) {
-    const key = clusterKey(station.latitude, station.longitude);
-    const list = groups.get(key);
-    if (list) list.push(station);
-    else groups.set(key, [station]);
-  }
-
-  return Array.from(groups.entries()).map(([key, group]) => {
-    const sorted = sortClusterStations(group);
-    const latitude =
-      sorted.reduce((sum, s) => sum + s.latitude, 0) / sorted.length;
-    const longitude =
-      sorted.reduce((sum, s) => sum + s.longitude, 0) / sorted.length;
-    return { key, latitude, longitude, stations: sorted };
-  });
-}
 
 function MapLoading() {
   const t = useT();
@@ -110,12 +91,8 @@ function MapError() {
 
 function WashIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 9.5 12 4l9 5.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"
-      />
+    <svg className={className} viewBox="0 0 792 792" fill="currentColor" aria-hidden>
+      <path d="M665.335,486.777c-7.815-46.161-25.534-88.323-43.162-126.578C569.197,243.434,505.408,137.391,442.619,39.255 l-7.815-13.721C423.991,8.814,411.269,0,396.549,0c-21.626,0-35.347,19.627-39.255,25.534c0,0,0,0,0,1L343.573,48.16 c-24.534,39.255-50.068,80.508-74.602,121.671C230.716,234.62,182.647,320.944,147.3,413.174 c-11.813,30.441-22.535,60.881-23.535,94.229c-3.907,86.324,27.442,159.018,92.23,215.901C266.063,767.466,329.852,792,395.549,792 l0,0c96.138,0,183.552-49.068,233.529-132.485C662.427,604.541,675.148,545.659,665.335,486.777z M597.638,640.888 c-43.162,72.603-118.764,114.765-202.18,114.765c-56.883,0-112.857-20.627-156.019-58.882 c-55.974-49.068-83.416-112.857-80.508-187.459c1-27.442,9.814-53.975,21.626-82.417c34.348-90.322,81.417-174.647,118.764-238.436 c23.535-40.254,49.068-81.417,74.602-120.672l12.721-20.627c0-1,1-1,1-1.999c1.999-2.908,5.906-7.815,7.815-8.814 c0,0,2.908,1,7.815,8.814l7.815,12.721c60.881,96.138,124.67,201.18,176.646,316.037c16.72,37.256,33.348,76.51,40.254,117.764 C637.893,542.751,627.079,592.728,597.638,640.888z M413.087,662.423c0,9.814-7.815,17.628-17.628,17.628 c-89.323,0-160.926-72.603-160.926-160.926c0-9.814,7.815-17.628,17.628-17.628c9.814,0,17.628,7.815,17.628,17.628 c0.999,68.696,56.974,124.67,125.669,124.67C405.272,643.795,413.087,652.609,413.087,662.423z" />
     </svg>
   );
 }
@@ -248,6 +225,50 @@ function ClusterMarker({ stations, onSelect }: ClusterMarkerProps) {
           )}
         </span>
       ))}
+      {stations.length > 3 ? (
+        <span className="map-marker__bundle-more">+{stations.length - 3}</span>
+      ) : null}
+    </button>
+  );
+}
+
+function ZoomClusterBubble({
+  count,
+  wash,
+  charging,
+  onExpand,
+}: {
+  count: number;
+  wash: number;
+  charging: number;
+  onExpand: () => void;
+}) {
+  const mixed = wash > 0 && charging > 0;
+
+  return (
+    <button
+      type="button"
+      className="map-cluster"
+      onClick={(event) => {
+        event.stopPropagation();
+        onExpand();
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      aria-label={`${count} точек — приблизить`}
+    >
+      {wash > 0 ? (
+        <span className="map-cluster__item map-cluster__item--wash">
+          <WashIcon className="map-cluster__icon" />
+          <span className="map-cluster__num">{wash}</span>
+        </span>
+      ) : null}
+      {mixed ? <span className="map-cluster__divider" aria-hidden /> : null}
+      {charging > 0 ? (
+        <span className="map-cluster__item map-cluster__item--charging">
+          <EvIcon className="map-cluster__icon" />
+          <span className="map-cluster__num">{charging}</span>
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -255,14 +276,14 @@ function ClusterMarker({ stations, onSelect }: ClusterMarkerProps) {
 async function createMapView() {
   const { default: MapGL, Marker } = await import("react-map-gl/maplibre");
   type MapViewProps = {
-    clusters: MarkerCluster[];
+    stations: Station[];
     cityCenter: MapCenter;
     focusStation: Station | null;
     selectedStation: Station | null;
     onSelectStation: (station: Station | null) => void;
   };
   return function MapView({
-    clusters,
+    stations,
     cityCenter,
     focusStation,
     onSelectStation,
@@ -272,11 +293,106 @@ async function createMapView() {
       latitude: number;
       longitude: number;
     } | null>(() => getCachedUserLocation());
+    const [zoom, setZoom] = useState(cityCenter.zoom);
+    const [bounds, setBounds] = useState<LngLatBoundsLike | null>(null);
     const { message: toastMessage, showToast } = useToast();
     const t = useT();
     const focusedOnce = useRef<string | null>(null);
-
     const mapRef = useRef<MapRef>(null);
+
+    const stationsById = useMemo(
+      () => new Map(stations.map((station) => [station.id, station])),
+      [stations],
+    );
+
+    const clusterIndex = useMemo(() => {
+      const index = new Supercluster<StationPointProps, StationClusterProps>({
+        radius: CLUSTER_RADIUS_PX,
+        maxZoom: CLUSTER_MAX_ZOOM,
+        minPoints: 2,
+        map: (props) => ({
+          wash: props.kind === "wash" ? 1 : 0,
+          charging: props.kind === "charging" ? 1 : 0,
+        }),
+        reduce: (accumulated, props) => {
+          accumulated.wash += props.wash;
+          accumulated.charging += props.charging;
+        },
+      });
+
+      index.load(
+        stations.map((station) => ({
+          type: "Feature" as const,
+          properties: {
+            stationId: station.id,
+            kind: station.kind,
+            wash: station.kind === "wash" ? 1 : 0,
+            charging: station.kind === "charging" ? 1 : 0,
+          },
+          geometry: {
+            type: "Point" as const,
+            coordinates: [station.longitude, station.latitude],
+          },
+        })),
+      );
+
+      return index;
+    }, [stations]);
+
+    const viewportRaf = useRef<number | null>(null);
+    const syncViewport = useCallback(() => {
+      if (viewportRaf.current != null) return;
+      viewportRaf.current = requestAnimationFrame(() => {
+        viewportRaf.current = null;
+        const map = mapRef.current;
+        if (!map) return;
+        const nextBounds = map.getBounds();
+        if (!nextBounds) return;
+        const west = nextBounds.getWest();
+        const south = nextBounds.getSouth();
+        const east = nextBounds.getEast();
+        const north = nextBounds.getNorth();
+        const padLng = Math.max((east - west) * 0.12, 0.01);
+        const padLat = Math.max((north - south) * 0.12, 0.01);
+        setZoom(map.getZoom());
+        setBounds([west - padLng, south - padLat, east + padLng, north + padLat]);
+      });
+    }, []);
+
+    const visibleClusters = useMemo(() => {
+      if (!bounds) return [];
+      return clusterIndex.getClusters(bounds, Math.round(zoom));
+    }, [bounds, clusterIndex, zoom]);
+
+    const expandCluster = useCallback(
+      (clusterId: number, longitude: number, latitude: number) => {
+        const map = mapRef.current;
+        if (!map) return;
+
+        const expansionZoom = Math.min(
+          clusterIndex.getClusterExpansionZoom(clusterId),
+          18,
+        );
+        const currentZoom = map.getZoom();
+
+        // Дальше разгруппировать нельзя — доводим до max zoom, там откроется бандл/выбор
+        if (expansionZoom <= currentZoom + 0.15) {
+          map.flyTo({
+            center: [longitude, latitude],
+            zoom: Math.max(currentZoom, CLUSTER_MAX_ZOOM),
+            duration: 350,
+          });
+          return;
+        }
+
+        map.flyTo({
+          center: [longitude, latitude],
+          zoom: expansionZoom,
+          duration: 500,
+        });
+      },
+      [clusterIndex],
+    );
 
     async function handleLocation() {
       try {
@@ -375,19 +491,78 @@ async function createMapView() {
           pitchWithRotate={false}
           maxPitch={0}
           attributionControl={false}
-          onLoad={() => setStatus("ready")}
+          onLoad={() => {
+            setStatus("ready");
+            // после layout bounds уже валидны
+            requestAnimationFrame(syncViewport);
+          }}
           onError={() => setStatus("error")}
+          onMove={syncViewport}
         >
-          {clusters.map((cluster) => (
-            <Marker
-              key={cluster.key}
-              longitude={cluster.longitude}
-              latitude={cluster.latitude}
-              anchor="bottom"
-            >
-              <ClusterMarker stations={cluster.stations} onSelect={onSelectStation} />
-            </Marker>
-          ))}
+          {visibleClusters.map((feature) => {
+            const [longitude, latitude] = feature.geometry.coordinates;
+            const props = feature.properties as Record<string, unknown>;
+            const isCluster = Boolean(props.cluster);
+
+            if (isCluster) {
+              const clusterId = Number(props.cluster_id);
+              const count = Number(props.point_count ?? 0);
+              const wash = Number(props.wash ?? 0);
+              const charging = Number(props.charging ?? 0);
+
+              // На максимальном зуме кластер = точки почти в одной координате
+              if (zoom >= CLUSTER_MAX_ZOOM - 0.2) {
+                const leaves = clusterIndex.getLeaves(clusterId, Infinity);
+                const leafStations = sortClusterStations(
+                  leaves
+                    .map((leaf) => stationsById.get(String(leaf.properties.stationId)))
+                    .filter((station): station is Station => Boolean(station)),
+                );
+                if (leafStations.length > 0) {
+                  return (
+                    <Marker
+                      key={`cluster-leaves-${clusterId}`}
+                      longitude={longitude}
+                      latitude={latitude}
+                      anchor="bottom"
+                    >
+                      <ClusterMarker stations={leafStations} onSelect={onSelectStation} />
+                    </Marker>
+                  );
+                }
+              }
+
+              return (
+                <Marker
+                  key={`cluster-${clusterId}`}
+                  longitude={longitude}
+                  latitude={latitude}
+                  anchor="center"
+                >
+                  <ZoomClusterBubble
+                    count={count}
+                    wash={wash}
+                    charging={charging}
+                    onExpand={() => expandCluster(clusterId, longitude, latitude)}
+                  />
+                </Marker>
+              );
+            }
+
+            const station = stationsById.get(String(props.stationId));
+            if (!station) return null;
+
+            return (
+              <Marker
+                key={`station-${station.id}`}
+                longitude={longitude}
+                latitude={latitude}
+                anchor="bottom"
+              >
+                <ClusterMarker stations={[station]} onSelect={onSelectStation} />
+              </Marker>
+            );
+          })}
 
           {userLocation && (
             <Marker
@@ -422,7 +597,6 @@ export default function HomeMap({
   const t = useT();
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [portalReady, setPortalReady] = useState(false);
-  const clusters = useMemo(() => buildClusters(stations), [stations]);
   const { geoId, cities } = useUserCity();
   const { location: userLocation, loading: locationLoading } = useUserLocation();
 
@@ -462,27 +636,29 @@ export default function HomeMap({
       <div className="map-page">
         <div className="map-page__body">
           <div className="map-page__frame">
-            <button
-              type="button"
-              onClick={onOpenList}
-              className="map-list-btn"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-              </svg>
-              {t("map.list", "Список")}
-            </button>
+            <div className="map-top-actions">
+              <button
+                type="button"
+                onClick={onOpenList}
+                className="map-list-btn"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+                </svg>
+                <span>{t("map.list", "Список")}</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="map-close-btn"
-              aria-label={t("common.close", "Закрыть")}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="map-close-btn"
+                aria-label={t("common.close", "Закрыть")}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
 
             {loading || locationLoading ? (
               <div className="map-loading">
@@ -503,7 +679,7 @@ export default function HomeMap({
             ) : (
               <MapView
                 key={mapGeoId ?? "all"}
-                clusters={clusters}
+                stations={stations}
                 cityCenter={cityCenter}
                 focusStation={focusStation}
                 selectedStation={selectedStation}
@@ -520,81 +696,14 @@ export default function HomeMap({
       {portalReady &&
         selectedStation &&
         createPortal(
-          <>
-            <button
-              type="button"
-              className="map-drawer__backdrop"
-              onClick={() => setSelectedStation(null)}
-              aria-label={t("common.close", "Закрыть")}
-            />
-            <div className="map-drawer" role="dialog" aria-labelledby="map-drawer-title">
-              <div className="map-drawer__handle" aria-hidden />
-              <div className="map-drawer__header">
-                <div className="map-drawer__headline">
-                  <span className="map-drawer__label">
-                    {selectedStation.kind === "charging"
-                      ? t("common.charging", "ЭЗС")
-                      : t("map.car_wash", "Автомойка")}
-                  </span>
-                  <h2 id="map-drawer-title" className="map-drawer__title">
-                    {selectedStation.name}
-                  </h2>
-                  <p className="theme-description mt-1 text-xs">
-                    {selectedStation.freeSlots}/{selectedStation.washersTotal}{" "}
-                    {t("map.free", "свободно")}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="map-drawer__close"
-                  onClick={() => setSelectedStation(null)}
-                  aria-label={t("common.close", "Закрыть")}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
-                  </svg>
-                </button>
-              </div>
-
-              <p className="map-drawer__route-label">{t("map.route", "Маршрут")}</p>
-              <div className="map-drawer__actions">
-                <a
-                  href={selectedStation.map_yandex}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    openYandexMap(
-                      selectedStation.latitude,
-                      selectedStation.longitude,
-                      selectedStation.map_yandex,
-                    );
-                  }}
-                  className="map-drawer__link map-drawer__link--yandex"
-                >
-                  Яндекс Карты
-                </a>
-                <a
-                  href={selectedStation.map_2gis}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    open2GisMap(
-                      selectedStation.latitude,
-                      selectedStation.longitude,
-                      selectedStation.map_2gis,
-                    );
-                  }}
-                  className="map-drawer__link map-drawer__link--gis"
-                >
-                  2ГИС
-                </a>
-              </div>
-              <Link
-                href={`/station/${selectedStation.id}`}
-                className="theme-button mt-3 flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition"
-              >
-                {t("common.more", "Подробнее")}
-              </Link>
-            </div>
-          </>,
+          <StationMapDrawer
+            station={selectedStation}
+            userLocation={userLocation}
+            onClose={() => {
+              setSelectedStation(null);
+              onFocusConsumed?.();
+            }}
+          />,
           document.body,
         )}
     </>

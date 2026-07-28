@@ -15,10 +15,17 @@ import BackButton from "@/components/ui/BackButton";
 import Toast from "@/components/ui/Toast";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemePalette } from "@/hooks/useThemePalette";
+import { useThemeLayout } from "@/hooks/useThemeLayout";
 import { useToast } from "@/hooks/useToast";
 import type { AppTheme } from "@/lib/theme";
 import type { ThemeMode } from "@/lib/themeColors";
 import { isHexColor, PALETTE_FIELD_META } from "@/lib/themeColors";
+import {
+  LAYOUT_FIELD_META,
+  formatLayoutValue,
+  parseLayoutNumber,
+  type LayoutUnit,
+} from "@/lib/themeLayout";
 import { useUserCity } from "@/hooks/useUserCity";
 import { updateUserSettings } from "@/lib/api/auth";
 import { formatCityName } from "@/lib/api/geos";
@@ -93,11 +100,7 @@ const INITIAL_CARS: MockCar[] = [
 ];
 
 function SectionCard({ children }: { children: ReactNode }) {
-  return (
-    <div className="theme-block overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
-      {children}
-    </div>
-  );
+  return <div className="app-section">{children}</div>;
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
@@ -219,6 +222,74 @@ function PaletteColorRow({
   );
 }
 
+function LayoutSpacingRow({
+  label,
+  hint,
+  cssVar,
+  uses,
+  value,
+  unit,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  cssVar: string;
+  uses: string;
+  value: string;
+  unit: LayoutUnit;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (cssValue: string) => void;
+}) {
+  const numeric = parseLayoutNumber(value);
+
+  return (
+    <div className="theme-hover px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium" style={{ color: "var(--app-text)" }}>
+            {label}
+          </p>
+          <p className="theme-description mt-0.5 text-[11px]">{hint}</p>
+          <p className="theme-description mt-1 text-[10px] leading-relaxed">
+            Где: {uses}
+          </p>
+          <div className="mt-1.5">
+            <code
+              className="rounded-md px-1.5 py-0.5 font-mono text-[10px]"
+              style={{
+                backgroundColor: "var(--app-hover)",
+                color: "var(--app-button)",
+              }}
+            >
+              {cssVar}
+            </code>
+          </div>
+        </div>
+        <span className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+          {value}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={numeric}
+        onChange={(event) =>
+          onChange(formatLayoutValue(Number(event.target.value), unit))
+        }
+        className="mt-3 w-full accent-[var(--app-button)]"
+        aria-label={label}
+      />
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { name, photoUrl, mounted } = useAuthUser();
   const dispatch = useAppDispatch();
@@ -240,6 +311,11 @@ export default function ProfilePage() {
   } = useUserBalance();
   const { theme, isDark, setTheme, mounted: themeMounted } = useTheme();
   const { palettes, setField, reset: resetPalette } = useThemePalette();
+  const {
+    layout,
+    setField: setLayoutField,
+    reset: resetLayout,
+  } = useThemeLayout();
   const locale = useLocale();
   const t = useT();
   const languageHint =
@@ -447,7 +523,7 @@ export default function ProfilePage() {
                     type="button"
                     onClick={() => void togglePush()}
                     disabled={pushLoading || pushSaving}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-zinc-50 disabled:opacity-60 dark:hover:bg-zinc-900/60"
+                    className="app-row app-row--between text-left hover:bg-[var(--app-hover)] disabled:opacity-60"
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
@@ -479,7 +555,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => dispatch(toggleHeaderNav())}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                    className="app-row app-row--between text-left hover:bg-[var(--app-hover)]"
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
@@ -722,7 +798,7 @@ export default function ProfilePage() {
                             }
                           })();
                         }}
-                        className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 disabled:opacity-60 dark:hover:bg-zinc-900/60"
+                      className="app-row text-left hover:bg-[var(--app-hover)] disabled:opacity-60"
                       >
                         <RadioMark checked={selected} busy={busy} />
                         <span className="min-w-0 flex-1">
@@ -760,7 +836,7 @@ export default function ProfilePage() {
                       notifyLocaleChanged(lang.id);
                       showToast(lang.label);
                     }}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                    className="app-row text-left hover:bg-[var(--app-hover)]"
                   >
                     <RadioMark checked={lang.id === locale} />
                     <span className="min-w-0 flex-1">
@@ -798,7 +874,7 @@ export default function ProfilePage() {
                         setTheme(option.id);
                         setEditPaletteMode(option.id);
                       }}
-                      className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                      className="app-row text-left hover:bg-[var(--app-hover)]"
                     >
                       <RadioMark checked={theme === option.id} />
                       <span className="min-w-0 flex-1">
@@ -855,12 +931,18 @@ export default function ProfilePage() {
                   return (
                     <>
                       <div
-                        className="m-3 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800"
-                        style={{ backgroundColor: palette.background }}
+                        className="m-3 overflow-hidden rounded-xl"
+                        style={{
+                          backgroundColor: palette.background,
+                          border: `1px solid ${palette.border}`,
+                        }}
                       >
                         <div
-                          className="m-2 space-y-2 rounded-lg border border-black/5 p-3 transition"
-                          style={{ backgroundColor: palette.block }}
+                          className="m-2 space-y-2 rounded-lg p-3 transition"
+                          style={{
+                            backgroundColor: palette.block,
+                            border: `1px solid ${palette.border}`,
+                          }}
                         >
                           <p
                             className="text-sm font-semibold"
@@ -879,17 +961,54 @@ export default function ProfilePage() {
                             style={{
                               backgroundColor: palette.hover,
                               color: palette.text,
+                              border: `1px solid ${palette.border}`,
                             }}
                           >
                             Hover состояние строки
                           </div>
-                          <button
-                            type="button"
-                            className="rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                            style={{ backgroundColor: palette.button }}
-                          >
-                            Button
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="text-xs font-semibold"
+                              style={{
+                                backgroundColor: palette.button,
+                                color: palette.buttonText,
+                                borderRadius: "var(--app-button-radius)",
+                                padding:
+                                  "var(--app-button-pad-y) var(--app-button-pad-x)",
+                              }}
+                            >
+                              Button
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs font-semibold"
+                              style={{
+                                backgroundColor: palette.buttonHover,
+                                color: palette.buttonText,
+                                borderRadius: "var(--app-button-radius)",
+                                padding:
+                                  "var(--app-button-pad-y) var(--app-button-pad-x)",
+                              }}
+                            >
+                              Hover
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-2 pt-1 text-[10px]">
+                            <span style={{ color: palette.danger }}>danger</span>
+                            <span style={{ color: palette.success }}>success</span>
+                            <span style={{ color: palette.warning }}>warning</span>
+                            <span
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: palette.mapWash }}
+                              title="mapWash"
+                            />
+                            <span
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: palette.mapCharging }}
+                              title="mapCharging"
+                            />
+                          </div>
                         </div>
                       </div>
 
@@ -927,9 +1046,10 @@ export default function ProfilePage() {
                             type="button"
                             onClick={() => {
                               resetPalette();
+                              resetLayout();
                               setTheme("light");
                               setEditPaletteMode("light");
-                              showToast("Цвета возвращены к значениям по умолчанию");
+                              showToast("Оформление сброшено к значениям по умолчанию");
                             }}
                             className="theme-button flex-1 rounded-lg px-3 py-2 text-xs font-semibold"
                           >
@@ -940,6 +1060,82 @@ export default function ProfilePage() {
                     </>
                   );
                 })()}
+              </SectionCard>
+            </section>
+
+            <section className="mb-5">
+              <SectionTitle>Отступы, радиусы, типографика</SectionTitle>
+              <SectionCard>
+                <div
+                  className="m-3 overflow-hidden"
+                  style={{
+                    backgroundColor: "var(--app-hover)",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "var(--app-section-radius)",
+                    padding: "var(--app-page-pad-top) var(--app-page-pad-x) var(--app-page-pad-bottom)",
+                  }}
+                >
+                  <div
+                    style={{
+                      backgroundColor: "var(--app-block)",
+                      border: "1px solid var(--app-border)",
+                      borderRadius: "var(--app-section-radius-sm)",
+                    }}
+                  >
+                    <div
+                      className="text-xs font-medium"
+                      style={{
+                        color: "var(--app-text)",
+                        padding: "var(--app-row-pad-y) var(--app-row-pad-x)",
+                      }}
+                    >
+                      Превью page / row / radius
+                    </div>
+                    <div
+                      className="text-[11px]"
+                      style={{
+                        color: "var(--app-description)",
+                        borderTop: "1px solid var(--app-border)",
+                        padding: "var(--app-row-pad-y) var(--app-row-pad-x)",
+                      }}
+                    >
+                      Меняйте слайдеры — отступы на экране обновятся сразу
+                    </div>
+                  </div>
+                </div>
+
+                {LAYOUT_FIELD_META.map((field, index) => (
+                  <div key={field.key}>
+                    {index > 0 ? (
+                      <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                    ) : null}
+                    <LayoutSpacingRow
+                      label={field.label}
+                      hint={field.hint}
+                      cssVar={field.cssVar}
+                      uses={field.uses}
+                      value={layout[field.key]}
+                      unit={field.unit}
+                      min={field.min}
+                      max={field.max}
+                      step={field.step}
+                      onChange={(cssValue) => setLayoutField(field.key, cssValue)}
+                    />
+                  </div>
+                ))}
+
+                <div className="border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetLayout();
+                      showToast("Отступы сброшены");
+                    }}
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                  >
+                    Сбросить отступы
+                  </button>
+                </div>
               </SectionCard>
             </section>
           </>
@@ -1035,7 +1231,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => setOpenFaqId(isOpen ? null : item.id)}
-                      className="flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                      className="app-row app-row--between text-left hover:bg-[var(--app-hover)]"
                     >
                       <span className="min-w-0">
                         <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
