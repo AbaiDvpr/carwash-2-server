@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { MapRef } from "react-map-gl/maplibre";
 import dynamic from "next/dynamic";
@@ -18,12 +18,22 @@ import {
   type MapCenter,
 } from "@/lib/api/geos";
 import { getCachedUserLocation, getUserLocation, subscribeUserLocation } from "@/lib/locationController";
+import {
+  DEFAULT_MARKER_STYLE_PREFS,
+  clampMarkerShapeId,
+  markerColorStyle,
+  markerStyleClass,
+  type KindMarkerPrefs,
+  type MapMarkerStylePrefs,
+} from "@/features/map/markerStyles";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./map.css";
 
 type StationDotProps = {
   station: Station;
   onSelect: (station: Station) => void;
+  washPrefs?: KindMarkerPrefs;
+  chargingPrefs?: KindMarkerPrefs;
 };
 
 type MapStatus = "loading" | "ready" | "error";
@@ -38,11 +48,14 @@ type HomeMapProps = {
   onClose: () => void;
   /** Открыть список точек снизу */
   onOpenList: () => void;
+  markerPrefs?: MapMarkerStylePrefs;
 };
 
 type StationPointProps = {
   stationId: string;
   kind: StationKind;
+  /** Кол-во станций/постов на этой точке */
+  stationsCount: number;
   wash: number;
   charging: number;
 };
@@ -50,6 +63,7 @@ type StationPointProps = {
 type StationClusterProps = {
   wash: number;
   charging: number;
+  stationsCount: number;
 };
 
 type LngLatBoundsLike = [number, number, number, number];
@@ -201,18 +215,40 @@ function WashIcon({ className }: { className?: string }) {
 
 function EvIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg className={className} viewBox="7 3 10 18" fill="currentColor" aria-hidden>
       <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
     </svg>
   );
 }
 
-function StationDot({ station, onSelect }: StationDotProps) {
+function StationDot({
+  station,
+  onSelect,
+  washPrefs,
+  chargingPrefs,
+}: StationDotProps) {
   const isCharging = station.kind === "charging";
+  const prefs = isCharging ? chargingPrefs : washPrefs;
+  const shapeId = clampMarkerShapeId(prefs?.shapeId ?? 1);
+  const count = Math.max(
+    1,
+    station.stationsCount ??
+      (isCharging
+        ? (station.chargerStands?.length ?? 1)
+        : station.washersTotal || 1),
+  );
+  const free = station.freeSlots;
+  const total = Math.max(station.washersTotal, 1);
+  const freeRatio = Math.min(1, Math.max(0, free / total));
+  const power =
+    isCharging && station.maxPowerKw != null && Number.isFinite(station.maxPowerKw)
+      ? `${Math.round(station.maxPowerKw)} кВт`
+      : null;
+
   return (
     <button
       type="button"
-      className={isCharging ? "map-marker__pin map-marker__pin--charging" : "map-marker__pin"}
+      className={markerStyleClass(isCharging ? "charging" : "wash", shapeId)}
       onClick={(event) => {
         event.stopPropagation();
         onSelect(station);
@@ -220,11 +256,28 @@ function StationDot({ station, onSelect }: StationDotProps) {
       onPointerDown={(event) => event.stopPropagation()}
       aria-label={station.name}
       title={station.name}
+      style={
+        {
+          "--map-marker-free": String(freeRatio),
+          ...(prefs ? markerColorStyle(prefs) : null),
+        } as CSSProperties
+      }
     >
-      <span className="map-marker__pin-face">
-        {isCharging ? <EvIcon className="map-marker__pin-icon" /> : <WashIcon className="map-marker__pin-icon" />}
+      <span className="map-marker__progress" aria-hidden />
+      <span className="map-marker__face">
+        <span className="map-marker__icon" aria-hidden>
+          {isCharging ? (
+            <EvIcon className="map-marker__icon-svg" />
+          ) : (
+            <WashIcon className="map-marker__icon-svg" />
+          )}
+        </span>
+        <span className="map-marker__count">{count}</span>
+        <span className="map-marker__sub">
+          {isCharging ? power : `${free}/${total}`}
+        </span>
       </span>
-      <span className="map-marker__pin-tip" />
+      <span className="map-marker__tip" aria-hidden />
     </button>
   );
 }
@@ -263,43 +316,72 @@ function SpiderLegs({ count, zoom }: { count: number; zoom: number }) {
   );
 }
 
+function stationPinCount(station: Station): number {
+  if (station.stationsCount != null && station.stationsCount > 0) {
+    return station.stationsCount;
+  }
+  if (station.kind === "charging") {
+    return Math.max(1, station.chargerStands?.length ?? 1);
+  }
+  return Math.max(1, station.washersTotal || 1);
+}
+
 function ZoomClusterBubble({
-  count,
+  stationsTotal,
   wash,
   charging,
+  locationsCount,
   onExpand,
 }: {
-  count: number;
+  stationsTotal: number;
   wash: number;
   charging: number;
+  locationsCount: number;
   onExpand: () => void;
 }) {
   const mixed = wash > 0 && charging > 0;
+  const kindClass = mixed
+    ? "map-cluster--mixed"
+    : wash > 0
+      ? "map-cluster--wash"
+      : "map-cluster--charging";
 
   return (
     <button
       type="button"
-      className="map-cluster"
+      className={`map-cluster ${kindClass}`}
       onClick={(event) => {
         event.stopPropagation();
         onExpand();
       }}
       onPointerDown={(event) => event.stopPropagation()}
-      aria-label={`${count} точек — приблизить`}
+      aria-label={
+        mixed
+          ? `Мойки ${wash}, зарядки ${charging} · ${locationsCount} точек — приблизить`
+          : `${stationsTotal} станций · ${locationsCount} точек — приблизить`
+      }
     >
-      {wash > 0 ? (
-        <span className="map-cluster__item map-cluster__item--wash">
-          <WashIcon className="map-cluster__icon" />
-          <span className="map-cluster__num">{wash}</span>
+      {mixed ? (
+        <>
+          <span className="map-cluster__half map-cluster__half--wash">
+            <WashIcon className="map-cluster__icon" />
+            <span className="map-cluster__num">{wash}</span>
+          </span>
+          <span className="map-cluster__half map-cluster__half--charging">
+            <EvIcon className="map-cluster__icon map-cluster__icon--ev" />
+            <span className="map-cluster__num">{charging}</span>
+          </span>
+        </>
+      ) : (
+        <span className="map-cluster__solo">
+          {wash > 0 ? (
+            <WashIcon className="map-cluster__icon" />
+          ) : (
+            <EvIcon className="map-cluster__icon map-cluster__icon--ev" />
+          )}
+          <span className="map-cluster__num">{stationsTotal}</span>
         </span>
-      ) : null}
-      {mixed ? <span className="map-cluster__divider" aria-hidden /> : null}
-      {charging > 0 ? (
-        <span className="map-cluster__item map-cluster__item--charging">
-          <EvIcon className="map-cluster__icon" />
-          <span className="map-cluster__num">{charging}</span>
-        </span>
-      ) : null}
+      )}
     </button>
   );
 }
@@ -312,12 +394,16 @@ async function createMapView() {
     focusStation: Station | null;
     selectedStation: Station | null;
     onSelectStation: (station: Station | null) => void;
+    washPrefs: KindMarkerPrefs;
+    chargingPrefs: KindMarkerPrefs;
   };
   return function MapView({
     stations,
     cityCenter,
     focusStation,
     onSelectStation,
+    washPrefs,
+    chargingPrefs,
   }: MapViewProps) {
     const [status, setStatus] = useState<MapStatus>("loading");
     const [userLocation, setUserLocation] = useState<{
@@ -342,29 +428,35 @@ async function createMapView() {
         maxZoom: CLUSTER_MAX_ZOOM,
         minPoints: 2,
         map: (props) => ({
-          wash: props.kind === "wash" ? 1 : 0,
-          charging: props.kind === "charging" ? 1 : 0,
+          wash: props.wash,
+          charging: props.charging,
+          stationsCount: props.stationsCount,
         }),
         reduce: (accumulated, props) => {
           accumulated.wash += props.wash;
           accumulated.charging += props.charging;
+          accumulated.stationsCount += props.stationsCount;
         },
       });
 
       index.load(
-        stations.map((station) => ({
-          type: "Feature" as const,
-          properties: {
-            stationId: station.id,
-            kind: station.kind,
-            wash: station.kind === "wash" ? 1 : 0,
-            charging: station.kind === "charging" ? 1 : 0,
-          },
-          geometry: {
-            type: "Point" as const,
-            coordinates: [station.longitude, station.latitude],
-          },
-        })),
+        stations.map((station) => {
+          const stationsCount = stationPinCount(station);
+          return {
+            type: "Feature" as const,
+            properties: {
+              stationId: station.id,
+              kind: station.kind,
+              stationsCount,
+              wash: station.kind === "wash" ? stationsCount : 0,
+              charging: station.kind === "charging" ? stationsCount : 0,
+            },
+            geometry: {
+              type: "Point" as const,
+              coordinates: [station.longitude, station.latitude],
+            },
+          };
+        }),
       );
 
       return index;
@@ -582,7 +674,12 @@ async function createMapView() {
                       latitude={group.latitude}
                       anchor="bottom"
                     >
-                      <StationDot station={station} onSelect={onSelectStation} />
+                      <StationDot
+                        station={station}
+                        onSelect={onSelectStation}
+                        washPrefs={washPrefs}
+                        chargingPrefs={chargingPrefs}
+                      />
                     </Marker>,
                   ];
                 }
@@ -612,7 +709,12 @@ async function createMapView() {
                         latitude={pos.latitude}
                         anchor="bottom"
                       >
-                        <StationDot station={station} onSelect={onSelectStation} />
+                        <StationDot
+                        station={station}
+                        onSelect={onSelectStation}
+                        washPrefs={washPrefs}
+                        chargingPrefs={chargingPrefs}
+                      />
                       </Marker>
                     );
                   }),
@@ -625,9 +727,13 @@ async function createMapView() {
 
                 if (isCluster) {
                   const clusterId = Number(props.cluster_id);
-                  const count = Number(props.point_count ?? 0);
+                  const locationsCount = Number(props.point_count ?? 0);
                   const wash = Number(props.wash ?? 0);
                   const charging = Number(props.charging ?? 0);
+                  const stationsTotal = Math.max(
+                    1,
+                    Number(props.stationsCount ?? wash + charging),
+                  );
 
                   return [
                     <Marker
@@ -637,9 +743,10 @@ async function createMapView() {
                       anchor="center"
                     >
                       <ZoomClusterBubble
-                        count={count}
+                        stationsTotal={stationsTotal}
                         wash={wash}
                         charging={charging}
+                        locationsCount={locationsCount}
                         onExpand={() =>
                           expandCluster(clusterId, longitude, latitude)
                         }
@@ -658,7 +765,12 @@ async function createMapView() {
                     latitude={latitude}
                     anchor="bottom"
                   >
-                    <StationDot station={station} onSelect={onSelectStation} />
+                    <StationDot
+                      station={station}
+                      onSelect={onSelectStation}
+                      washPrefs={washPrefs}
+                      chargingPrefs={chargingPrefs}
+                    />
                   </Marker>,
                 ];
               })}
@@ -692,6 +804,7 @@ export default function HomeMap({
   onFocusConsumed,
   onClose,
   onOpenList,
+  markerPrefs = DEFAULT_MARKER_STYLE_PREFS,
 }: HomeMapProps) {
   const t = useT();
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
@@ -777,11 +890,13 @@ export default function HomeMap({
               </div>
             ) : (
               <MapView
-                key={mapGeoId ?? "all"}
+                key={`${mapGeoId ?? "all"}-${markerPrefs.wash.shapeId}-${markerPrefs.charging.shapeId}-${markerPrefs.wash.accent}-${markerPrefs.charging.accent}-${markerPrefs.wash.progressFree}-${markerPrefs.charging.progressFree}`}
                 stations={stations}
                 cityCenter={cityCenter}
                 focusStation={focusStation}
                 selectedStation={selectedStation}
+                washPrefs={markerPrefs.wash}
+                chargingPrefs={markerPrefs.charging}
                 onSelectStation={(station) => {
                   setSelectedStation(station);
                   if (!station) onFocusConsumed?.();

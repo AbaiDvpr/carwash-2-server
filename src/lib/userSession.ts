@@ -38,6 +38,16 @@ export function isHeaderNavigationEnabled(): boolean {
   return getHeaderVisible() === "true";
 }
 
+/** По умолчанию header скрыт; показывать только при true */
+export function setHeaderVisible(visible: boolean): void {
+  if (typeof window === "undefined") return;
+  if (visible) {
+    localStorage.setItem(HEADER_VISIBLE, "true");
+  } else {
+    localStorage.removeItem(HEADER_VISIBLE);
+  }
+}
+
 export function getUserSource(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(USER_SOURCE_KEY);
@@ -65,6 +75,7 @@ export function revokeAccess(): void {
   localStorage.removeItem(USER_SOURCE_KEY);
   localStorage.removeItem("access_token");
   localStorage.removeItem("user_id");
+  localStorage.removeItem("profile_complete");
 }
 
 export function formatUserDisplayName(user: {
@@ -90,6 +101,10 @@ export function cacheUserProfile(user: {
     }
     if ("email" in user) {
       setUserEmail(user.email ?? null);
+    }
+    // Подтверждаем полноту профиля (не сбрасываем в false здесь)
+    if (user.name?.trim() && user.last_name?.trim() && user.email?.trim()) {
+      localStorage.setItem("profile_complete", "true");
     }
   }
   return displayName;

@@ -7,7 +7,8 @@ import type { Station } from "@/data/stations";
 import { ApiError } from "@/lib/api";
 import { parseEvStationId } from "@/lib/api/ev";
 import { payCarWash, payEv, payFromBalance } from "@/lib/api/payments";
-import { useT } from "@/hooks/useT";
+import { useT, useLocale } from "@/hooks/useT";
+import { localizeWashTariff } from "@/lib/api/cw";
 import { navigateNavbar } from "@/lib/navbarController";
 import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
 import type { ModalStep } from "../hooks/usePaymentModal";
@@ -53,6 +54,7 @@ function paymentErrorMessage(err: unknown): string {
 
 export default function CarWashPayment({ station }: CarWashPaymentProps) {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const { balance, loading: balanceLoading, refresh: refreshBalance } = useUserBalance();
   const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(null);
@@ -60,7 +62,8 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
   const [modalStep, setModalStep] = useState<ModalStep>("confirm");
   const [payError, setPayError] = useState<string | null>(null);
 
-  const selected = station.tariff.find((tariff) => {
+  const tariffs = station.tariff.map((tariff) => localizeWashTariff(tariff, locale));
+  const selected = tariffs.find((tariff) => {
     const key = tariff.id != null ? String(tariff.id) : tariff.title;
     return key === selectedTariffKey;
   });
@@ -214,14 +217,14 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
               {t("payment.tariffs", "Тарифы")}
             </p>
             <div className="space-y-1.5">
-              {station.tariff.map((tariff) => {
+              {tariffs.map((tariff) => {
                 const key = tariff.id != null ? String(tariff.id) : tariff.title;
                 const isSelected = selectedTariffKey === key;
 
                 return (
                   <label
                     key={key}
-                    className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition ${
+                    className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-2.5 py-2 transition ${
                       isSelected
                         ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40"
                         : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600"
@@ -237,15 +240,29 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                         setSelectedTariffKey(isSelected ? null : key);
                         closeModal();
                       }}
-                      className="h-3.5 w-3.5 shrink-0 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900"
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium text-zinc-900 dark:text-zinc-50">
                         {tariff.title}
                       </p>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                        {tariff.description}
-                      </p>
+                      {tariff.description ? (
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          {tariff.description}
+                        </p>
+                      ) : null}
+                      {tariff.items && tariff.items.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5">
+                          {tariff.items.map((item) => (
+                            <li
+                              key={item}
+                              className="text-[11px] leading-snug text-zinc-500 dark:text-zinc-400"
+                            >
+                              · {item}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </div>
                     <p className="shrink-0 text-xs font-medium text-zinc-900 dark:text-zinc-50">
                       {tariff.price} ₸

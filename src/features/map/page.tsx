@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/layout/PageLayout";
 import type { Station, StationKind } from "@/data/stations";
 import {
-  CONNECTOR_CATALOG,
+  CONNECTOR_GROUPS,
+  connectorLabel,
   formatPowerKw,
   formatPricePerKwh,
 } from "@/features/map/evConnectors";
@@ -14,18 +15,27 @@ import {
   type ChargingCostFilter,
   type ChargingFilters,
   type MapFilters,
+  type WashFilters,
+  type WashPriceFilter,
   countActiveFilters,
   createDefaultFilters,
   isFilterActive,
   matchesFilters,
+  readMapFilters,
   toggleConnector,
   toggleKindEnabled,
+  writeMapFilters,
 } from "@/features/map/filters";
+import { useMapSheetDrag } from "@/features/map/useMapSheetDrag";
 import { useStations } from "@/hooks/useStations";
 import { useT } from "@/hooks/useT";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { distanceKm } from "@/lib/api/geos";
+import { compactHoursLabel } from "@/lib/openHours";
 import HomeMap from "@/features/home/components/HomeMap";
+import MapMarkerStyleDrawer, {
+  useMapMarkerStylePrefs,
+} from "@/features/map/MapMarkerStyleDrawer";
 import "@/features/home/components/map.css";
 
 /** Ближайшие в списке: 0–2 км */
@@ -89,14 +99,36 @@ const COST_OPTIONS: {
   labelFallback: string;
 }[] = [
   { value: "all", labelKey: "map.filter_cost_all", labelFallback: "Все" },
-  { value: "paid", labelKey: "map.filter_cost_paid", labelFallback: "Платные" },
-  { value: "free", labelKey: "map.filter_cost_free", labelFallback: "Бесплатные" },
+  { value: "free", labelKey: "map.filter_cost_free", labelFallback: "Бесплатно" },
+  { value: "lte70", labelKey: "map.filter_price_lte70", labelFallback: "до 70 ₸/кВт·ч" },
+  { value: "lte120", labelKey: "map.filter_price_lte120", labelFallback: "70–120 ₸/кВт·ч" },
+  { value: "gt120", labelKey: "map.filter_price_gt120", labelFallback: "от 120 ₸/кВт·ч" },
   {
     value: "unknown",
     labelKey: "map.filter_cost_unknown",
-    labelFallback: "Неизвестно",
+    labelFallback: "Цена неизвестна",
   },
 ];
+
+const WASH_PRICE_OPTIONS: {
+  value: WashPriceFilter;
+  labelKey: string;
+  labelFallback: string;
+}[] = [
+  { value: "all", labelKey: "map.filter_cost_all", labelFallback: "Все" },
+  { value: "lte1500", labelKey: "map.filter_wash_lte1500", labelFallback: "до 1 500 ₸" },
+  { value: "lte3000", labelKey: "map.filter_wash_lte3000", labelFallback: "1 500–3 000 ₸" },
+  { value: "gt3000", labelKey: "map.filter_wash_gt3000", labelFallback: "от 3 000 ₸" },
+  {
+    value: "unknown",
+    labelKey: "map.filter_cost_unknown",
+    labelFallback: "Цена неизвестна",
+  },
+];
+
+function FilterSectionLabel({ children }: { children: ReactNode }) {
+  return <p className="map-filter-section__label">{children}</p>;
+}
 
 function formatDistanceLabel(km: number): string {
   if (km < 1) return `${Math.round(km * 1000)} м`;
@@ -176,68 +208,256 @@ function KindSwitcher({
   );
 }
 
-function ChargingFilterExtras({
+function WashFilterExtras({
   draft,
-  disabled,
   onChange,
 }: {
-  draft: ChargingFilters;
-  disabled: boolean;
-  onChange: (next: ChargingFilters) => void;
+  draft: WashFilters;
+  onChange: (next: WashFilters) => void;
 }) {
   const t = useT();
 
   return (
-    <div className={`map-ev-filters${disabled ? " is-disabled" : ""}`}>
-      <div className="map-ev-chips">
-        <button
-          type="button"
-          className={`map-ev-chip${draft.fast ? " is-on" : ""}`}
-          disabled={disabled}
-          aria-pressed={draft.fast}
-          onClick={() => onChange({ ...draft, fast: !draft.fast })}
-        >
-          {t("map.filter_fast", "Быстрые")}
-        </button>
-        <button
-          type="button"
-          className={`map-ev-chip${draft.slow ? " is-on" : ""}`}
-          disabled={disabled}
-          aria-pressed={draft.slow}
-          onClick={() => onChange({ ...draft, slow: !draft.slow })}
-        >
-          {t("map.filter_slow", "Медленные")}
-        </button>
-      </div>
-
+    <div className="map-filter-section">
+      <FilterSectionLabel>
+        {t("map.filter_price_wash", "Цена тарифа")}
+      </FilterSectionLabel>
+      <p className="map-filter-section__hint">
+        {t(
+          "map.filter_price_wash_hint",
+          "По минимальной цене услуги на мойке",
+        )}
+      </p>
       <div className="map-ev-chips map-ev-chips--wrap">
-        {CONNECTOR_CATALOG.map((item) => {
-          const selected = draft.connectors.includes(item.slug);
+        {WASH_PRICE_OPTIONS.map((option) => {
+          const checked = draft.price === option.value;
           return (
             <button
-              key={item.slug}
+              key={option.value}
               type="button"
-              className={`map-ev-chip${selected ? " is-on" : ""}`}
-              disabled={disabled}
-              aria-pressed={selected}
-              onClick={() => onChange(toggleConnector(draft, item.slug))}
+              className={`map-ev-chip${checked ? " is-on" : ""}`}
+              aria-pressed={checked}
+              onClick={() => onChange({ ...draft, price: option.value })}
             >
-              {item.label}
+              {t(option.labelKey, option.labelFallback)}
             </button>
           );
         })}
-        {draft.connectors.length > 0 ? (
-          <button
-            type="button"
-            className="map-ev-chip map-ev-chip--ghost"
-            disabled={disabled}
-            onClick={() => onChange({ ...draft, connectors: [] })}
-          >
-            {t("map.filter_clear_all", "Сброс")}
-          </button>
-        ) : null}
       </div>
+    </div>
+  );
+}
 
+function FilterChevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`map-filter-acc__chevron${open ? " is-open" : ""}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      aria-hidden
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+function AvailabilityRows({
+  options,
+  values,
+  onToggle,
+}: {
+  options: {
+    key: FilterOptionKey;
+    labelKey: string;
+    labelFallback: string;
+  }[];
+  values: Record<FilterOptionKey, boolean>;
+  onToggle: (key: FilterOptionKey) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="map-filter-section map-filter-section--rows">
+      <FilterSectionLabel>
+        {t("map.filter_availability", "Доступность")}
+      </FilterSectionLabel>
+      {options.map((option) => {
+        const checked = values[option.key];
+        return (
+          <button
+            key={option.key}
+            type="button"
+            className="map-filter-row"
+            onClick={() => onToggle(option.key)}
+            aria-pressed={checked}
+          >
+            <span>{t(option.labelKey, option.labelFallback)}</span>
+            <span
+              className={`map-filter-sheet__check${checked ? " is-on" : ""}`}
+              aria-hidden
+            >
+              {checked ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 5 5L20 7" />
+                </svg>
+              ) : null}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+type SpeedAccordionKey = "fast" | "slow";
+
+const SPEED_ACCORDIONS: {
+  key: SpeedAccordionKey;
+  group: "dc" | "ac";
+  titleKey: string;
+  titleFallback: string;
+  hintKey: string;
+  hintFallback: string;
+}[] = [
+  {
+    key: "fast",
+    group: "dc",
+    titleKey: "map.filter_fast",
+    titleFallback: "Быстрые",
+    hintKey: "map.filter_fast_hint",
+    hintFallback: "DC · обычно от 50 кВт",
+  },
+  {
+    key: "slow",
+    group: "ac",
+    titleKey: "map.filter_slow",
+    titleFallback: "Медленные",
+    hintKey: "map.filter_slow_hint",
+    hintFallback: "AC · Type 1 / Type 2 и аналоги",
+  },
+];
+
+function ChargingSpeedFilters({
+  draft,
+  onChange,
+}: {
+  draft: ChargingFilters;
+  onChange: (next: ChargingFilters) => void;
+}) {
+  const t = useT();
+  const [openKey, setOpenKey] = useState<SpeedAccordionKey | null>("fast");
+
+  return (
+    <div className="map-filter-section">
+      <FilterSectionLabel>
+        {t("map.filter_speed", "Тип зарядки")}
+      </FilterSectionLabel>
+      <p className="map-filter-section__hint">
+        {t(
+          "map.filter_speed_hint",
+          "Раскройте блок и выберите нужные коннекторы",
+        )}
+      </p>
+
+      <div className="map-filter-acc-list">
+        {SPEED_ACCORDIONS.map((acc) => {
+          const group =
+            CONNECTOR_GROUPS.find((item) => item.group === acc.group) ?? null;
+          const slugs = group?.slugs ?? [];
+          const selectedInGroup = slugs.filter((slug) =>
+            draft.connectors.includes(slug),
+          );
+          const activeCount = selectedInGroup.length;
+          const open = openKey === acc.key;
+
+          return (
+            <div
+              key={acc.key}
+              className={`map-filter-acc${open ? " is-open" : ""}${activeCount > 0 ? " is-active" : ""}`}
+            >
+              <button
+                type="button"
+                className="map-filter-acc__head"
+                aria-expanded={open}
+                onClick={() =>
+                  setOpenKey((prev) => (prev === acc.key ? null : acc.key))
+                }
+              >
+                <span className="map-filter-acc__titles">
+                  <span className="map-filter-acc__title">
+                    {t(acc.titleKey, acc.titleFallback)}
+                  </span>
+                  <span className="map-filter-acc__hint">
+                    {t(acc.hintKey, acc.hintFallback)}
+                  </span>
+                </span>
+                <span className="map-filter-acc__meta">
+                  {activeCount > 0 ? (
+                    <span className="map-filter-acc__badge">{activeCount}</span>
+                  ) : null}
+                  <FilterChevron open={open} />
+                </span>
+              </button>
+
+              {open ? (
+                <div className="map-filter-acc__body">
+                  <div className="map-ev-chips map-ev-chips--wrap">
+                    {slugs.map((slug) => {
+                      const selected = draft.connectors.includes(slug);
+                      return (
+                        <button
+                          key={slug}
+                          type="button"
+                          className={`map-ev-chip${selected ? " is-on" : ""}`}
+                          aria-pressed={selected}
+                          onClick={() => onChange(toggleConnector(draft, slug))}
+                        >
+                          {connectorLabel(slug)}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedInGroup.length > 0 ? (
+                    <button
+                      type="button"
+                      className="map-filter-acc__clear"
+                      onClick={() =>
+                        onChange({
+                          ...draft,
+                          connectors: draft.connectors.filter(
+                            (slug) => !slugs.includes(slug),
+                          ),
+                        })
+                      }
+                    >
+                      {t("map.filter_clear_group", "Сбросить коннекторы")}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ChargingPriceFilters({
+  draft,
+  onChange,
+}: {
+  draft: ChargingFilters;
+  onChange: (next: ChargingFilters) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="map-filter-section">
+      <FilterSectionLabel>
+        {t("map.filter_price_ev", "Цена за кВт·ч")}
+      </FilterSectionLabel>
       <div className="map-ev-chips map-ev-chips--wrap">
         {COST_OPTIONS.map((option) => {
           const checked = draft.cost === option.value;
@@ -246,7 +466,6 @@ function ChargingFilterExtras({
               key={option.value}
               type="button"
               className={`map-ev-chip${checked ? " is-on" : ""}`}
-              disabled={disabled}
               aria-pressed={checked}
               onClick={() => onChange({ ...draft, cost: option.value })}
             >
@@ -275,10 +494,26 @@ function MapFilterDrawer({
   const [activeTab, setActiveTab] = useState<StationKind>(() =>
     filters.wash.enabled || !filters.charging.enabled ? "wash" : "charging",
   );
+  const {
+    sheetStyle,
+    handleProps,
+    headerProps,
+    scrollProps,
+    sheetProps,
+    offsetY,
+    dragging,
+    closing,
+  } = useMapSheetDrag({
+    onClose,
+  });
 
   const activeSection =
     FILTER_SECTIONS.find((section) => section.kind === activeTab) ?? FILTER_SECTIONS[0]!;
   const sectionDraft = draft[activeTab];
+  const backdropOpacity = Math.max(
+    0.08,
+    0.45 * (1 - Math.min(1, offsetY / 260)),
+  );
 
   useEffect(() => {
     setPortalReady(true);
@@ -300,10 +535,25 @@ function MapFilterDrawer({
         className="map-drawer__backdrop"
         onClick={onClose}
         aria-label={t("common.close", "Закрыть")}
+        style={
+          offsetY > 0 || closing ? { opacity: backdropOpacity } : undefined
+        }
       />
-      <div className="map-filter-sheet" role="dialog" aria-label={t("map.filter", "Фильтр")}>
-        <div className="map-filter-sheet__header">
-          <div className="map-drawer__handle" aria-hidden />
+      <div
+        className={`map-filter-sheet${dragging || closing ? " is-dragging" : ""}`}
+        role="dialog"
+        aria-label={t("map.filter", "Фильтр")}
+        style={sheetStyle}
+        {...sheetProps}
+      >
+        <div className="map-filter-sheet__header" {...headerProps}>
+          <div
+            className="map-drawer__grab"
+            {...handleProps}
+            aria-label={t("map.sheet_drag", "Потяните вниз, чтобы закрыть")}
+          >
+            <div className="map-drawer__handle" aria-hidden />
+          </div>
           <div className="map-filter-sheet__title-row">
             <div className="map-filter-sheet__tabs" role="tablist" aria-label={t("map.filter", "Тип")}>
               {FILTER_SECTIONS.map((section) => (
@@ -332,52 +582,67 @@ function MapFilterDrawer({
           </div>
         </div>
 
-        <div className="map-filter-sheet__body">
+        <div className="map-filter-sheet__body" {...scrollProps}>
           <div className="map-filter-flat">
-            {activeSection.options.map((option) => {
-              const checked = sectionDraft[option.key];
-              return (
-                <button
-                  key={option.key}
-                  type="button"
-                  className="map-filter-row"
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      [activeTab]: {
-                        ...prev[activeTab],
-                        [option.key]: !prev[activeTab][option.key],
-                      },
-                    }))
-                  }
-                  aria-pressed={checked}
-                >
-                  <span>{t(option.labelKey, option.labelFallback)}</span>
-                  <span
-                    className={`map-filter-sheet__check${checked ? " is-on" : ""}`}
-                    aria-hidden
-                  >
-                    {checked ? (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 5 5L20 7" />
-                      </svg>
-                    ) : null}
-                  </span>
-                </button>
-              );
-            })}
+            {activeTab === "charging" ? (
+              <ChargingSpeedFilters
+                draft={draft.charging}
+                onChange={(charging) => setDraft((prev) => ({ ...prev, charging }))}
+              />
+            ) : null}
+
+            <AvailabilityRows
+              options={activeSection.options}
+              values={{
+                openOnly: sectionDraft.openOnly,
+                freeOnly: sectionDraft.freeOnly,
+              }}
+              onToggle={(key) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  [activeTab]: {
+                    ...prev[activeTab],
+                    [key]: !prev[activeTab][key],
+                  },
+                }))
+              }
+            />
 
             {activeTab === "charging" ? (
-              <ChargingFilterExtras
+              <ChargingPriceFilters
                 draft={draft.charging}
-                disabled={false}
                 onChange={(charging) => setDraft((prev) => ({ ...prev, charging }))}
+              />
+            ) : null}
+
+            {activeTab === "wash" ? (
+              <WashFilterExtras
+                draft={draft.wash}
+                onChange={(wash) => setDraft((prev) => ({ ...prev, wash }))}
               />
             ) : null}
           </div>
         </div>
 
         <div className="map-filter-sheet__footer">
+          <button
+            type="button"
+            className="map-filter-sheet__reset"
+            onClick={() =>
+              setDraft((prev) => ({
+                ...prev,
+                [activeTab]:
+                  activeTab === "wash"
+                    ? { ...createDefaultFilters("all").wash, enabled: prev.wash.enabled }
+                    : {
+                        ...createDefaultFilters("all").charging,
+                        enabled: prev.charging.enabled,
+                      },
+              }))
+            }
+          >
+            {t("map.filter_reset_tab", "Сбросить")}
+          </button>
           <button
             type="button"
             className="map-filter-sheet__apply"
@@ -397,8 +662,72 @@ function MapFilterDrawer({
 
 function connectorTone(status: string | null | undefined): string {
   if (status === "free") return "is-free";
-  if (status === "busy") return "is-busy";
+  if (status === "charging" || status === "busy") return "is-busy";
   return "is-offline";
+}
+
+function ListWashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 792 792" fill="currentColor" aria-hidden>
+      <path d="M665.335,486.777c-7.815-46.161-25.534-88.323-43.162-126.578C569.197,243.434,505.408,137.391,442.619,39.255 l-7.815-13.721C423.991,8.814,411.269,0,396.549,0c-21.626,0-35.347,19.627-39.255,25.534c0,0,0,0,0,1L343.573,48.16 c-24.534,39.255-50.068,80.508-74.602,121.671C230.716,234.62,182.647,320.944,147.3,413.174 c-11.813,30.441-22.535,60.881-23.535,94.229c-3.907,86.324,27.442,159.018,92.23,215.901C266.063,767.466,329.852,792,395.549,792 l0,0c96.138,0,183.552-49.068,233.529-132.485C662.427,604.541,675.148,545.659,665.335,486.777z M597.638,640.888 c-43.162,72.603-118.764,114.765-202.18,114.765c-56.883,0-112.857-20.627-156.019-58.882 c-55.974-49.068-83.416-112.857-80.508-187.459c1-27.442,9.814-53.975,21.626-82.417c34.348-90.322,81.417-174.647,118.764-238.436 c23.535-40.254,49.068-81.417,74.602-120.672l12.721-20.627c0-1,1-1,1-1.999c1.999-2.908,5.906-7.815,7.815-8.814 c0,0,2.908,1,7.815,8.814l7.815,12.721c60.881,96.138,124.67,201.18,176.646,316.037c16.72,37.256,33.348,76.51,40.254,117.764 C637.893,542.751,627.079,592.728,597.638,640.888z M413.087,662.423c0,9.814-7.815,17.628-17.628,17.628 c-89.323,0-160.926-72.603-160.926-160.926c0-9.814,7.815-17.628,17.628-17.628c9.814,0,17.628,7.815,17.628,17.628 c0.999,68.696,56.974,124.67,125.669,124.67C405.272,643.795,413.087,652.609,413.087,662.423z" />
+    </svg>
+  );
+}
+
+function ListEvIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
+    </svg>
+  );
+}
+
+/** Кол-во станций/постов на точке — как на пине карты */
+function stationUnitsCount(station: Station): number {
+  if (station.stationsCount != null && station.stationsCount > 0) {
+    return station.stationsCount;
+  }
+  if (station.kind === "charging") {
+    return Math.max(1, station.chargerStands?.length ?? 1);
+  }
+  return Math.max(1, station.washersTotal || 1);
+}
+
+function ListTypeMedia({ photoUrl }: { photoUrl: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!photoUrl || failed) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={photoUrl} alt="" onError={() => setFailed(true)} />
+  );
+}
+
+function ListStationPhoto({ src }: { src: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return null;
+  return (
+    <span className="map-ev-card__photo">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" onError={() => setFailed(true)} />
+    </span>
+  );
+}
+
+function listCardTitle(station: Station): string {
+  return (station.address || station.name).trim();
+}
+
+function ListHoursRow({ hoursLabel }: { hoursLabel: string }) {
+  const hours = compactHoursLabel(hoursLabel);
+  return (
+    <div className="map-ev-card__hours" title={hoursLabel}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <path strokeLinecap="round" d="M12 7v5l3 2" />
+      </svg>
+      <span className="map-ev-card__hours-value">{hours}</span>
+    </div>
+  );
 }
 
 function ChargingListCard({
@@ -411,8 +740,16 @@ function ChargingListCard({
   const t = useT();
   const isOpen = station.status === "Открыто";
   const connectors = station.connectors ?? [];
-  const visible = connectors.slice(0, 4);
-  const overflow = connectors.length - visible.length;
+  const visibleConnectors = connectors.slice(0, 4);
+  const overflow = connectors.length - visibleConnectors.length;
+  const showDc =
+    station.hasDc ||
+    (station.maxPowerKw != null && station.maxPowerKw >= 50);
+  const free = Math.max(0, station.freeSlots);
+  const portsTotal = connectors.length;
+  const title = listCardTitle(station);
+  const hoursLabel =
+    station.hoursLabel || t("station.hours_unknown", "Часы уточняйте");
 
   return (
     <li>
@@ -421,80 +758,82 @@ function ChargingListCard({
         onClick={() => onSelect(station)}
         className="map-ev-card theme-block theme-hover"
       >
-        <div className="map-ev-card__top">
-          <span className="map-ev-card__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
-            </svg>
+        <div className="map-ev-card__head-row">
+          <span className="map-ev-card__free-chip">
+            {portsTotal > 0 ? `${free}/${portsTotal}` : free}{" "}
+            {t("map.free", "свободно")}
           </span>
-          <div className="map-ev-card__main">
-            <div className="map-ev-card__head">
-              <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
-                {isOpen
-                  ? t("station.open_short", "Открыто")
-                  : t("station.closed_short", "Закрыто")}
-              </span>
-              <svg
-                className="map-ev-card__chevron"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden
-              >
-                <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-              </svg>
-            </div>
+          <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
+            {isOpen
+              ? t("map.status_working", "в работе")
+              : t("station.closed_short", "Закрыто")}
+          </span>
+        </div>
 
-            <div className="map-ev-card__title">{station.name}</div>
-            {station.address ? (
-              <div className="map-ev-card__address">{station.address}</div>
-            ) : null}
-            <div className="map-ev-card__hours">
-              {station.hoursLabel || t("station.hours_unknown", "Часы уточняйте")}
+        <div className="map-ev-card__top">
+          <ListStationPhoto src={station.photoUrl} />
+          <div className="map-ev-card__main">
+            <div className="map-ev-card__title-row">
+              <div className="map-ev-card__title">{title}</div>
+              <span
+                className="map-ev-card__kind map-ev-card__kind--ev"
+                title={t("common.charging", "ЭЗС")}
+                aria-label={t("common.charging", "ЭЗС")}
+              >
+                <ListEvIcon className="map-ev-card__kind-icon" />
+              </span>
             </div>
-            <div className="map-ev-card__meta">
-              {t("common.charging", "ЭЗС")} · {station.freeSlots}/
-              {station.washersTotal} {t("map.free", "свободно")}
-              {station.maxPowerKw != null
-                ? ` · max ${formatPowerKw(station.maxPowerKw)}`
-                : null}
-            </div>
+            <ListHoursRow hoursLabel={hoursLabel} />
           </div>
         </div>
 
-        {visible.length > 0 ? (
-          <div className="map-ev-card__connectors">
-            {visible.map((connector) => (
-              <span
-                key={connector.slug}
-                className={`map-ev-card__chip ${connectorTone(connector.status)}`}
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
-                </svg>
-                <span className="map-ev-card__chip-label">
-                  {connector.powerKw != null
-                    ? `${connector.label} · ${Math.round(connector.powerKw)} кВт`
-                    : connector.label}
-                </span>
+        <div className="map-ev-card__types">
+          {showDc && station.maxPowerKw != null ? (
+            <span className="map-ev-card__type map-ev-card__type--dc">
+              <span className="map-ev-card__type-badge">DC</span>
+              <span className="map-ev-card__type-label">
+                {formatPowerKw(station.maxPowerKw)}
               </span>
-            ))}
-            {overflow > 0 ? (
-              <span className="map-ev-card__chip is-more">+{overflow}</span>
-            ) : null}
-          </div>
-        ) : null}
+            </span>
+          ) : null}
+
+          {visibleConnectors.map((connector) => (
+            <span
+              key={connector.slug}
+              className={`map-ev-card__type ${connectorTone(connector.status)}`}
+            >
+              {connector.photoUrl ? (
+                <span className="map-ev-card__type-media" aria-hidden>
+                  <ListTypeMedia photoUrl={connector.photoUrl} />
+                </span>
+              ) : null}
+              <span className="map-ev-card__type-label">{connector.label}</span>
+            </span>
+          ))}
+
+          {overflow > 0 ? (
+            <span className="map-ev-card__type map-ev-card__type--more">
+              +{overflow}
+            </span>
+          ) : null}
+        </div>
 
         <div className="map-ev-card__foot">
           <span
-            className={
-              station.pricePerKwh == null ? "map-ev-card__foot-muted" : undefined
-            }
+            className={`map-ev-card__pill${
+              station.pricePerKwh == null ? " is-muted" : ""
+            }`}
           >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <rect x="3" y="6" width="18" height="12" rx="2" />
+              <path d="M3 10h18" />
+            </svg>
             {formatPricePerKwh(station.pricePerKwh)}
           </span>
-          <span>
+          <span className="map-ev-card__pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
             {station.distanceKm != null
               ? formatDistanceLabel(station.distanceKm)
               : "—"}
@@ -513,47 +852,58 @@ function WashListCard({
   onSelect: (station: Station) => void;
 }) {
   const t = useT();
+  const isOpen = station.status === "Открыто";
+  const free = Math.max(0, station.freeSlots);
+  const total = Math.max(station.washersTotal || stationUnitsCount(station), 1);
+  const title = listCardTitle(station);
+  const hoursLabel =
+    station.hoursLabel || t("station.hours_unknown", "Часы уточняйте");
+
   return (
     <li>
       <button
         type="button"
         onClick={() => onSelect(station)}
-        className="app-section theme-hover flex w-full items-start gap-3 text-left"
-        style={{ padding: "var(--app-row-pad-y) var(--app-row-pad-x)" }}
+        className="map-ev-card map-ev-card--wash theme-block theme-hover"
       >
-        <span
-          className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
-          style={{ backgroundColor: "#38bdf8" }}
-        >
-          <svg className="h-4 w-4" viewBox="0 0 792 792" fill="currentColor" aria-hidden>
-            <path d="M665.335,486.777c-7.815-46.161-25.534-88.323-43.162-126.578C569.197,243.434,505.408,137.391,442.619,39.255 l-7.815-13.721C423.991,8.814,411.269,0,396.549,0c-21.626,0-35.347,19.627-39.255,25.534c0,0,0,0,0,1L343.573,48.16 c-24.534,39.255-50.068,80.508-74.602,121.671C230.716,234.62,182.647,320.944,147.3,413.174 c-11.813,30.441-22.535,60.881-23.535,94.229c-3.907,86.324,27.442,159.018,92.23,215.901C266.063,767.466,329.852,792,395.549,792 l0,0c96.138,0,183.552-49.068,233.529-132.485C662.427,604.541,675.148,545.659,665.335,486.777z M597.638,640.888 c-43.162,72.603-118.764,114.765-202.18,114.765c-56.883,0-112.857-20.627-156.019-58.882 c-55.974-49.068-83.416-112.857-80.508-187.459c1-27.442,9.814-53.975,21.626-82.417c34.348-90.322,81.417-174.647,118.764-238.436 c23.535-40.254,49.068-81.417,74.602-120.672l12.721-20.627c0-1,1-1,1-1.999c1.999-2.908,5.906-7.815,7.815-8.814 c0,0,2.908,1,7.815,8.814l7.815,12.721c60.881,96.138,124.67,201.18,176.646,316.037c16.72,37.256,33.348,76.51,40.254,117.764 C637.893,542.751,627.079,592.728,597.638,640.888z M413.087,662.423c0,9.814-7.815,17.628-17.628,17.628 c-89.323,0-160.926-72.603-160.926-160.926c0-9.814,7.815-17.628,17.628-17.628c9.814,0,17.628,7.815,17.628,17.628 c0.999,68.696,56.974,124.67,125.669,124.67C405.272,643.795,413.087,652.609,413.087,662.423z" />
-          </svg>
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center justify-between gap-2">
-            <span
-              className="truncate text-sm font-semibold"
-              style={{ color: "var(--app-text)" }}
-            >
-              {station.name}
-            </span>
-            {station.distanceKm != null ? (
-              <span className="theme-description shrink-0 text-[11px] font-medium">
-                {formatDistanceLabel(station.distanceKm)}
+        <div className="map-ev-card__head-row">
+          <span className="map-ev-card__free-chip">
+            {free}/{total} {t("map.free", "свободно")}
+          </span>
+          <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
+            {isOpen
+              ? t("map.status_working", "в работе")
+              : t("station.closed_short", "Закрыто")}
+          </span>
+        </div>
+
+        <div className="map-ev-card__top">
+          <ListStationPhoto src={station.photoUrl} />
+          <div className="map-ev-card__main">
+            <div className="map-ev-card__title-row">
+              <div className="map-ev-card__title">{title}</div>
+              <span
+                className="map-ev-card__kind map-ev-card__kind--wash"
+                title={t("common.wash", "Мойка")}
+                aria-label={t("common.wash", "Мойка")}
+              >
+                <ListWashIcon className="map-ev-card__kind-icon" />
               </span>
-            ) : null}
+            </div>
+            <ListHoursRow hoursLabel={hoursLabel} />
+          </div>
+        </div>
+
+        <div className="map-ev-card__foot">
+          <span className="map-ev-card__pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+            {station.distanceKm != null
+              ? formatDistanceLabel(station.distanceKm)
+              : "—"}
           </span>
-          <span className="theme-description mt-0.5 block truncate text-xs">
-            {station.address}
-          </span>
-          <span className="theme-description mt-1 block text-[11px]">
-            {station.hoursLabel || t("station.hours_unknown", "Часы уточняйте")}
-          </span>
-          <span className="theme-description mt-0.5 block text-[11px]">
-            {t("common.wash", "Мойка")} · {station.freeSlots}/{station.washersTotal}{" "}
-            {t("map.free", "свободно")}
-          </span>
-        </span>
+        </div>
       </button>
     </li>
   );
@@ -572,6 +922,14 @@ function StationListItem({
   return <WashListCard station={station} onSelect={onSelect} />;
 }
 
+function pointsWord(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return "точка";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "точки";
+  return "точек";
+}
+
 function StationSection({
   title,
   hint,
@@ -585,13 +943,20 @@ function StationSection({
 }) {
   if (stations.length === 0) return null;
 
+  const points = stations.length;
+
   return (
     <section className="map-list-section">
       <div className="map-list-section__head">
-        <h3 className="map-list-section__title">{title}</h3>
+        <div className="map-list-section__title-row">
+          <h3 className="map-list-section__title">{title}</h3>
+          <span className="map-list-section__count">
+            {points} {pointsWord(points)}
+          </span>
+        </div>
         {hint ? <p className="map-list-section__hint">{hint}</p> : null}
       </div>
-      <ul className="space-y-2">
+      <ul className="map-list-section__items">
         {stations.map((station) => (
           <StationListItem key={station.id} station={station} onSelect={onSelect} />
         ))}
@@ -606,28 +971,53 @@ function MapStationList({
   hasLocation,
   search,
   filterCount,
+  loading,
   onSearchChange,
   onSelect,
   onClose,
   onOpenFilter,
+  onReload,
 }: {
   nearby: StationWithDistance[];
   others: StationWithDistance[];
   hasLocation: boolean;
   search: string;
   filterCount: number;
+  loading: boolean;
   onSearchChange: (value: string) => void;
   onSelect: (station: Station) => void;
   onClose: () => void;
   onOpenFilter: () => void;
+  onReload: () => void;
 }) {
   const t = useT();
   const [portalReady, setPortalReady] = useState(false);
   const empty = nearby.length === 0 && others.length === 0;
+  const totalPoints = nearby.length + others.length;
+  const {
+    sheetStyle,
+    handleProps,
+    headerProps,
+    scrollProps,
+    sheetProps,
+    offsetY,
+    dragging,
+    closing,
+  } = useMapSheetDrag({
+    onClose,
+  });
+  const backdropOpacity = Math.max(
+    0.08,
+    0.45 * (1 - Math.min(1, offsetY / 260)),
+  );
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  useEffect(() => {
+    onReload();
+  }, [onReload]);
 
   if (!portalReady) return null;
 
@@ -638,23 +1028,40 @@ function MapStationList({
         className="map-drawer__backdrop"
         onClick={onClose}
         aria-label={t("common.close", "Закрыть")}
+        style={
+          offsetY > 0 || closing ? { opacity: backdropOpacity } : undefined
+        }
       />
-      <div className="map-list-sheet" role="dialog" aria-label={t("map.list", "Список")}>
-        <div className="map-list-sheet__header">
-          <div className="map-drawer__handle" aria-hidden />
+      <div
+        className={`map-list-sheet is-expanded${dragging || closing ? " is-dragging" : ""}`}
+        role="dialog"
+        aria-label={t("map.list", "Список")}
+        style={sheetStyle}
+        {...sheetProps}
+      >
+        <div className="map-list-sheet__header" {...headerProps}>
+          <div
+            className="map-drawer__grab"
+            {...handleProps}
+            aria-label={t("map.sheet_drag", "Потяните вниз, чтобы закрыть")}
+          >
+            <div className="map-drawer__handle" aria-hidden />
+          </div>
           <div className="map-list-sheet__title-row">
-            <div>
-              <p className="theme-description text-[11px] font-medium uppercase tracking-wider">
+            <div className="map-list-sheet__heading">
+              <p className="map-list-sheet__eyebrow">
                 {t("map.list", "Список")}
               </p>
-              <h2
-                className="text-base font-semibold"
-                style={{ color: "var(--app-text)" }}
-              >
-                {t("map.points", "Точки на карте")}
+              <h2 className="map-list-sheet__title">
+                {t("map.stations_list", "Список станций")}
               </h2>
+              {!empty ? (
+                <p className="map-list-sheet__summary">
+                  {totalPoints} {pointsWord(totalPoints)}
+                </p>
+              ) : null}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="map-list-sheet__tools">
               <button
                 type="button"
                 className="map-drawer__close map-drawer__close--badge"
@@ -690,11 +1097,16 @@ function MapStationList({
               autoComplete="off"
             />
           </label>
+          {loading ? (
+            <p className="map-list-sheet__loading">
+              {t("map.updating", "Обновляем данные…")}
+            </p>
+          ) : null}
         </div>
 
-        <div className="map-list-sheet__scroll">
+        <div className="map-list-sheet__scroll" {...scrollProps}>
           {empty ? (
-            <p className="theme-description px-1 py-8 text-center text-xs">
+            <p className="map-list-sheet__empty">
               {!hasLocation
                 ? t("map.enable_geo", "Включите геолокацию, чтобы увидеть точки в списке")
                 : search.trim()
@@ -736,7 +1148,7 @@ function MapPageInner() {
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { stations, loading, error } = useStations();
+  const { stations, loading, refreshing, error, reload } = useStations();
   const { location: userLocation } = useUserLocation();
 
   const kindFromQuery = parseKind(searchParams.get("kind"));
@@ -745,9 +1157,14 @@ function MapPageInner() {
   const [focusStationId, setFocusStationId] = useState<string | null>(focusFromQuery);
   const [listOpen, setListOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filters, setFilters] = useState<MapFilters>(() => createDefaultFilters(kindFromQuery));
+  const [styleOpen, setStyleOpen] = useState(false);
+  const { prefs: markerPrefs, setPrefs: setMarkerPrefs } = useMapMarkerStylePrefs();
+  const [filters, setFilters] = useState<MapFilters>(() => createDefaultFilters("all"));
+  const [filtersHydrated, setFiltersHydrated] = useState(false);
   const [search, setSearch] = useState("");
 
+  /** Пока в URL есть ?kind= — прелоадер: пишем фильтр и сразу чистим query */
+  const bootReady = filtersHydrated && kindFromQuery === "all";
   const filterCount = useMemo(() => countActiveFilters(filters), [filters]);
 
   useEffect(() => {
@@ -755,8 +1172,27 @@ function MapPageInner() {
   }, [focusFromQuery]);
 
   useEffect(() => {
-    setFilters(createDefaultFilters(kindFromQuery));
-  }, [kindFromQuery]);
+    if (kindFromQuery !== "all") {
+      const next = createDefaultFilters(kindFromQuery);
+      writeMapFilters(next);
+      setFilters(next);
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("kind");
+      const qs = params.toString();
+      router.replace(qs ? `/map?${qs}` : "/map", { scroll: false });
+      setFiltersHydrated(true);
+      return;
+    }
+
+    setFilters(readMapFilters() ?? createDefaultFilters("all"));
+    setFiltersHydrated(true);
+  }, [kindFromQuery, router, searchParams]);
+
+  useEffect(() => {
+    if (!filtersHydrated || kindFromQuery !== "all") return;
+    writeMapFilters(filters);
+  }, [filters, filtersHydrated, kindFromQuery]);
 
   const filteredStations = useMemo(
     () => stations.filter((station) => matchesFilters(station, filters)),
@@ -803,6 +1239,16 @@ function MapPageInner() {
     return { nearby: near, others: rest };
   }, [sortedList, userLocation]);
 
+  if (!bootReady) {
+    return (
+      <PageLayout title={t("map.title", "Карта")} className="page--map" bare>
+        <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+          {t("map.loading", "Загрузка карты…")}
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout
       title={t("map.title", "Карта")}
@@ -819,6 +1265,7 @@ function MapPageInner() {
           onFocusConsumed={() => setFocusStationId(null)}
           onClose={() => router.push("/")}
           onOpenList={() => setListOpen(true)}
+          markerPrefs={markerPrefs}
         />
         <div className="map-bottom-bar">
           <KindSwitcher filters={filters} onChange={setFilters} />
@@ -827,6 +1274,7 @@ function MapPageInner() {
             className={`map-filter-btn${isFilterActive(filters) ? " is-filtered" : ""}`}
             onClick={() => {
               setListOpen(false);
+              setStyleOpen(false);
               setFilterOpen(true);
             }}
             aria-label={t("map.filter", "Фильтр")}
@@ -834,6 +1282,25 @@ function MapPageInner() {
             <FilterSlidersIcon className="map-filter-btn__icon" />
             <span>{t("map.filter", "Фильтр")}</span>
             <FilterCountBadge count={filterCount} />
+          </button>
+          <button
+            type="button"
+            className="map-style-btn"
+            onClick={() => {
+              setListOpen(false);
+              setFilterOpen(false);
+              setStyleOpen(true);
+            }}
+            aria-label={t("map.marker_styles", "Вид маркеров")}
+            title={t("map.marker_styles", "Вид маркеров")}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <circle cx="12" cy="12" r="3" />
+              <path
+                strokeLinecap="round"
+                d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77"
+              />
+            </svg>
           </button>
         </div>
       </div>
@@ -845,7 +1312,9 @@ function MapPageInner() {
           hasLocation={Boolean(userLocation)}
           search={search}
           filterCount={filterCount}
+          loading={refreshing || loading}
           onSearchChange={setSearch}
+          onReload={reload}
           onClose={() => setListOpen(false)}
           onOpenFilter={() => {
             setListOpen(false);
@@ -863,6 +1332,14 @@ function MapPageInner() {
           filters={filters}
           onChange={setFilters}
           onClose={() => setFilterOpen(false)}
+        />
+      ) : null}
+
+      {styleOpen ? (
+        <MapMarkerStyleDrawer
+          prefs={markerPrefs}
+          onApply={setMarkerPrefs}
+          onClose={() => setStyleOpen(false)}
         />
       ) : null}
     </PageLayout>

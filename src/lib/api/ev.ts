@@ -1,4 +1,9 @@
-import type { Station, StationConnector } from "@/data/stations";
+import type {
+  Station,
+  StationChargerStand,
+  StationConnector,
+  StationConnectorPort,
+} from "@/data/stations";
 import {
   connectorLabel,
   isAcSlug,
@@ -8,22 +13,39 @@ import {
   type ConnectorSlug,
 } from "@/features/map/evConnectors";
 import { apiFetch } from "@/lib/api";
-import {
-  toDisplayWasherStatus,
-  type FetchLocationsOptions,
-} from "@/lib/api/cw";
+import { type FetchLocationsOptions } from "@/lib/api/cw";
+import { resolveMediaUrl } from "@/lib/api/photo";
 import { formatOpenHoursLabel } from "@/lib/openHours";
+
+/** Статус коннектора для UI */
+export function toDisplayEvPortStatus(status: string | null): {
+  status: "free" | "charging" | "busy" | "offline";
+  statusLabel: string;
+} {
+  if (status === "free") {
+    return { status: "free", statusLabel: "Свободен" };
+  }
+  if (status === "charging" || status === "in_progress") {
+    return { status: "charging", statusLabel: "Заряжается" };
+  }
+  if (status === "busy") {
+    return { status: "busy", statusLabel: "Занят" };
+  }
+  return { status: "offline", statusLabel: "Не в сети" };
+}
 
 export type EvPistol = {
   id: number;
   type_id: number;
   type: string | null;
   type_photo_url: string | null;
+  price_per_kwh?: number | string | null;
   status_id: number;
   status: string | null;
   status_ru: string | null;
   status_en: string | null;
   status_kk: string | null;
+  charge_percent?: number | null;
 };
 
 export type EvCharger = {
@@ -31,6 +53,8 @@ export type EvCharger = {
   type: string | null;
   power: number | null;
   price_per_kwh: number | string | null;
+  map_2gis?: string | null;
+  map_yandex?: string | null;
   pistols: EvPistol[];
 };
 
@@ -60,6 +84,7 @@ export type EvLocation = {
   is_open: boolean;
   status: "Открыто" | "Закрыто";
   chargers_total: number;
+  stations_count?: number | null;
   pistols_total: number;
   free_slots: number;
   chargers: EvCharger[];
@@ -86,18 +111,22 @@ export function parseEvStationId(id: string): number | null {
 
 function buildEvConnectors(chargers: EvCharger[]): {
   connectors: StationConnector[];
+  connectorPorts: StationConnectorPort[];
+  chargerStands: StationChargerStand[];
   maxPowerKw: number | null;
   pricePerKwh: number | null;
   hasDc: boolean;
   hasAc: boolean;
 } {
   const bySlug = new Map<string, StationConnector>();
+  const connectorPorts: StationConnectorPort[] = [];
+  const chargerStands: StationChargerStand[] = [];
   let maxPowerKw: number | null = null;
   let pricePerKwh: number | null = null;
   let hasDc = false;
   let hasAc = false;
 
-  for (const charger of chargers) {
+  chargers.forEach((charger, chargerIndex) => {
     const power =
       charger.power != null && Number.isFinite(Number(charger.power))
         ? Number(charger.power)
@@ -106,10 +135,10 @@ function buildEvConnectors(chargers: EvCharger[]): {
       maxPowerKw = maxPowerKw == null ? power : Math.max(maxPowerKw, power);
     }
 
-    const price = parsePricePerKwh(charger.price_per_kwh);
-    if (price != null) {
+    const chargerPrice = parsePricePerKwh(charger.price_per_kwh);
+    if (chargerPrice != null) {
       pricePerKwh =
-        pricePerKwh == null ? price : Math.min(pricePerKwh, price);
+        pricePerKwh == null ? chargerPrice : Math.min(pricePerKwh, chargerPrice);
     }
 
     const chargerType = (charger.type ?? "").toLowerCase();
@@ -120,24 +149,52 @@ function buildEvConnectors(chargers: EvCharger[]): {
       hasAc = true;
     }
 
+    const standPorts: StationConnectorPort[] = [];
+
     for (const pistol of charger.pistols ?? []) {
       const slug = normalizeConnectorType(pistol.type);
       if (isDcSlug(slug)) hasDc = true;
       if (isAcSlug(slug)) hasAc = true;
 
-      const display = toDisplayWasherStatus(pistol.status);
-      const prev = bySlug.get(slug);
-      const label =
+      const display = toDisplayEvPortStatus(pistol.status);
+      const baseLabel =
         slug === "other" && pistol.type
           ? pistol.type
           : connectorLabel(slug as ConnectorSlug);
+      const portPrice =
+        parsePricePerKwh(pistol.price_per_kwh) ?? chargerPrice;
+      if (portPrice != null) {
+        pricePerKwh =
+          pricePerKwh == null ? portPrice : Math.min(pricePerKwh, portPrice);
+      }
 
+      const letter = String.fromCharCode(65 + standPorts.length);
+      const port: StationConnectorPort = {
+        id: pistol.id,
+        slug,
+        label: `${baseLabel} - ${letter}`,
+        powerKw: power,
+        pricePerKwh: portPrice,
+        status: display.status,
+        statusLabel: display.statusLabel,
+        photoUrl: resolveMediaUrl(pistol.type_photo_url),
+        chargePercent:
+          pistol.charge_percent != null && Number.isFinite(pistol.charge_percent)
+            ? Math.min(100, Math.max(0, Math.round(Number(pistol.charge_percent))))
+            : null,
+      };
+
+      standPorts.push(port);
+      connectorPorts.push(port);
+
+      const prev = bySlug.get(slug);
       if (!prev) {
         bySlug.set(slug, {
           slug,
-          label,
+          label: baseLabel,
           powerKw: power,
           status: display.status,
+          photoUrl: port.photoUrl,
         });
         continue;
       }
@@ -149,20 +206,37 @@ function buildEvConnectors(chargers: EvCharger[]): {
       const nextStatus =
         prev.status === "free" || display.status === "free"
           ? "free"
-          : display.status === "busy" || prev.status === "busy"
-            ? "busy"
-            : display.status ?? prev.status;
+          : display.status === "charging" || prev.status === "charging"
+            ? "charging"
+            : display.status === "busy" || prev.status === "busy"
+              ? "busy"
+              : display.status ?? prev.status;
 
       bySlug.set(slug, {
         ...prev,
         powerKw: nextPower,
         status: nextStatus,
+        photoUrl: prev.photoUrl ?? port.photoUrl,
       });
     }
-  }
+
+    chargerStands.push({
+      id: charger.id,
+      index: chargerIndex + 1,
+      title: `Станция №${chargerIndex + 1}`,
+      type: charger.type?.trim() || null,
+      powerKw: power,
+      pricePerKwh: chargerPrice,
+      ports: standPorts,
+      map2gis: charger.map_2gis?.trim() || null,
+      mapYandex: charger.map_yandex?.trim() || null,
+    });
+  });
 
   return {
     connectors: Array.from(bySlug.values()),
+    connectorPorts,
+    chargerStands,
     maxPowerKw,
     pricePerKwh,
     hasDc,
@@ -177,7 +251,7 @@ export function toEvStation(location: EvLocation): Station {
 
   const pistols = location.chargers.flatMap((charger) =>
     (charger.pistols ?? []).map((pistol) => {
-      const display = toDisplayWasherStatus(pistol.status);
+      const display = toDisplayEvPortStatus(pistol.status);
       const typeLabel = pistol.type ? `${pistol.type} · ` : "";
       return {
         id: pistol.id,
@@ -202,6 +276,11 @@ export function toEvStation(location: EvLocation): Station {
     evMeta.pricePerKwh ??
     (tariffMin != null && Number.isFinite(tariffMin) ? tariffMin : null);
 
+  const stationsCount =
+    location.stations_count != null && location.stations_count > 0
+      ? location.stations_count
+      : Math.max(1, location.chargers_total || (location.chargers ?? []).length || 1);
+
   return {
     id: evStationId(location.id),
     name: location.address,
@@ -209,8 +288,9 @@ export function toEvStation(location: EvLocation): Station {
     status: location.status,
     kind: "charging",
     geoId: location.geo_id ?? null,
-    photoUrl: location.photo_url,
+    photoUrl: resolveMediaUrl(location.photo_url),
     hoursLabel: formatOpenHoursLabel(location.open_hours),
+    openHours: location.open_hours ?? null,
     freeSlots: pistols.filter((p) => p.status === "free").length,
     washersTotal: pistols.length,
     washers: pistols,
@@ -223,10 +303,13 @@ export function toEvStation(location: EvLocation): Station {
     market: [],
     tariff: tariffs,
     maxPowerKw: evMeta.maxPowerKw,
+    stationsCount,
     pricePerKwh,
     hasDc: evMeta.hasDc,
     hasAc: evMeta.hasAc,
     connectors: evMeta.connectors,
+    connectorPorts: evMeta.connectorPorts,
+    chargerStands: evMeta.chargerStands,
   };
 }
 

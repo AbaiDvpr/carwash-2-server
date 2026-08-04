@@ -12,6 +12,35 @@ export type StationConnector = {
   label: string;
   powerKw: number | null;
   status: string | null;
+  photoUrl: string | null;
+};
+
+/** Конкретный пистолет/порт ЭЗС для карточки в drawer */
+export type StationConnectorPort = {
+  id: number;
+  slug: string;
+  label: string;
+  powerKw: number | null;
+  pricePerKwh: number | null;
+  status: string | null;
+  statusLabel: string;
+  photoUrl: string | null;
+  /** Если статус charging — процент заряда (0–100) */
+  chargePercent?: number | null;
+};
+
+/** Стойка ЭЗС (charger) с коннекторами */
+export type StationChargerStand = {
+  id: number;
+  index: number;
+  title: string;
+  type: string | null;
+  powerKw: number | null;
+  pricePerKwh: number | null;
+  ports: StationConnectorPort[];
+  /** Свой маршрут стойки; пусто → маршрут локации */
+  map2gis?: string | null;
+  mapYandex?: string | null;
 };
 
 export type Station = {
@@ -27,6 +56,8 @@ export type Station = {
   photoUrl: string | null;
   /** Например: «с 09:00 до 22:00» */
   hoursLabel: string;
+  /** Сырой график по дням (mon/tue/…); для списка в drawer */
+  openHours?: Record<string, string> | null;
   freeSlots: number;
   washersTotal: number;
   washers: StationWasher[];
@@ -44,11 +75,20 @@ export type Station = {
   tariff: {
     id?: number;
     title: string;
+    titleRu?: string | null;
+    titleEn?: string | null;
     price: number;
     description: string;
+    descriptionRu?: string | null;
+    descriptionEn?: string | null;
+    /** Пункты состава (уже под локаль или raw) */
+    items?: string[];
+    composition?: { ru: string; en: string }[];
   }[];
   /** ЭЗС: макс. мощность среди зарядников, кВт */
   maxPowerKw?: number | null;
+  /** ЭЗС / мойка: кол-во станций/постов на пине карты */
+  stationsCount?: number | null;
   /** ЭЗС: цена за кВт·ч; null = неизвестна, 0 = бесплатно */
   pricePerKwh?: number | null;
   /** ЭЗС: есть DC / быстрые */
@@ -57,6 +97,10 @@ export type Station = {
   hasAc?: boolean;
   /** ЭЗС: уникальные коннекторы для чипов и фильтра */
   connectors?: StationConnector[];
+  /** ЭЗС: порты/пистолеты (плоско) */
+  connectorPorts?: StationConnectorPort[];
+  /** ЭЗС: стойки с коннекторами */
+  chargerStands?: StationChargerStand[];
 };
 
 export const STATIONS: Station[] = [
@@ -69,6 +113,15 @@ export const STATIONS: Station[] = [
     geoId: null,
     photoUrl: null,
     hoursLabel: "сегодня с 09:00 до 22:00",
+    openHours: {
+      mon: "09:00-22:00",
+      tue: "09:00-22:00",
+      wed: "09:00-22:00",
+      thu: "09:00-22:00",
+      fri: "09:00-23:00",
+      sat: "10:00-23:00",
+      sun: "10:00-21:00",
+    },
     freeSlots: 2,
     washersTotal: 2,
     washers: [],
@@ -119,6 +172,15 @@ export const STATIONS: Station[] = [
     geoId: null,
     photoUrl: null,
     hoursLabel: "сегодня с 09:00 до 22:00",
+    openHours: {
+      mon: "09:00-22:00",
+      tue: "09:00-22:00",
+      wed: "09:00-22:00",
+      thu: "09:00-22:00",
+      fri: "09:00-22:00",
+      sat: "10:00-22:00",
+      sun: "10:00-20:00",
+    },
     freeSlots: 1,
     washersTotal: 1,
     washers: [],
@@ -169,6 +231,15 @@ export const STATIONS: Station[] = [
     geoId: null,
     photoUrl: null,
     hoursLabel: "сегодня с 09:00 до 22:00",
+    openHours: {
+      mon: "09:00-22:00",
+      tue: "09:00-22:00",
+      wed: "09:00-22:00",
+      thu: "09:00-22:00",
+      fri: "09:00-22:00",
+      sat: "09:00-22:00",
+      sun: "closed",
+    },
     freeSlots: 0,
     washersTotal: 0,
     washers: [],

@@ -2,11 +2,12 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { PageLayout } from "@/components/layout";
-import { useAuthUser } from "@/hooks/useAuthUser";
+import { formatPhoneDisplay, useAuthUser } from "@/hooks/useAuthUser";
 import { forceLogout } from "@/lib/forceLogout";
 import { openTelegram, openWhatsApp } from "@/lib/messengerController";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { toggleHeaderNav } from "@/store/slices/appSlice";
+import { setHeaderNav } from "@/store/slices/appSlice";
+import { setHeaderVisible } from "@/lib/userSession";
 import { setLocale } from "@/store/slices/i18nSlice";
 import { useLocale, useT } from "@/hooks/useT";
 import { notifyLocaleChanged } from "@/lib/localeController";
@@ -32,8 +33,7 @@ import { formatCityName } from "@/lib/api/geos";
 import { useEditProfile } from "./hooks/useEditProfile";
 import { usePromoCode } from "./hooks/usePromoCode";
 import { usePushNotifications } from "./hooks/usePushNotifications";
-import { useUserBalance } from "./hooks/useUserBalance";
-import BalanceCard from "./components/BalanceCard";
+import { useUserBalance, formatBalance } from "./hooks/useUserBalance";
 import BalanceTopUp from "./components/BalanceTopUp";
 import AvatarCropper from "./components/AvatarCropper";
 import GaragePanel, { type MockCar } from "./components/GaragePanel";
@@ -41,6 +41,7 @@ import ProfileNavRow from "./components/ProfileNavRow";
 import ProfileVersion from "./components/ProfileVersion";
 import { deleteUserPhoto, resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
 import { pickImage } from "@/lib/pickImage";
+import "./components/profile.css";
 
 type ProfileView =
   | "home"
@@ -108,6 +109,121 @@ function SectionTitle({ children }: { children: ReactNode }) {
     <p className="theme-description mb-1.5 px-0.5 text-[11px] font-medium uppercase tracking-wider">
       {children}
     </p>
+  );
+}
+
+function IconUser() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="8" r="3.25" />
+      <path strokeLinecap="round" d="M5.5 19.5c1.6-3.2 4-4.75 6.5-4.75s4.9 1.55 6.5 4.75" />
+    </svg>
+  );
+}
+function IconMail() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+      <path strokeLinecap="round" d="m5 8 7 5 7-5" />
+    </svg>
+  );
+}
+function IconPin() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" />
+      <circle cx="12" cy="10" r="2.25" />
+    </svg>
+  );
+}
+function IconLang() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="8.25" />
+      <path strokeLinecap="round" d="M3.5 12h17M12 3.75c2.4 2.6 3.6 5.4 3.6 8.25S14.4 17.65 12 20.25M12 3.75C9.6 6.35 8.4 9.15 8.4 12s1.2 5.9 3.6 8.25" />
+    </svg>
+  );
+}
+function IconPalette() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" d="M12 4.5a7.5 7.5 0 1 0 0 15h1.4a2.1 2.1 0 0 0 0-4.2h-.7a1.4 1.4 0 0 1 0-2.8H14a3.5 3.5 0 0 0 0-7H12Z" />
+      <circle cx="8.2" cy="10" r="1" fill="currentColor" stroke="none" />
+      <circle cx="10.8" cy="7.6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="14.2" cy="7.6" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function IconBell() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" d="M6.5 16.5h11M8 16.5V10a4 4 0 1 1 8 0v6.5M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+function IconNav() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" d="M4.5 7h15M4.5 12h15M4.5 17h15" />
+    </svg>
+  );
+}
+function IconCar() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 15.5h16l-1.2-4.2A2 2 0 0 0 16.9 10H7.1a2 2 0 0 0-1.9 1.3L4 15.5Z" />
+      <path strokeLinecap="round" d="M6.5 15.5v2M17.5 15.5v2M7.5 10l1-3h7l1 3" />
+      <circle cx="7.5" cy="17.5" r="1.25" />
+      <circle cx="16.5" cy="17.5" r="1.25" />
+    </svg>
+  );
+}
+function IconTag() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 12.5 12 4h6.5V10.5L10.5 20.5 3.5 12.5Z" />
+      <circle cx="16" cy="8" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function IconUsers() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="9" cy="8.5" r="2.75" />
+      <circle cx="16.5" cy="9.5" r="2.1" />
+      <path strokeLinecap="round" d="M3.8 18.5c1.2-2.6 3.1-3.9 5.2-3.9s4 1.3 5.2 3.9M14 14.8c1.5-.3 2.9.3 4.1 1.9" />
+    </svg>
+  );
+}
+function IconChat() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 17.5 4 20l3-1.2A8.5 8.5 0 1 0 5 17.5Z" />
+    </svg>
+  );
+}
+function IconHelp() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="8.25" />
+      <path strokeLinecap="round" d="M9.6 9.4a2.4 2.4 0 1 1 3.5 2.1c-.8.5-1.3 1-1.3 2" />
+      <circle cx="12" cy="16.4" r="0.85" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function IconLogout() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" d="M10 4.5H7A2.5 2.5 0 0 0 4.5 7v10A2.5 2.5 0 0 0 7 19.5h3M14 8l4 4-4 4M10 12h8" />
+    </svg>
+  );
+}
+function IconCamera() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" d="M4.5 8.5h2.2l1.1-2h8.4l1.1 2H19.5a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18v-8a1.5 1.5 0 0 1 1.5-1.5Z" />
+      <circle cx="12" cy="13.5" r="3" />
+    </svg>
   );
 }
 
@@ -291,7 +407,7 @@ function LayoutSpacingRow({
 }
 
 export default function ProfilePage() {
-  const { name, photoUrl, mounted } = useAuthUser();
+  const { name, phone, photoUrl, mounted } = useAuthUser();
   const dispatch = useAppDispatch();
   const appVersion = useAppSelector((state) => state.app.version);
   const showHeaderNav = useAppSelector((state) => state.app.showHeaderNav);
@@ -354,6 +470,13 @@ export default function ProfilePage() {
 
   const displayName = mounted ? name || "…" : "…";
   const displayEmail = mounted ? profileEdit.email || "Не указан" : "…";
+  const displayPhone = mounted
+    ? phone
+      ? formatPhoneDisplay(phone)
+      : t("profile.not_selected", "Не указан")
+    : "…";
+  const firstName =
+    (profileEdit.firstName || displayName.split(/\s+/)[0] || "").trim() || "…";
   const initials = mounted
     ? displayName
         .split(/\s+/)
@@ -439,197 +562,210 @@ export default function ProfilePage() {
     <PageLayout title="Profile" description="Профиль пользователя CarWash">
       <>
         {view === "home" ? (
-          <>
-            <header className="mb-5">
+          <div className="profile-home">
+            <header className="profile-hero">
+              <p className="profile-hero__email">{displayEmail}</p>
+
+              <div className="profile-hero__avatar-wrap">
+                {avatarSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarSrc}
+                    alt=""
+                    className="profile-hero__avatar"
+                  />
+                ) : (
+                  <span className="profile-hero__avatar profile-hero__avatar--fallback">
+                    {initials}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="profile-hero__camera"
+                  disabled={photoBusy}
+                  onClick={() => void handlePickPhoto()}
+                  aria-label={
+                    photoUrl
+                      ? t("profile.change_photo", "Изменить фото")
+                      : t("profile.add_photo", "Добавить фото")
+                  }
+                >
+                  <IconCamera />
+                </button>
+              </div>
+
+              <h1 className="profile-hero__hello">
+                {t("profile.hello", "Здравствуйте")}, {firstName}!
+              </h1>
+
               <button
                 type="button"
+                className="profile-hero__manage"
                 onClick={() => setView("edit")}
-                className="flex w-full items-center gap-3 rounded-xl text-left transition hover:opacity-90"
               >
-                <AvatarBubble />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-                    {t("profile.title", "Профиль")}
-                  </span>
-                  <span className="mt-0.5 block truncate text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-                    {displayName}
-                  </span>
-                  <span className="mt-0.5 block text-[11px] text-blue-600 dark:text-blue-400">
-                    {t("profile.edit", "Изменить профиль")}
-                  </span>
-                </span>
-                <svg
-                  className="h-4 w-4 shrink-0 text-zinc-300"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  aria-hidden
-                >
-                  <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-                </svg>
+                {t("profile.manage_account", "Управление аккаунтом")}
               </button>
             </header>
 
-            <div className="space-y-5">
-              <BalanceCard
-                balance={balance}
-                loading={balanceLoading}
-                onTopUp={() => setView("balance")}
-                onHistory={() => setView("history")}
+            <section className="profile-card">
+              <div className="profile-card__balance">
+                <div>
+                  <p className="profile-card__balance-label">
+                    {t("profile.phone", "Телефон")}
+                  </p>
+                  <p className="profile-card__balance-phone">{displayPhone}</p>
+                </div>
+                <div className="profile-card__balance-right">
+                  <p className="profile-card__balance-label">
+                    {t("home.balance", "Баланс")}
+                  </p>
+                  <p className="profile-card__balance-value">
+                    {balanceLoading && balance == null
+                      ? "…"
+                      : formatBalance(balance ?? 0)}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-card">
+              <ProfileNavRow
+                icon={<IconUser />}
+                label={t("profile.full_name", "Имя и фамилия")}
+                hint={displayName}
+                onClick={() => setView("edit")}
               />
+              <ProfileNavRow
+                icon={<IconMail />}
+                label="Email"
+                hint={displayEmail}
+                onClick={() => setView("edit")}
+              />
+              <ProfileNavRow
+                icon={<IconPin />}
+                label={t("profile.city", "Ваш город")}
+                hint={cityName ?? t("profile.not_selected", "Не выбран")}
+                onClick={() => setView("city")}
+              />
+              <ProfileNavRow
+                icon={<IconLang />}
+                label={t("profile.language", "Язык")}
+                hint={languageHint}
+                onClick={() => setView("language")}
+              />
+              <ProfileNavRow
+                icon={<IconPalette />}
+                label={t("profile.appearance", "Оформление")}
+                hint={
+                  themeMounted
+                    ? `${isDark ? "Тёмная" : "Светлая"} · фон / кнопки / текст`
+                    : "Тема и цвета"
+                }
+                onClick={() => {
+                  setEditPaletteMode(theme);
+                  setView("appearance");
+                }}
+              />
+            </section>
 
-              <section>
-                <SectionTitle>{t("profile.settings", "Настройки")}</SectionTitle>
-                <SectionCard>
-                  <ProfileNavRow
-                    label={t("profile.full_name", "Имя и фамилия")}
-                    hint={displayName}
-                    onClick={() => setView("edit")}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label="Email"
-                    hint={displayEmail}
-                    onClick={() => setView("edit")}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label={t("profile.city", "Ваш город")}
-                    hint={cityName ?? t("profile.not_selected", "Не выбран")}
-                    onClick={() => setView("city")}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label={t("profile.language", "Язык")}
-                    hint={languageHint}
-                    onClick={() => setView("language")}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label={t("profile.appearance", "Оформление")}
-                    hint={
-                      themeMounted
-                        ? `${isDark ? "Тёмная" : "Светлая"} · фон / кнопки / текст`
-                        : "Тема и цвета"
-                    }
-                    onClick={() => {
-                      setEditPaletteMode(theme);
-                      setView("appearance");
-                    }}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <button
-                    type="button"
-                    onClick={() => void togglePush()}
-                    disabled={pushLoading || pushSaving}
-                    className="app-row app-row--between text-left hover:bg-[var(--app-hover)] disabled:opacity-60"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                        {t("profile.notifications", "Уведомления")}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-zinc-400">
-                        {pushHint}
-                      </span>
-                    </span>
-                    <span
-                      className={[
-                        "relative h-5 w-9 shrink-0 rounded-full transition",
-                        pushLoading
-                          ? "bg-zinc-200 dark:bg-zinc-700"
-                          : pushEnabled
-                            ? "bg-blue-600"
-                            : "bg-zinc-200 dark:bg-zinc-700",
-                      ].join(" ")}
-                    >
-                      <span
-                        className={[
-                          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition",
-                          !pushLoading && pushEnabled ? "left-4" : "left-0.5",
-                        ].join(" ")}
-                      />
-                    </span>
-                  </button>
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <button
-                    type="button"
-                    onClick={() => dispatch(toggleHeaderNav())}
-                    className="app-row app-row--between text-left hover:bg-[var(--app-hover)]"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                        Навигация в header
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-zinc-400">
-                        {showHeaderNav ? "Показана" : "Скрыта"}
-                      </span>
-                    </span>
-                    <span
-                      className={[
-                        "relative h-5 w-9 shrink-0 rounded-full transition",
-                        showHeaderNav ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-700",
-                      ].join(" ")}
-                    >
-                      <span
-                        className={[
-                          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition",
-                          showHeaderNav ? "left-4" : "left-0.5",
-                        ].join(" ")}
-                      />
-                    </span>
-                  </button>
-                </SectionCard>
-              </section>
+            <section className="profile-card">
+              <button
+                type="button"
+                onClick={() => void togglePush()}
+                disabled={pushLoading || pushSaving}
+                className="profile-nav-row theme-hover disabled:opacity-60"
+              >
+                <span className="profile-nav-row__icon" aria-hidden>
+                  <IconBell />
+                </span>
+                <span className="profile-nav-row__main">
+                  <span className="profile-nav-row__label">
+                    {t("profile.notifications", "Уведомления")}
+                  </span>
+                  <span className="profile-nav-row__hint theme-description">
+                    {pushHint}
+                  </span>
+                </span>
+                <span
+                  className={`profile-switch${!pushLoading && pushEnabled ? " is-on" : ""}`}
+                  aria-hidden
+                >
+                  <span className="profile-switch__knob" />
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !showHeaderNav;
+                  dispatch(setHeaderNav(next));
+                  setHeaderVisible(next);
+                }}
+                className="profile-nav-row theme-hover"
+              >
+                <span className="profile-nav-row__icon" aria-hidden>
+                  <IconNav />
+                </span>
+                <span className="profile-nav-row__main">
+                  <span className="profile-nav-row__label">Header</span>
+                  <span className="profile-nav-row__hint theme-description">
+                    {showHeaderNav ? "Показан" : "Скрыт"}
+                  </span>
+                </span>
+                <span
+                  className={`profile-switch${showHeaderNav ? " is-on" : ""}`}
+                  aria-hidden
+                >
+                  <span className="profile-switch__knob" />
+                </span>
+              </button>
+            </section>
 
-              <section>
-                <SectionTitle>{t("profile.sections", "Разделы")}</SectionTitle>
-                <SectionCard>
-                  <ProfileNavRow
-                    label={t("profile.garage", "Гараж")}
-                    hint={`${cars.length} авто`}
-                    onClick={() => setView("garage")}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label={t("profile.promo", "Промокод")}
-                    hint="Применить скидку"
-                    onClick={() => setView("promo")}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label={t("profile.referral", "Рефералка")}
-                    hint={REFERRAL_CODE}
-                    onClick={() => setView("referral")}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label={t("profile.support", "Поддержка")}
-                    hint="Telegram · WhatsApp"
-                    onClick={() => setView("support")}
-                  />
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  <ProfileNavRow
-                    label={t("profile.faq", "FAQ")}
-                    hint={t("profile.faq", "Частые вопросы")}
-                    onClick={() => setView("faq")}
-                  />
-                </SectionCard>
-              </section>
+            <section className="profile-card">
+              <ProfileNavRow
+                icon={<IconCar />}
+                label={t("profile.garage", "Гараж")}
+                hint={`${cars.length} авто`}
+                onClick={() => setView("garage")}
+              />
+              <ProfileNavRow
+                icon={<IconTag />}
+                label={t("profile.promo", "Промокод")}
+                hint="Применить скидку"
+                onClick={() => setView("promo")}
+              />
+              <ProfileNavRow
+                icon={<IconUsers />}
+                label={t("profile.referral", "Рефералка")}
+                hint={REFERRAL_CODE}
+                onClick={() => setView("referral")}
+              />
+              <ProfileNavRow
+                icon={<IconChat />}
+                label={t("profile.support", "Поддержка")}
+                hint="Telegram · WhatsApp"
+                onClick={() => setView("support")}
+              />
+              <ProfileNavRow
+                icon={<IconHelp />}
+                label={t("profile.faq", "FAQ")}
+                hint={t("profile.faq", "Частые вопросы")}
+                onClick={() => setView("faq")}
+              />
+            </section>
 
-              <section>
-                <SectionCard>
-                  <ProfileNavRow
-                    label={t("profile.logout", "Выйти")}
-                    danger
-                    onClick={() => setLogoutConfirmOpen(true)}
-                  />
-                </SectionCard>
-              </section>
+            <section className="profile-card">
+              <ProfileNavRow
+                icon={<IconLogout />}
+                label={t("profile.logout", "Выйти")}
+                danger
+                onClick={() => setLogoutConfirmOpen(true)}
+              />
+            </section>
+
+            <div className="profile-home__foot">
+              <ProfileVersion version={appVersion} />
             </div>
-
-            <ProfileVersion version={appVersion} />
-          </>
+          </div>
         ) : null}
 
         {view === "balance" ? (

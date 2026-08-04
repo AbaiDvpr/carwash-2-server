@@ -9,25 +9,23 @@ import {
 import { useT } from "@/hooks/useT";
 import { navigateNavbar } from "@/lib/navbarController";
 import type { StationKind } from "@/data/stations";
+import { createDefaultFilters, writeMapFilters } from "@/features/map/filters";
 import Stories from "./Stories";
 
 const CATEGORIES: {
   kind: StationKind;
   titleKey: string;
   fallback: string;
-  href: string;
 }[] = [
   {
     kind: "charging",
     titleKey: "home.charge_car",
     fallback: "Зарядить автомобиль",
-    href: "/map?kind=charging",
   },
   {
     kind: "wash",
     titleKey: "home.wash_car",
     fallback: "Помыть машину",
-    href: "/map?kind=wash",
   },
 ];
 
@@ -72,29 +70,6 @@ export default function Main() {
             </p>
           </button>
         </div>
-
-        <button
-          type="button"
-          onClick={openProfile}
-          className="theme-button app-row app-row--between border-t border-black/5 text-left transition"
-        >
-          <span className="text-[13px] font-semibold">
-            {t("home.top_up", "Пополнить баланс")}
-          </span>
-          <span className="inline-flex items-center gap-0.5 text-[13px] font-semibold opacity-90">
-            {t("home.go", "Перейти")}
-            <svg
-              className="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2.2}
-              aria-hidden
-            >
-              <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-            </svg>
-          </span>
-        </button>
       </section>
 
       <section>
@@ -130,7 +105,8 @@ export default function Main() {
             return (
               <Link
                 key={category.kind}
-                href={category.href}
+                href="/map"
+                onClick={() => writeMapFilters(createDefaultFilters(category.kind))}
                 className="app-section group relative flex min-h-[168px] flex-col transition active:scale-[0.98]"
               >
                 <div

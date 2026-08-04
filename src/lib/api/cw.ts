@@ -1,5 +1,6 @@
 import type { Station, StationKind } from "@/data/stations";
 import { apiFetch } from "@/lib/api";
+import { resolveMediaUrl } from "@/lib/api/photo";
 import { formatOpenHoursLabel } from "@/lib/openHours";
 
 export type CwWasher = {
@@ -14,7 +15,14 @@ export type CwWasher = {
 export type CwTariff = {
   id: number;
   title: string;
+  title_ru?: string | null;
+  title_en?: string | null;
   description: string | null;
+  description_ru?: string | null;
+  description_en?: string | null;
+  composition?: { ru: string; en: string }[] | null;
+  items_ru?: string[] | null;
+  items_en?: string[] | null;
   price: number;
 };
 
@@ -34,6 +42,7 @@ export type CwLocation = {
   is_open: boolean;
   status: "Открыто" | "Закрыто";
   washers_total: number;
+  stations_count?: number | null;
   free_slots: number;
   washers: CwWasher[];
   tariffs?: CwTariff[];
@@ -98,12 +107,26 @@ export function toStation(location: CwLocation): Station {
 
   const kind = toStationKind(location);
 
-  const tariffs = (location.tariffs ?? []).map((tariff) => ({
-    id: tariff.id,
-    title: tariff.title,
-    price: Number(tariff.price),
-    description: tariff.description ?? "",
-  }));
+  const tariffs = (location.tariffs ?? []).map((tariff) => {
+    const titleRu = tariff.title_ru || tariff.title;
+    const descriptionRu = tariff.description_ru || tariff.description || "";
+    const composition = tariff.composition ?? [];
+    const itemsRu =
+      tariff.items_ru ?? composition.map((row) => row.ru || row.en);
+
+    return {
+      id: tariff.id,
+      title: titleRu,
+      titleRu,
+      titleEn: tariff.title_en ?? null,
+      price: Number(tariff.price),
+      description: descriptionRu,
+      descriptionRu,
+      descriptionEn: tariff.description_en ?? null,
+      items: itemsRu,
+      composition,
+    };
+  });
 
   return {
     id: String(location.id),
@@ -112,8 +135,9 @@ export function toStation(location: CwLocation): Station {
     status: location.status,
     kind,
     geoId: location.geo_id ?? null,
-    photoUrl: location.photo_url,
+    photoUrl: resolveMediaUrl(location.photo_url),
     hoursLabel: formatOpenHoursLabel(location.open_hours),
+    openHours: location.open_hours ?? null,
     freeSlots: washers.filter((w) => w.status === "free").length,
     washersTotal: washers.length,
     washers,
@@ -121,12 +145,42 @@ export function toStation(location: CwLocation): Station {
     longitude: lng,
     map_2gis: location.map_2gis ?? "",
     map_yandex: location.map_yandex ?? "",
-    /** Для реальных моек — id локации; slug вроде Sauran — под гео */
     paymentSlug: String(location.id),
     paymentTitle: location.address,
     market: [],
     tariff: tariffs,
+    stationsCount:
+      location.stations_count != null && location.stations_count > 0
+        ? location.stations_count
+        : Math.max(1, washers.length || location.washers_total || 1),
   };
+}
+
+export function localizeWashTariff<
+  T extends {
+    title: string;
+    titleRu?: string | null;
+    titleEn?: string | null;
+    description: string;
+    descriptionRu?: string | null;
+    descriptionEn?: string | null;
+    items?: string[];
+    composition?: { ru: string; en: string }[];
+  },
+>(tariff: T, locale: string) {
+  const useEn = locale.toLowerCase().startsWith("en");
+  const title = useEn
+    ? tariff.titleEn || tariff.titleRu || tariff.title
+    : tariff.titleRu || tariff.title;
+  const description = useEn
+    ? tariff.descriptionEn || tariff.descriptionRu || tariff.description || ""
+    : tariff.descriptionRu || tariff.description || "";
+  const items = useEn
+    ? (tariff.composition ?? []).map((row) => row.en || row.ru)
+    : tariff.items ??
+      (tariff.composition ?? []).map((row) => row.ru || row.en);
+
+  return { ...tariff, title, description, items };
 }
 
 export type FetchLocationsOptions = {

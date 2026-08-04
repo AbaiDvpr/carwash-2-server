@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { fetchCwStation } from "@/lib/api/cw";
 import { fetchEvStation, parseEvStationId } from "@/lib/api/ev";
@@ -11,6 +11,7 @@ type UseStationState = {
   loading: boolean;
   error: string | null;
   notFound: boolean;
+  reload: () => void;
 };
 
 /** Деталь мойки (id=1) или ЭЗС (id=ev-1) */
@@ -19,13 +20,24 @@ export function useStation(id: string): UseStationState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const loadedIdRef = useRef<string | null>(null);
+
+  const reload = useCallback(() => {
+    setReloadToken((token) => token + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const idChanged = loadedIdRef.current !== id;
 
     setLoading(true);
     setError(null);
     setNotFound(false);
+    if (idChanged) {
+      setStation(null);
+      loadedIdRef.current = id;
+    }
 
     const evId = parseEvStationId(id);
     const load = evId != null ? fetchEvStation(evId) : fetchCwStation(id);
@@ -41,7 +53,7 @@ export function useStation(id: string): UseStationState {
       .catch((err: unknown) => {
         if (cancelled) return;
 
-        setStation(null);
+        if (idChanged) setStation(null);
 
         if (err instanceof ApiError && err.status === 404) {
           setNotFound(true);
@@ -59,7 +71,7 @@ export function useStation(id: string): UseStationState {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, reloadToken]);
 
-  return { station, loading, error, notFound };
+  return { station, loading, error, notFound, reload };
 }

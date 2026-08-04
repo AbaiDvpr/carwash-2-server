@@ -115,3 +115,96 @@ export function formatHoursUntilClose(
   if (label === "Часы уточняйте") return "Время работы уточняйте на месте";
   return `Работает ${label}`;
 }
+
+/** Компактный график: «09:00 – 22:00», «Круглосуточно» */
+export function compactHoursLabel(hoursLabel: string | null | undefined): string {
+  const raw = (hoursLabel ?? "").trim();
+  if (!raw) return "Часы уточняйте";
+  if (/круглосут|24\s*\/\s*7/i.test(raw)) return "Круглосуточно";
+  const range = raw.match(/(\d{1,2}:\d{2}).*?(\d{1,2}:\d{2})/);
+  if (range) return `${range[1]} – ${range[2]}`;
+  return raw.replace(/^сегодня\s+/i, "").trim() || "Часы уточняйте";
+}
+
+export type WeekHoursRow = {
+  /** 0 = вс … 6 = сб */
+  dayIndex: number;
+  shortLabel: string;
+  hours: string;
+  isToday: boolean;
+};
+
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+const DAY_SHORT: Record<number, string> = {
+  0: "Вс",
+  1: "Пн",
+  2: "Вт",
+  3: "Ср",
+  4: "Чт",
+  5: "Пт",
+  6: "Сб",
+};
+
+function findDayRawHours(
+  openHours: Record<string, string>,
+  dayIndex: number,
+): string | null {
+  const aliases = DAY_KEYS[dayIndex] ?? [];
+  const entries = Object.entries(openHours);
+
+  for (const alias of aliases) {
+    for (const [key, value] of entries) {
+      if (normalizeKey(key) === alias && value?.trim()) {
+        return value.trim();
+      }
+    }
+  }
+
+  for (const [key, value] of entries) {
+    const nk = normalizeKey(key);
+    if (!value?.trim()) continue;
+    const isWeekday = dayIndex >= 1 && dayIndex <= 5;
+    const isWeekend = dayIndex === 0 || dayIndex === 6;
+    if (
+      (nk.includes("mon") && nk.includes("fri") && isWeekday) ||
+      (nk.includes("пн") && nk.includes("пт") && isWeekday) ||
+      (nk.includes("weekday") && isWeekday) ||
+      (nk.includes("weekend") && isWeekend)
+    ) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function formatDayHoursDisplay(raw: string | null): string {
+  if (!raw?.trim()) return "—";
+  const value = raw.trim();
+  if (
+    /закрыт|closed|day\s*off|выходн/i.test(value) ||
+    value === "-" ||
+    value === "—"
+  ) {
+    return "Выходной";
+  }
+  return compactHoursLabel(formatRangeLabel(value));
+}
+
+/** График Пн–Вс для карточки на карте */
+export function buildWeeklyHoursSchedule(
+  openHours: Record<string, string> | null | undefined,
+  now = new Date(),
+): WeekHoursRow[] {
+  if (!openHours || Object.keys(openHours).length === 0) {
+    return [];
+  }
+
+  const today = now.getDay();
+  return WEEK_ORDER.map((dayIndex) => ({
+    dayIndex,
+    shortLabel: DAY_SHORT[dayIndex] ?? "—",
+    hours: formatDayHoursDisplay(findDayRawHours(openHours, dayIndex)),
+    isToday: dayIndex === today,
+  }));
+}

@@ -48,7 +48,19 @@ export function useEditProfile() {
       return false;
     }
 
-    if (emailValue && !EMAIL_PATTERN.test(emailValue)) {
+    if (!last_name) {
+      setError("Укажите фамилию");
+      setMessage(null);
+      return false;
+    }
+
+    if (!emailValue) {
+      setError("Укажите email");
+      setMessage(null);
+      return false;
+    }
+
+    if (!EMAIL_PATTERN.test(emailValue)) {
       setError("Укажите корректный email");
       setMessage(null);
       return false;
@@ -61,8 +73,8 @@ export function useEditProfile() {
     try {
       const user = await updateUserSettings({
         name,
-        last_name: last_name || null,
-        email: emailValue || null,
+        last_name,
+        email: emailValue,
       });
       setFirstName(user.name ?? name);
       setLastName(user.last_name ?? "");
@@ -89,6 +101,11 @@ export function useEditProfile() {
     message,
     error,
     save,
-    canSave: firstName.trim().length > 0 && !saving && !loading,
+    canSave:
+      firstName.trim().length > 0 &&
+      lastName.trim().length > 0 &&
+      email.trim().length > 0 &&
+      !saving &&
+      !loading,
   };
 }

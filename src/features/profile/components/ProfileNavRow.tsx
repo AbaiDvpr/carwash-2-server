@@ -1,8 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 type ProfileNavRowProps = {
   label: string;
   hint?: string;
+  icon?: ReactNode;
+  trailing?: ReactNode;
   onClick?: () => void;
   href?: string;
   external?: boolean;
@@ -12,30 +16,33 @@ type ProfileNavRowProps = {
 export default function ProfileNavRow({
   label,
   hint,
+  icon,
+  trailing,
   onClick,
   href,
   external,
   danger,
 }: ProfileNavRowProps) {
-  const className = "theme-hover app-row app-row--between transition";
+  const className = `profile-nav-row theme-hover${danger ? " is-danger" : ""}`;
 
   const content = (
     <>
-      <span className="min-w-0">
-        <span
-          className="block text-sm font-medium"
-          style={{ color: danger ? "var(--app-danger)" : "var(--app-text)" }}
-        >
-          {label}
+      {icon ? (
+        <span className="profile-nav-row__icon" aria-hidden>
+          {icon}
         </span>
+      ) : null}
+      <span className="profile-nav-row__main">
+        <span className="profile-nav-row__label">{label}</span>
         {hint ? (
-          <span className="theme-description mt-0.5 block text-[11px]">{hint}</span>
+          <span className="profile-nav-row__hint theme-description">{hint}</span>
         ) : null}
       </span>
-      {!danger ? (
+      {trailing ? (
+        <span className="profile-nav-row__trailing">{trailing}</span>
+      ) : !danger ? (
         <svg
-          className="h-3.5 w-3.5 shrink-0"
-          style={{ color: "var(--app-description)" }}
+          className="profile-nav-row__chevron"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

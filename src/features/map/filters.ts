@@ -1,24 +1,37 @@
 import type { Station, StationKind } from "@/data/stations";
 import {
-  FAST_POWER_KW,
-  isAcSlug,
-  isDcSlug,
+  CONNECTOR_CATALOG,
   type ConnectorSlug,
 } from "@/features/map/evConnectors";
+
+/** Цена мойки по мин. тарифу (₸ за услугу) */
+export type WashPriceFilter =
+  | "all"
+  | "lte1500"
+  | "lte3000"
+  | "gt3000"
+  | "unknown";
+
+/** Цена ЭЗС за кВт·ч (₸) */
+export type ChargingCostFilter =
+  | "all"
+  | "free"
+  | "lte70"
+  | "lte120"
+  | "gt120"
+  | "unknown";
 
 export type WashFilters = {
   enabled: boolean;
   openOnly: boolean;
   freeOnly: boolean;
+  price: WashPriceFilter;
 };
 
-export type ChargingCostFilter = "all" | "paid" | "free" | "unknown";
-
-export type ChargingFilters = WashFilters & {
-  /** Быстрые (DC / ≥50 кВт) */
-  fast: boolean;
-  /** Медленные (AC / <50 кВт) */
-  slow: boolean;
+export type ChargingFilters = {
+  enabled: boolean;
+  openOnly: boolean;
+  freeOnly: boolean;
   /** Пусто = все коннекторы */
   connectors: ConnectorSlug[];
   cost: ChargingCostFilter;
@@ -33,14 +46,13 @@ export const DEFAULT_WASH_FILTERS: WashFilters = {
   enabled: true,
   openOnly: false,
   freeOnly: false,
+  price: "all",
 };
 
 export const DEFAULT_CHARGING_FILTERS: ChargingFilters = {
   enabled: true,
   openOnly: false,
   freeOnly: false,
-  fast: false,
-  slow: false,
   connectors: [],
   cost: "all",
 };
@@ -64,45 +76,51 @@ export function createDefaultFilters(kind: StationKind | "all" = "all"): MapFilt
   };
 }
 
-function stationHasFast(station: Station): boolean {
-  if (station.hasDc) return true;
-  if (station.maxPowerKw != null && station.maxPowerKw >= FAST_POWER_KW) {
-    return true;
-  }
-  return (station.connectors ?? []).some((c) => isDcSlug(c.slug as ConnectorSlug));
+/** Минимальная цена тарифа мойки; null — тарифов нет */
+export function stationMinTariffPrice(station: Station): number | null {
+  const prices = (station.tariff ?? [])
+    .map((item) => item.price)
+    .filter((n) => Number.isFinite(n) && n >= 0);
+  if (prices.length === 0) return null;
+  return Math.min(...prices);
 }
 
-function stationHasSlow(station: Station): boolean {
-  if (station.hasAc) return true;
-  if (station.maxPowerKw != null && station.maxPowerKw < FAST_POWER_KW) {
-    return true;
-  }
-  return (station.connectors ?? []).some((c) => isAcSlug(c.slug as ConnectorSlug));
+function matchesWashPrice(station: Station, price: WashPriceFilter): boolean {
+  if (price === "all") return true;
+  const min = stationMinTariffPrice(station);
+  if (price === "unknown") return min == null;
+  if (min == null) return false;
+  if (price === "lte1500") return min <= 1500;
+  if (price === "lte3000") return min > 1500 && min <= 3000;
+  if (price === "gt3000") return min > 3000;
+  return true;
+}
+
+function matchesChargingCost(
+  station: Station,
+  cost: ChargingCostFilter,
+): boolean {
+  if (cost === "all") return true;
+  const price = station.pricePerKwh;
+  if (cost === "unknown") return price == null;
+  if (price == null) return false;
+  if (cost === "free") return price === 0;
+  if (cost === "lte70") return price > 0 && price <= 70;
+  if (cost === "lte120") return price > 70 && price <= 120;
+  if (cost === "gt120") return price > 120;
+  return true;
 }
 
 function matchesChargingExtras(
   station: Station,
   filters: ChargingFilters,
 ): boolean {
-  if (filters.fast || filters.slow) {
-    const okFast = filters.fast && stationHasFast(station);
-    const okSlow = filters.slow && stationHasSlow(station);
-    if (!okFast && !okSlow) return false;
-  }
-
   if (filters.connectors.length > 0) {
     const slugs = new Set((station.connectors ?? []).map((c) => c.slug));
     if (!filters.connectors.some((slug) => slugs.has(slug))) return false;
   }
 
-  if (filters.cost !== "all") {
-    const price = station.pricePerKwh;
-    if (filters.cost === "free" && price !== 0) return false;
-    if (filters.cost === "paid" && (price == null || price <= 0)) return false;
-    if (filters.cost === "unknown" && price != null) return false;
-  }
-
-  return true;
+  return matchesChargingCost(station, filters.cost);
 }
 
 export function matchesFilters(station: Station, filters: MapFilters): boolean {
@@ -111,7 +129,7 @@ export function matchesFilters(station: Station, filters: MapFilters): boolean {
     if (!options.enabled) return false;
     if (options.openOnly && station.status !== "Открыто") return false;
     if (options.freeOnly && station.freeSlots <= 0) return false;
-    return true;
+    return matchesWashPrice(station, options.price);
   }
 
   const options = filters.charging;
@@ -130,10 +148,9 @@ export function countActiveFilters(filters: MapFilters): number {
   if (filters.charging.enabled !== defaults.charging.enabled) count += 1;
   if (filters.wash.openOnly) count += 1;
   if (filters.wash.freeOnly) count += 1;
+  if (filters.wash.price !== "all") count += 1;
   if (filters.charging.openOnly) count += 1;
   if (filters.charging.freeOnly) count += 1;
-  if (filters.charging.fast) count += 1;
-  if (filters.charging.slow) count += 1;
   if (filters.charging.connectors.length > 0) count += 1;
   if (filters.charging.cost !== "all") count += 1;
 
@@ -167,4 +184,103 @@ export function toggleConnector(
       ? prev.connectors.filter((item) => item !== slug)
       : [...prev.connectors, slug],
   };
+}
+
+/** Выбор табов Мойка/ЭЗС и остальные фильтры карты */
+export const MAP_FILTERS_STORAGE_KEY = "map_filters";
+
+const CONNECTOR_SLUGS = new Set<string>(
+  CONNECTOR_CATALOG.map((item) => item.slug),
+);
+
+const WASH_PRICES = new Set<string>([
+  "all",
+  "lte1500",
+  "lte3000",
+  "gt3000",
+  "unknown",
+]);
+
+const CHARGING_COSTS = new Set<string>([
+  "all",
+  "free",
+  "lte70",
+  "lte120",
+  "gt120",
+  "unknown",
+]);
+
+function parseWashFilters(raw: unknown): WashFilters | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  const price = value.price;
+  if (typeof price !== "string" || !WASH_PRICES.has(price)) return null;
+  if (typeof value.enabled !== "boolean") return null;
+  if (typeof value.openOnly !== "boolean") return null;
+  if (typeof value.freeOnly !== "boolean") return null;
+  return {
+    enabled: value.enabled,
+    openOnly: value.openOnly,
+    freeOnly: value.freeOnly,
+    price: price as WashPriceFilter,
+  };
+}
+
+function parseChargingFilters(raw: unknown): ChargingFilters | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  const cost = value.cost;
+  if (typeof cost !== "string" || !CHARGING_COSTS.has(cost)) return null;
+  if (typeof value.enabled !== "boolean") return null;
+  if (typeof value.openOnly !== "boolean") return null;
+  if (typeof value.freeOnly !== "boolean") return null;
+  if (!Array.isArray(value.connectors)) return null;
+  const connectors = value.connectors.filter(
+    (slug): slug is ConnectorSlug =>
+      typeof slug === "string" && CONNECTOR_SLUGS.has(slug),
+  );
+  return {
+    enabled: value.enabled,
+    openOnly: value.openOnly,
+    freeOnly: value.freeOnly,
+    connectors,
+    cost: cost as ChargingCostFilter,
+  };
+}
+
+export function parseMapFilters(raw: string | null): MapFilters | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    const value = parsed as Record<string, unknown>;
+    const wash = parseWashFilters(value.wash);
+    const charging = parseChargingFilters(value.charging);
+    if (!wash || !charging) return null;
+    if (!wash.enabled && !charging.enabled) return null;
+    return { wash, charging };
+  } catch {
+    return null;
+  }
+}
+
+export function readMapFilters(): MapFilters | null {
+  if (typeof window === "undefined") return null;
+  return parseMapFilters(window.localStorage.getItem(MAP_FILTERS_STORAGE_KEY));
+}
+
+export function writeMapFilters(filters: MapFilters): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(MAP_FILTERS_STORAGE_KEY, JSON.stringify(filters));
+}
+
+/** URL `?kind=` имеет приоритет; иначе — сохранённые фильтры. */
+export function resolveMapFilters(
+  kindFromQuery: StationKind | "all",
+  stored: MapFilters | null,
+): MapFilters {
+  if (kindFromQuery !== "all") {
+    return createDefaultFilters(kindFromQuery);
+  }
+  return stored ?? createDefaultFilters("all");
 }

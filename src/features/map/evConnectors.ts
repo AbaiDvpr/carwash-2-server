@@ -56,12 +56,6 @@ export const CONNECTOR_GROUPS: {
     titleFallback: "Медленные (AC)",
     slugs: ["type2", "type1", "gbt_ac", "tesla_us"],
   },
-  {
-    group: "outlet",
-    titleKey: "map.filter_connectors_outlet",
-    titleFallback: "Розетки",
-    slugs: ["blue_16", "red_16", "red_32", "schuko"],
-  },
 ];
 
 const LABEL_BY_SLUG = Object.fromEntries(

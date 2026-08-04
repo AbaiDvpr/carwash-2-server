@@ -261,7 +261,7 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
         <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
           Страна номера
         </p>
-        <div className="relative z-30">
+        <div className={`relative ${flagOpen ? "z-40" : "z-30"}`}>
           <button
             type="button"
             onClick={() => setFlagOpen((v) => !v)}
@@ -294,7 +294,7 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
           {flagOpen ? (
             <ul
               role="listbox"
-              className="mt-1 max-h-[min(40dvh,16rem)] overflow-y-auto overscroll-contain rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
+              className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
             >
               {COUNTRY_META.map((item) => (
                 <li key={item.code}>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import ProfileCompleteGate from "@/components/auth/ProfileCompleteGate";
 import I18nBoot from "@/components/i18n/I18nBoot";
 import LocationPoller from "@/components/location/LocationPoller";
 import AuthErrorBlock from "./AuthErrorBlock";
@@ -20,6 +21,7 @@ export default function AppShell({ children }: AppShellProps) {
         <Header />
         <div className="app-shell">{children}</div>
         <AuthErrorBlock />
+        <ProfileCompleteGate />
       </div>
     </MobileAccessGate>
   );

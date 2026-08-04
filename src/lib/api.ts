@@ -71,6 +71,7 @@ export async function apiFetch<T>(
   }
 
   const response = await fetch(apiUrl(path), {
+    cache: "no-store",
     ...fetchInit,
     headers,
   });
