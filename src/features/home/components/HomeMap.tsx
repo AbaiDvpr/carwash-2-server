@@ -751,6 +751,8 @@ async function createMapView() {
                           expandCluster(clusterId, longitude, latitude)
                         }
                       />
+
+                  
                     </Marker>,
                   ];
                 }
@@ -890,7 +892,7 @@ export default function HomeMap({
               </div>
             ) : (
               <MapView
-                key={`${mapGeoId ?? "all"}-${markerPrefs.wash.shapeId}-${markerPrefs.charging.shapeId}-${markerPrefs.wash.accent}-${markerPrefs.charging.accent}-${markerPrefs.wash.progressFree}-${markerPrefs.charging.progressFree}`}
+                key={`${mapGeoId ?? "all"}-${markerPrefs.wash.shapeId}-${markerPrefs.charging.shapeId}`}
                 stations={stations}
                 cityCenter={cityCenter}
                 focusStation={focusStation}

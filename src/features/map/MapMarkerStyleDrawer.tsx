@@ -16,6 +16,8 @@ import {
 } from "@/features/map/markerStyles";
 import { useMapSheetDrag } from "@/features/map/useMapSheetDrag";
 import { useT } from "@/hooks/useT";
+import { readTheme } from "@/lib/theme";
+import { applyThemePalette } from "@/lib/themeColors";
 
 type MapMarkerStyleDrawerProps = {
   prefs: MapMarkerStylePrefs;
@@ -78,15 +80,21 @@ function ColorField({
     <div className="map-marker-color-field">
       <div className="map-marker-color-field__head">
         <span className="map-marker-color-field__label">{label}</span>
-        <label className="map-marker-color-field__picker">
-          <input
-            type="color"
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            aria-label={label}
-          />
-          <span style={{ background: value }} />
-        </label>
+        <div className="map-marker-color-field__tools">
+          <span className="map-marker-color-field__hex">{value}</span>
+          <label className="map-marker-color-field__picker">
+            <input
+              type="color"
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              onInput={(event) =>
+                onChange((event.target as HTMLInputElement).value)
+              }
+              aria-label={label}
+            />
+            <span style={{ background: value }} />
+          </label>
+        </div>
       </div>
       <div className="map-marker-color-presets" role="list">
         {MARKER_COLOR_PRESETS.map((hex) => (
@@ -166,11 +174,23 @@ export default function MapMarkerStyleDrawer({
 
   const current = draft[tab];
 
+  /** Сразу на карту + в localStorage (live preview). */
+  const commit = (next: MapMarkerStylePrefs) => {
+    setDraft(next);
+    onApply(next);
+    writeMapMarkerStylePrefs(next);
+  };
+
   const patchCurrent = (patch: Partial<KindMarkerPrefs>) => {
-    setDraft((prev) => ({
-      ...prev,
-      [tab]: { ...prev[tab], ...patch },
-    }));
+    setDraft((prev) => {
+      const next: MapMarkerStylePrefs = {
+        ...prev,
+        [tab]: { ...prev[tab], ...patch },
+      };
+      onApply(next);
+      writeMapMarkerStylePrefs(next);
+      return next;
+    });
   };
 
   return (
@@ -207,7 +227,7 @@ export default function MapMarkerStyleDrawer({
               <p className="map-conn-step__parent">
                 {t(
                   "map.marker_styles_hint",
-                  "Фигура и цвета · отдельно для мойки и ЭЗС",
+                  "Цвет и фигура · отдельно мойка и ЭЗС · меняется сразу",
                 )}
               </p>
             </div>
@@ -232,9 +252,17 @@ export default function MapMarkerStyleDrawer({
             className={`map-marker-style-sheet__tab${tab === "wash" ? " is-active" : ""}`}
             onClick={() => setTab("wash")}
           >
-            {t("map.kind_wash", "Мойка")}
+            <span className="map-marker-style-sheet__tab-row">
+              <span
+                className="map-marker-style-sheet__swatch"
+                style={{ background: draft.wash.accent }}
+                aria-hidden
+              />
+              {t("map.kind_wash", "Мойка")}
+            </span>
             <span className="map-marker-style-sheet__tab-id">
-              {t("map.shape_id", "Фигура")} {draft.wash.shapeId}
+              {draft.wash.accent} · {t("map.shape_id", "Фигура")}{" "}
+              {draft.wash.shapeId}
             </span>
           </button>
           <button
@@ -244,9 +272,17 @@ export default function MapMarkerStyleDrawer({
             className={`map-marker-style-sheet__tab${tab === "charging" ? " is-active" : ""}`}
             onClick={() => setTab("charging")}
           >
-            {t("map.kind_charging", "ЭЗС")}
+            <span className="map-marker-style-sheet__tab-row">
+              <span
+                className="map-marker-style-sheet__swatch"
+                style={{ background: draft.charging.accent }}
+                aria-hidden
+              />
+              {t("map.kind_charging", "ЭЗС")}
+            </span>
             <span className="map-marker-style-sheet__tab-id">
-              {t("map.shape_id", "Фигура")} {draft.charging.shapeId}
+              {draft.charging.accent} · {t("map.shape_id", "Фигура")}{" "}
+              {draft.charging.shapeId}
             </span>
           </button>
         </div>
@@ -254,23 +290,30 @@ export default function MapMarkerStyleDrawer({
         <div className="map-marker-style-sheet__body" {...scrollProps}>
           <section className="map-marker-colors">
             <p className="map-marker-colors__title">
-              {t("map.marker_colors", "Цвета")}
+              {tab === "wash"
+                ? t("map.marker_colors_wash", "Цвет маркера мойки")
+                : t("map.marker_colors_ev", "Цвет маркера ЭЗС")}
             </p>
             <div className="map-marker-colors__live">
               <PreviewMarker kind={tab} prefs={current} />
             </div>
             <ColorField
-              label={t("map.marker_accent", "Основной")}
+              label={t("map.marker_accent", "Основной цвет")}
               value={current.accent}
               onChange={(accent) => patchCurrent({ accent })}
             />
             <ColorField
-              label={t("map.marker_free", "Свободно")}
+              label={t("map.marker_ink", "Цвет текста")}
+              value={current.ink}
+              onChange={(ink) => patchCurrent({ ink })}
+            />
+            <ColorField
+              label={t("map.marker_free", "Свободно (кольцо)")}
               value={current.progressFree}
               onChange={(progressFree) => patchCurrent({ progressFree })}
             />
             <ColorField
-              label={t("map.marker_busy", "Занято")}
+              label={t("map.marker_busy", "Занято (кольцо)")}
               value={current.progressBusy}
               onChange={(progressBusy) => patchCurrent({ progressBusy })}
             />
@@ -291,20 +334,16 @@ export default function MapMarkerStyleDrawer({
           <button
             type="button"
             className="map-filter-sheet__reset"
-            onClick={() => setDraft(structuredClone(DEFAULT_MARKER_STYLE_PREFS))}
+            onClick={() => commit(structuredClone(DEFAULT_MARKER_STYLE_PREFS))}
           >
             {t("map.filter_reset_tab", "Сбросить")}
           </button>
           <button
             type="button"
             className="map-filter-sheet__apply"
-            onClick={() => {
-              writeMapMarkerStylePrefs(draft);
-              onApply(draft);
-              onClose();
-            }}
+            onClick={onClose}
           >
-            {t("map.apply_style", "Применить")}
+            {t("common.done", "Готово")}
           </button>
         </div>
       </div>
@@ -319,6 +358,9 @@ export function useMapMarkerStylePrefs() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // Не трогаем --map-wash / --map-charging (это тема UI).
+    // Только восстанавливаем палитру темы, если раньше её перетёрли.
+    applyThemePalette(readTheme());
     setPrefs(readMapMarkerStylePrefs());
     setReady(true);
     const onChange = (event: Event) => {

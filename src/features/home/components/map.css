@@ -1,5 +1,4 @@
 @import "tailwindcss" reference;
-@import "../../../css/dark-variant.css";
 
 /* Цвета точек на карте */
 :root,
@@ -87,7 +86,7 @@ html[data-theme="dark"] {
   gap: 0.02rem;
   border-radius: 999px;
   background: var(--marker-core);
-  color: #f8fafc;
+  color: var(--marker-ink);
   line-height: 1;
 }
 
@@ -219,7 +218,7 @@ html[data-theme="dark"] {
 /* s6 — мягкий */
 .map-marker--s6 .map-marker__face {
   background: color-mix(in oklab, var(--marker-accent) 28%, #fff);
-  color: #0f172a;
+  color: var(--marker-ink);
 }
 .map-marker--charging.map-marker--s6 .map-marker__face {
   background: color-mix(in oklab, var(--marker-accent) 42%, #fff);
@@ -228,7 +227,7 @@ html[data-theme="dark"] {
 /* s7 — контур */
 .map-marker--s7 .map-marker__face {
   background: #fff;
-  color: #0f172a;
+  color: var(--marker-ink);
   box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--marker-accent) 55%, transparent);
 }
 
@@ -426,7 +425,7 @@ html[data-theme="dark"] {
 /* s21 — пузырь */
 .map-marker--s21 .map-marker__face {
   background: #fff;
-  color: #0f172a;
+  color: var(--marker-ink);
   box-shadow: 0 4px 10px rgb(15 23 42 / 0.16);
 }
 .map-marker--s21 .map-marker__tip {
@@ -662,6 +661,20 @@ html[data-theme="dark"] {
   background: color-mix(in oklab, var(--app-button) 12%, transparent);
 }
 
+.map-marker-style-sheet__tab-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.map-marker-style-sheet__swatch {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+
 .map-marker-style-sheet__tab-id {
   font-size: 0.68rem;
   font-weight: 650;
@@ -771,6 +784,20 @@ html[data-theme="dark"] {
   color: var(--app-text);
 }
 
+.map-marker-color-field__tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.map-marker-color-field__hex {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-description);
+  text-transform: lowercase;
+}
+
 .map-marker-color-field__picker {
   position: relative;
   display: inline-flex;
@@ -809,7 +836,7 @@ html[data-theme="dark"] {
 .map-marker-color-swatch {
   width: 100%;
   aspect-ratio: 1;
-  border: 2px solid transparent;
+  border: 2px solid color-mix(in oklab, var(--app-border) 80%, transparent);
   border-radius: 0.55rem;
   cursor: pointer;
 }

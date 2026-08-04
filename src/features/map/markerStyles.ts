@@ -11,6 +11,8 @@ export type KindMarkerPrefs = {
   shapeId: number;
   /** Основной цвет маркера */
   accent: string;
+  /** Цвет текста / иконки на маркере */
+  ink: string;
   /** Progress: свободно */
   progressFree: string;
   /** Progress: занято */
@@ -63,6 +65,8 @@ export const MARKER_SHAPES: MarkerShapeMeta[] = [
 
 /** Палитра быстрого выбора */
 export const MARKER_COLOR_PRESETS = [
+  "#ffffff",
+  "#f8fafc",
   "#38bdf8",
   "#0ea5e9",
   "#22c55e",
@@ -74,6 +78,7 @@ export const MARKER_COLOR_PRESETS = [
   "#a855f7",
   "#6366f1",
   "#0f172a",
+  "#1c1917",
   "#64748b",
 ] as const;
 
@@ -81,12 +86,14 @@ export const DEFAULT_MARKER_STYLE_PREFS: MapMarkerStylePrefs = {
   wash: {
     shapeId: 1,
     accent: "#38bdf8",
+    ink: "#ffffff",
     progressFree: "#22c55e",
     progressBusy: "#f59e0b",
   },
   charging: {
     shapeId: 1,
     accent: "#facc15",
+    ink: "#1c1917",
     progressFree: "#22c55e",
     progressBusy: "#f59e0b",
   },
@@ -129,6 +136,7 @@ function normalizeKindPrefs(
   return {
     shapeId: clampMarkerShapeId(raw?.shapeId ?? fallback.shapeId),
     accent: normalizeHexColor(raw?.accent, fallback.accent),
+    ink: normalizeHexColor(raw?.ink, fallback.ink),
     progressFree: normalizeHexColor(raw?.progressFree, fallback.progressFree),
     progressBusy: normalizeHexColor(raw?.progressBusy, fallback.progressBusy),
   };
@@ -203,6 +211,7 @@ export function markerColorStyle(
 ): Record<string, string> {
   return {
     "--marker-accent": prefs.accent,
+    "--marker-ink": prefs.ink,
     "--map-marker-free-color": prefs.progressFree,
     "--map-marker-busy-color": prefs.progressBusy,
   };
