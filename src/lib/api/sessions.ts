@@ -24,25 +24,58 @@ export type HistorySession = {
 /** @deprecated используй HistorySession */
 export type CwSession = HistorySession;
 
+export type HistoryKindFilter = "all" | "wash" | "charging";
+export type HistoryPeriodFilter = "all" | "today" | "yesterday" | "7d" | "30d";
+
+export type HistorySessionsQuery = {
+  kind?: HistoryKindFilter;
+  period?: HistoryPeriodFilter;
+  status?: string[];
+};
+
 type SessionsResponse = {
   total: number;
   sessions: HistorySession[];
 };
 
-export function fetchCwSessions(): Promise<SessionsResponse> {
-  return apiFetch<SessionsResponse>("/api/cw/sessions");
+function buildQuery(params: HistorySessionsQuery = {}): string {
+  const search = new URLSearchParams();
+  const period = params.period && params.period !== "all" ? params.period : null;
+  const statuses = (params.status ?? []).filter(Boolean);
+
+  if (period) search.set("period", period);
+  if (statuses.length > 0) search.set("status", statuses.join(","));
+
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
 }
 
-export function fetchEvSessions(): Promise<SessionsResponse> {
-  return apiFetch<SessionsResponse>("/api/ev/sessions");
+export function fetchCwSessions(
+  params: HistorySessionsQuery = {},
+): Promise<SessionsResponse> {
+  return apiFetch<SessionsResponse>(`/api/cw/sessions${buildQuery(params)}`);
 }
 
-/** Мойки + ЭЗС, новые сверху */
-export async function fetchAllSessions(): Promise<{
+export function fetchEvSessions(
+  params: HistorySessionsQuery = {},
+): Promise<SessionsResponse> {
+  return apiFetch<SessionsResponse>(`/api/ev/sessions${buildQuery(params)}`);
+}
+
+/** Мойки + ЭЗС, новые сверху. kind/period/status уходят в API. */
+export async function fetchAllSessions(
+  params: HistorySessionsQuery = {},
+): Promise<{
   total: number;
   sessions: HistorySession[];
 }> {
-  const [cw, ev] = await Promise.all([fetchCwSessions(), fetchEvSessions()]);
+  const kind = params.kind ?? "all";
+  const shared = { period: params.period, status: params.status };
+
+  const [cw, ev] = await Promise.all([
+    kind === "charging" ? Promise.resolve({ total: 0, sessions: [] as HistorySession[] }) : fetchCwSessions(shared),
+    kind === "wash" ? Promise.resolve({ total: 0, sessions: [] as HistorySession[] }) : fetchEvSessions(shared),
+  ]);
 
   const sessions = [
     ...cw.sessions.map((s) => ({ ...s, kind: s.kind ?? "wash" })),

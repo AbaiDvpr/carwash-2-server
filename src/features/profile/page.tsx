@@ -609,13 +609,7 @@ export default function ProfilePage() {
 
             <section className="profile-card">
               <div className="profile-card__balance">
-                <div>
-                  <p className="profile-card__balance-label">
-                    {t("profile.phone", "Телефон")}
-                  </p>
-                  <p className="profile-card__balance-phone">{displayPhone}</p>
-                </div>
-                <div className="profile-card__balance-right">
+                <div className="profile-card__balance-item">
                   <p className="profile-card__balance-label">
                     {t("home.balance", "Баланс")}
                   </p>
@@ -624,6 +618,12 @@ export default function ProfilePage() {
                       ? "…"
                       : formatBalance(balance ?? 0)}
                   </p>
+                </div>
+                <div className="profile-card__balance-item">
+                  <p className="profile-card__balance-label">
+                    {t("profile.phone", "Телефон")}
+                  </p>
+                  <p className="profile-card__balance-phone">{displayPhone}</p>
                 </div>
               </div>
             </section>
