@@ -1,5 +1,5 @@
-import HomePage from "@/features/home/page";
+import MapPage from "@/features/map/page";
 
 export default function MainPage() {
-  return <HomePage />;
+  return <MapPage />;
 }

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/layout/PageLayout";
 import type { Station, StationKind } from "@/data/stations";
 import {
@@ -668,8 +668,8 @@ function connectorTone(status: string | null | undefined): string {
 
 function ListWashIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 792 792" fill="currentColor" aria-hidden>
-      <path d="M665.335,486.777c-7.815-46.161-25.534-88.323-43.162-126.578C569.197,243.434,505.408,137.391,442.619,39.255 l-7.815-13.721C423.991,8.814,411.269,0,396.549,0c-21.626,0-35.347,19.627-39.255,25.534c0,0,0,0,0,1L343.573,48.16 c-24.534,39.255-50.068,80.508-74.602,121.671C230.716,234.62,182.647,320.944,147.3,413.174 c-11.813,30.441-22.535,60.881-23.535,94.229c-3.907,86.324,27.442,159.018,92.23,215.901C266.063,767.466,329.852,792,395.549,792 l0,0c96.138,0,183.552-49.068,233.529-132.485C662.427,604.541,675.148,545.659,665.335,486.777z M597.638,640.888 c-43.162,72.603-118.764,114.765-202.18,114.765c-56.883,0-112.857-20.627-156.019-58.882 c-55.974-49.068-83.416-112.857-80.508-187.459c1-27.442,9.814-53.975,21.626-82.417c34.348-90.322,81.417-174.647,118.764-238.436 c23.535-40.254,49.068-81.417,74.602-120.672l12.721-20.627c0-1,1-1,1-1.999c1.999-2.908,5.906-7.815,7.815-8.814 c0,0,2.908,1,7.815,8.814l7.815,12.721c60.881,96.138,124.67,201.18,176.646,316.037c16.72,37.256,33.348,76.51,40.254,117.764 C637.893,542.751,627.079,592.728,597.638,640.888z M413.087,662.423c0,9.814-7.815,17.628-17.628,17.628 c-89.323,0-160.926-72.603-160.926-160.926c0-9.814,7.815-17.628,17.628-17.628c9.814,0,17.628,7.815,17.628,17.628 c0.999,68.696,56.974,124.67,125.669,124.67C405.272,643.795,413.087,652.609,413.087,662.423z" />
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 2.2C12 2.2 5.5 9.4 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 9.4 12 2.2 12 2.2Z" />
     </svg>
   );
 }
@@ -1147,12 +1147,14 @@ function MapStationList({
 function MapPageInner() {
   const t = useT();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { stations, loading, refreshing, error, reload } = useStations();
   const { location: userLocation } = useUserLocation();
 
   const kindFromQuery = parseKind(searchParams.get("kind"));
   const focusFromQuery = searchParams.get("station");
+  const mapBasePath = pathname.startsWith("/map") ? "/map" : "/";
 
   const [focusStationId, setFocusStationId] = useState<string | null>(focusFromQuery);
   const [listOpen, setListOpen] = useState(false);
@@ -1180,14 +1182,14 @@ function MapPageInner() {
       const params = new URLSearchParams(searchParams.toString());
       params.delete("kind");
       const qs = params.toString();
-      router.replace(qs ? `/map?${qs}` : "/map", { scroll: false });
+      router.replace(qs ? `${mapBasePath}?${qs}` : mapBasePath, { scroll: false });
       setFiltersHydrated(true);
       return;
     }
 
     setFilters(readMapFilters() ?? createDefaultFilters("all"));
     setFiltersHydrated(true);
-  }, [kindFromQuery, router, searchParams]);
+  }, [kindFromQuery, mapBasePath, router, searchParams]);
 
   useEffect(() => {
     if (!filtersHydrated || kindFromQuery !== "all") return;
@@ -1263,7 +1265,6 @@ function MapPageInner() {
           error={error}
           focusStationId={focusStationId}
           onFocusConsumed={() => setFocusStationId(null)}
-          onClose={() => router.push("/")}
           onOpenList={() => setListOpen(true)}
           markerPrefs={markerPrefs}
         />

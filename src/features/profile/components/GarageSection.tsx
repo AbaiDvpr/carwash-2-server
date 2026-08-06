@@ -147,7 +147,7 @@ export default function GarageSection() {
         <button
           type="submit"
           disabled={busy}
-          className="shrink-0 rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+          className="theme-button shrink-0 rounded-xl px-5 py-3.5 text-sm"
         >
           Добавить
         </button>
@@ -180,7 +180,7 @@ export default function GarageSection() {
                         type="button"
                         disabled={busy}
                         onClick={() => void handleSaveEdit(garage.id)}
-                        className="rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+                        className="theme-button rounded-xl px-3 py-2 text-xs"
                       >
                         Сохранить
                       </button>
@@ -229,7 +229,7 @@ export default function GarageSection() {
         </ul>
       )}
 
-      {message ? <p className="mt-2 text-sm text-blue-600 dark:text-blue-400">{message}</p> : null}
+      {message ? <p className="theme-accent-text mt-2 text-sm">{message}</p> : null}
       {error ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p> : null}
     </section>
   );

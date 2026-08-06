@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type {
   Station,
   StationChargerStand,
@@ -11,6 +10,11 @@ import {
   formatPowerKw,
   formatPricePerKwh,
 } from "@/features/map/evConnectors";
+import {
+  markerColorStyle,
+  markerStyleClass,
+} from "@/features/map/markerStyles";
+import { useMapMarkerStylePrefs } from "@/features/map/MapMarkerStyleDrawer";
 import { useMapSheetDrag } from "@/features/map/useMapSheetDrag";
 import { useStation } from "@/hooks/useStation";
 import { useLocale, useT } from "@/hooks/useT";
@@ -115,6 +119,35 @@ function RouteButton({
   );
 }
 
+function HoursButton({
+  disabled = false,
+  onClick,
+  active = false,
+}: {
+  disabled?: boolean;
+  onClick: () => void;
+  active?: boolean;
+}) {
+  const t = useT();
+  const label = t("map.hours_schedule", "График работы");
+  return (
+    <button
+      type="button"
+      className={`map-station-sheet__btn map-station-sheet__btn--route map-station-sheet__btn--icon${active ? " is-active" : ""}`}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <path strokeLinecap="round" d="M12 7v5l3 2" />
+      </svg>
+    </button>
+  );
+}
+
 function ScanQrButton() {
   const t = useT();
   const label = t("map.scan_qr", "Сканировать QR");
@@ -181,25 +214,18 @@ function WashPostsGrid({
 }: {
   washers: Station["washers"];
 }) {
-  const t = useT();
   if (washers.length === 0) return null;
 
   return (
-    <div className="map-status-block">
-      <div className="map-status-block__head">
-        <p className="map-status-block__title">
-          {t("map.posts", "Посты")}
-          <span className="map-status-block__count">{washers.length}</span>
-        </p>
-        <StatusLegend />
-      </div>
-      <div className="map-status-grid">
+    <div className="map-status-block map-status-block--compact">
+      <StatusLegend />
+      <div className="map-status-grid map-status-grid--soft">
         {washers.map((washer, index) => {
           const tone = postTone(washer.status);
           return (
             <div
               key={washer.id}
-              className={`map-status-cell map-status-cell--${tone}`}
+              className={`map-status-cell map-status-cell--soft map-status-cell--${tone}`}
             >
               <span className="map-status-cell__num">{index + 1}</span>
               <span className="map-status-cell__status">
@@ -337,41 +363,50 @@ function StandPickButton({
   );
 }
 
-function LoadRing({
-  free,
-  total,
-  label,
-}: {
-  free: number;
-  total: number;
-  label: string;
-}) {
-  const safeTotal = Math.max(total, 1);
-  const busyRatio = Math.min(1, Math.max(0, (safeTotal - free) / safeTotal));
-  const radius = 22;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - busyRatio);
+/** Тот же маркер, что на карте — иконка + свободно/всего */
+function StationSheetMarker({ station }: { station: Station }) {
+  const { prefs } = useMapMarkerStylePrefs();
+  const isCharging = station.kind === "charging";
+  const kindPrefs = isCharging ? prefs.charging : prefs.wash;
+  const free = Math.max(0, station.freeSlots);
+  const total = Math.max(station.washersTotal || 1, 1);
+  const freeRatio = Math.min(1, Math.max(0, free / total));
 
   return (
-    <div className="map-station-sheet__load">
-      <div className="map-station-sheet__ring" aria-hidden>
-        <svg viewBox="0 0 56 56">
-          <circle className="map-station-sheet__ring-track" cx="28" cy="28" r={radius} />
-          <circle
-            className="map-station-sheet__ring-progress"
-            cx="28"
-            cy="28"
-            r={radius}
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-          />
-        </svg>
-        <span className="map-station-sheet__ring-value">
-          {free}
-          <small>/{safeTotal}</small>
+    <div
+      className="map-station-sheet__marker"
+      title={`${free}/${total}`}
+      aria-label={`${free} из ${total} свободно`}
+    >
+      <span
+        className={`${markerStyleClass(isCharging ? "charging" : "wash", kindPrefs.shapeId)} map-marker--sheet`}
+        style={
+          {
+            "--map-marker-free": String(freeRatio),
+            ...markerColorStyle(kindPrefs),
+          } as CSSProperties
+        }
+        aria-hidden
+      >
+        <span className="map-marker__progress" />
+        <span className="map-marker__face">
+          <span className="map-marker__icon">
+            {isCharging ? (
+              <svg viewBox="7 3 10 18" fill="currentColor">
+                <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2.2C12 2.2 5.5 9.4 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 9.4 12 2.2 12 2.2Z" />
+              </svg>
+            )}
+          </span>
+          <span className="map-marker__count">
+            {free}/{total}
+          </span>
         </span>
-      </div>
-      <span className="map-station-sheet__load-label">{label}</span>
+        <span className="map-marker__tip" />
+      </span>
     </div>
   );
 }
@@ -490,7 +525,7 @@ export default function StationMapDrawer({
     () => Boolean(initialStation.photoUrl),
   );
   const [stationPhotoReady, setStationPhotoReady] = useState(false);
-  const showStationPhoto = Boolean(station.photoUrl) && !stationPhotoFailed;
+  const hasStationPhoto = Boolean(station.photoUrl) && !stationPhotoFailed;
 
   useEffect(() => {
     const url = station.photoUrl;
@@ -555,6 +590,11 @@ export default function StationMapDrawer({
     setRouteOpen(true);
   };
 
+  const toggleHours = () => {
+    setRouteOpen(false);
+    setHoursOpen(true);
+  };
+
   const closeRoute = () => setRouteOpen(false);
 
   const openStand = (standId: number) => {
@@ -612,12 +652,6 @@ export default function StationMapDrawer({
       : (chargerStands.find((s) => s.id === selectedStandId) ?? null);
 
   useEffect(() => {
-    if (!showStationPhoto) {
-      document.documentElement.classList.remove("map-sheet-photo-on");
-      document.documentElement.style.removeProperty("--map-sheet-h");
-      return;
-    }
-
     const apply = () => {
       const sheetH = sheetNodeRef.current?.offsetHeight;
       if (sheetH && sheetH > 0) {
@@ -639,7 +673,7 @@ export default function StationMapDrawer({
       document.documentElement.classList.remove("map-sheet-photo-on");
       document.documentElement.style.removeProperty("--map-sheet-h");
     };
-  }, [showStationPhoto, initialStation.id, routeOpen, hoursOpen, selectedStandId]);
+  }, [initialStation.id, routeOpen, hoursOpen, selectedStandId, hasStationPhoto]);
 
   return (
     <>
@@ -650,33 +684,65 @@ export default function StationMapDrawer({
         aria-label={t("common.close", "Закрыть")}
       />
 
-      {showStationPhoto ? (
-        <div
-          className={`map-station-photo-layer is-visible${stationPhotoLoading ? " is-loading" : ""}${stationPhotoReady ? " is-ready" : ""}`}
-          aria-busy={stationPhotoLoading}
-          aria-hidden={false}
-        >
-          <div className="map-station-photo-layer__loader" role="status">
-            <span className="map-station-photo-layer__spinner" aria-hidden />
-            <span className="map-station-photo-layer__label">
-              {t("map.loading_photo", "Загружается фото…")}
+      <div
+        className={`map-station-photo-layer is-visible${!hasStationPhoto ? " is-placeholder is-ready" : ""}${hasStationPhoto && stationPhotoLoading ? " is-loading" : ""}${hasStationPhoto && stationPhotoReady ? " is-ready" : ""}${isCharging ? " is-charging" : " is-wash"}`}
+        aria-busy={hasStationPhoto && stationPhotoLoading}
+        aria-hidden={false}
+      >
+        {hasStationPhoto ? (
+          <>
+            <div className="map-station-photo-layer__loader" role="status">
+              <span className="map-station-photo-layer__spinner" aria-hidden />
+              <span className="map-station-photo-layer__label">
+                {t("map.loading_photo", "Загружается фото…")}
+              </span>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={station.photoUrl ?? initialStation.id}
+              src={station.photoUrl!}
+              alt=""
+              draggable={false}
+              decoding="async"
+            />
+          </>
+        ) : (
+          <div className="map-station-photo-layer__placeholder" aria-hidden>
+            <span className="map-station-photo-layer__placeholder-icon">
+              {isCharging ? (
+                <svg viewBox="7 3 10 18" fill="currentColor">
+                  <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2.2C12 2.2 5.5 9.4 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 9.4 12 2.2 12 2.2Z" />
+                </svg>
+              )}
+            </span>
+            <span className="map-station-photo-layer__placeholder-label">
+              {t("map.no_photo", "Нет фото")}
             </span>
           </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            key={station.photoUrl ?? initialStation.id}
-            src={station.photoUrl!}
-            alt=""
-            draggable={false}
-            decoding="async"
-          />
+        )}
+        <div className="map-station-photo-layer__title-bar">
+          <h2
+            id="map-station-photo-title"
+            className="map-station-photo-layer__title"
+          >
+            {station.address || station.name}
+          </h2>
+          <StationSheetMarker station={station} />
         </div>
-      ) : null}
+      </div>
 
       <div
-        className={`map-station-sheet is-peek${showStationPhoto ? " has-photo-static" : " is-compact-only"}${loading ? " is-refreshing" : ""}`}
+        className={`map-station-sheet is-peek has-photo-static${loading ? " is-refreshing" : ""}`}
         role="dialog"
-        aria-labelledby="map-station-sheet-title"
+        aria-labelledby={
+          !hoursOpen && !routeOpen && !selectedStand
+            ? "map-station-photo-title"
+            : "map-station-sheet-title"
+        }
         aria-busy={loading}
         style={sheetStyle}
         {...sheetProps}
@@ -742,7 +808,10 @@ export default function StationMapDrawer({
           {!hoursOpen && !routeOpen ? (
             <div className="map-station-sheet__toolbar-actions">
               {!selectedStand ? (
-                <RouteButton onClick={toggleRoute} active={routeOpen} />
+                <>
+                  <HoursButton onClick={toggleHours} active={hoursOpen} />
+                  <RouteButton onClick={toggleRoute} active={routeOpen} />
+                </>
               ) : null}
               <ScanQrButton />
             </div>
@@ -796,38 +865,20 @@ export default function StationMapDrawer({
             </div>
           </div>
         ) : (
-          <div className="map-station-sheet__body" {...scrollProps}>
+          <div className="map-station-sheet__body map-station-sheet__body--compact" {...scrollProps}>
             <div className="map-station-sheet__top">
               <div className="map-station-sheet__main">
-                <h2 id="map-station-sheet-title" className="map-station-sheet__title">
-                  {station.address || station.name}
-                </h2>
-                <div className="map-station-sheet__meta">
-                  <button
-                    type="button"
+                <div className="map-station-sheet__meta map-station-sheet__meta--compact">
+                  <span
                     className="map-station-sheet__meta-item map-station-sheet__meta-item--hours"
                     title={station.hoursLabel}
-                    onClick={() => {
-                      setRouteOpen(false);
-                      setHoursOpen(true);
-                    }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
                       <circle cx="12" cy="12" r="9" />
                       <path strokeLinecap="round" d="M12 7v5l3 2" />
                     </svg>
                     <span>{hoursText}</span>
-                    <svg
-                      className="map-station-sheet__meta-chevron"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2.2}
-                      aria-hidden
-                    >
-                      <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-                    </svg>
-                  </button>
+                  </span>
                   {km != null ? (
                     <span className="map-station-sheet__meta-item map-station-sheet__meta-item--distance">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
@@ -839,14 +890,6 @@ export default function StationMapDrawer({
                   ) : null}
                 </div>
               </div>
-
-              {!isCharging ? (
-                <LoadRing
-                  free={station.freeSlots}
-                  total={station.washersTotal}
-                  label={t("map.load", "Загрузка")}
-                />
-              ) : null}
             </div>
 
             {!isCharging ? (
@@ -928,10 +971,6 @@ export default function StationMapDrawer({
                 </ul>
               </div>
             ) : null}
-
-            <Link href={`/station/${station.id}`} className="map-station-sheet__more">
-              {t("common.more", "Подробнее")}
-            </Link>
           </div>
         )}
       </div>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchUserInfo, type AuthUser } from "@/lib/api/auth";
 import { fetchGeos, formatCityName, type GeoCity } from "@/lib/api/geos";
 import { ApiError } from "@/lib/api";
+import { useLocale } from "@/hooks/useT";
 
 type UseUserCityState = {
   geoId: number | null;
@@ -15,8 +16,8 @@ type UseUserCityState = {
 };
 
 export function useUserCity(): UseUserCityState {
+  const locale = useLocale();
   const [geoId, setGeoId] = useState<number | null>(null);
-  const [cityName, setCityName] = useState<string | null>(null);
   const [cities, setCities] = useState<GeoCity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export function useUserCity(): UseUserCityState {
       try {
         const [user, geos] = await Promise.all([fetchUserInfo(), fetchGeos()]);
         if (cancelled) return;
-        applyUserCity(user, geos);
+        applyUserCity(user);
         setCities(geos);
         setError(null);
       } catch (err) {
@@ -46,11 +47,8 @@ export function useUserCity(): UseUserCityState {
       }
     }
 
-    function applyUserCity(user: AuthUser, geos: GeoCity[]) {
-      const id = user.geo_id ?? null;
-      setGeoId(id);
-      const match = id != null ? geos.find((geo) => geo.id === id) : null;
-      setCityName(match ? formatCityName(match.city) : null);
+    function applyUserCity(user: AuthUser) {
+      setGeoId(user.geo_id ?? null);
     }
 
     void boot();
@@ -63,6 +61,12 @@ export function useUserCity(): UseUserCityState {
       window.removeEventListener("user-profile-updated", onSync);
     };
   }, [refresh, tick]);
+
+  const cityName = useMemo(() => {
+    if (geoId == null) return null;
+    const match = cities.find((geo) => geo.id === geoId);
+    return match ? formatCityName(match, locale) : null;
+  }, [cities, geoId, locale]);
 
   return { geoId, cityName, cities, loading, error, refresh };
 }

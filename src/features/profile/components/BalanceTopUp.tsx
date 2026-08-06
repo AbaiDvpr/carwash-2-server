@@ -107,16 +107,14 @@ export default function BalanceTopUp({
                 className={[
                   "rounded-xl border px-3 py-3 text-left transition disabled:opacity-60",
                   active
-                    ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40"
+                    ? "theme-choice-active"
                     : "border-zinc-200 bg-zinc-50 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800",
                 ].join(" ")}
               >
                 <span
                   className={[
                     "block text-sm font-semibold",
-                    active
-                      ? "text-blue-700 dark:text-blue-300"
-                      : "text-zinc-900 dark:text-zinc-50",
+                    active ? "" : "text-zinc-900 dark:text-zinc-50",
                   ].join(" ")}
                 >
                   {item.label}
@@ -146,7 +144,7 @@ export default function BalanceTopUp({
               setError(null);
             }}
             placeholder="2000"
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:bg-zinc-950"
+            className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           />
         </label>
 
@@ -164,7 +162,7 @@ export default function BalanceTopUp({
               className={[
                 "rounded-lg px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-60",
                 parsed === value
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                  ? "theme-chip-active"
                   : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700",
               ].join(" ")}
             >
@@ -190,7 +188,7 @@ export default function BalanceTopUp({
         type="button"
         onClick={() => void handleSubmit()}
         disabled={!canSubmit}
-        className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="theme-button w-full rounded-xl px-4 py-3 text-sm"
       >
         {saving
           ? t("payment.topping_up", "Пополняем…")

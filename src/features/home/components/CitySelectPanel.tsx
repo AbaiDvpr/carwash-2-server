@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { updateUserSettings } from "@/lib/api/auth";
 import { formatCityName, type GeoCity } from "@/lib/api/geos";
+import { useLocale } from "@/hooks/useT";
 
 type CitySelectPanelProps = {
   cities: GeoCity[];
@@ -17,6 +18,7 @@ export default function CitySelectPanel({
   loading = false,
   className = "",
 }: CitySelectPanelProps) {
+  const locale = useLocale();
   const [savingId, setSavingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,13 +86,8 @@ export default function CitySelectPanel({
                     <span className="h-2 w-2 rounded-full bg-white" />
                   ) : null}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                    {formatCityName(city.city)}
-                  </span>
-                  <span className="mt-0.5 block text-[11px] text-zinc-400">
-                    {city.country}
-                  </span>
+                <span className="min-w-0 flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                  {formatCityName(city, locale)}
                 </span>
               </button>
             </div>

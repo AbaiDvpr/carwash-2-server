@@ -188,14 +188,84 @@ html.fullscreen .app-header {
 }
 
 .theme-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
   background-color: var(--app-button);
   color: var(--app-button-text);
   border-radius: var(--app-button-radius);
   padding: var(--app-button-pad-y) var(--app-button-pad-x);
+  font-weight: 600;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
 }
 
-.theme-button:active {
+.theme-button:active:not(:disabled) {
   background-color: var(--app-button-hover);
+}
+
+.theme-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Вторичная кнопка — обводка, без залитого акцента */
+.theme-button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--app-border-width) solid var(--app-border);
+  background-color: var(--app-block);
+  color: var(--app-text);
+  border-radius: var(--app-button-radius);
+  padding: var(--app-button-pad-y) var(--app-button-pad-x);
+  font-weight: 600;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.theme-button-secondary:active:not(:disabled) {
+  background-color: var(--app-hover);
+}
+
+.theme-button-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Текст-ссылка / текстовый акцент */
+.theme-accent-text {
+  color: var(--app-button);
+}
+
+/* Выбранный вариант (карта, строка списка) */
+.theme-choice-active {
+  border-color: var(--app-button) !important;
+  background: color-mix(in oklab, var(--app-button) 12%, var(--app-block)) !important;
+  color: var(--app-button);
+}
+
+/* Чип/пресет выбран */
+.theme-chip-active {
+  background-color: var(--app-button);
+  color: var(--app-button-text);
+}
+
+/* Radio-точка в списках */
+.theme-radio {
+  border-color: var(--app-border);
+  background: var(--app-block);
+}
+
+.theme-radio.is-on {
+  border-color: var(--app-button);
+  background: var(--app-button);
+}
+
+/* Фокус полей — тот же акцент, что у кнопок */
+.theme-field:focus {
+  border-color: var(--app-button) !important;
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-button) 22%, transparent);
 }
 
 .theme-danger {

@@ -25,16 +25,21 @@ type MapMarkerStyleDrawerProps = {
   onClose: () => void;
 };
 
+/** Пример на превью: свободно / всего — как у клиента на карте */
+const PREVIEW_FREE = 2;
+const PREVIEW_TOTAL = 4;
+const PREVIEW_LABEL = `${PREVIEW_FREE}/${PREVIEW_TOTAL}`;
+const PREVIEW_FREE_RATIO = PREVIEW_FREE / PREVIEW_TOTAL;
+
 function PreviewMarker({
   kind,
   prefs,
-  freeRatio = 0.65,
+  freeRatio = PREVIEW_FREE_RATIO,
 }: {
   kind: MarkerKind;
   prefs: KindMarkerPrefs;
   freeRatio?: number;
 }) {
-  const isWash = kind === "wash";
   return (
     <span
       className={`${markerStyleClass(kind, prefs.shapeId)} map-marker--preview`}
@@ -49,9 +54,9 @@ function PreviewMarker({
       <span className="map-marker__progress" />
       <span className="map-marker__face">
         <span className="map-marker__icon">
-          {isWash ? (
+          {kind === "wash" ? (
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2.2C12 2.2 6 9.2 6 13.2a6 6 0 0 0 12 0C18 9.2 12 2.2 12 2.2Z" />
+              <path d="M12 2.2C12 2.2 5.5 9.4 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 9.4 12 2.2 12 2.2Z" />
             </svg>
           ) : (
             <svg viewBox="7 3 10 18" fill="currentColor">
@@ -59,8 +64,7 @@ function PreviewMarker({
             </svg>
           )}
         </span>
-        <span className="map-marker__count">3</span>
-        <span className="map-marker__sub">{isWash ? "2/4" : "50 кВт"}</span>
+        <span className="map-marker__count">{PREVIEW_LABEL}</span>
       </span>
       <span className="map-marker__tip" />
     </span>
@@ -147,7 +151,7 @@ function ShapeGrid({
               />
             </span>
             <span className="map-marker-style-card__name">{shape.name}</span>
-            <span className="map-marker-style-card__hint">{shape.hint}</span>
+            <span className="map-marker-style-card__ratio">{PREVIEW_LABEL}</span>
           </button>
         );
       })}
@@ -227,7 +231,7 @@ export default function MapMarkerStyleDrawer({
               <p className="map-conn-step__parent">
                 {t(
                   "map.marker_styles_hint",
-                  "Цвет и фигура · отдельно мойка и ЭЗС · меняется сразу",
+                  "На маркере: свободно/всего · мойка и ЭЗС · меняется сразу",
                 )}
               </p>
             </div>
@@ -294,8 +298,46 @@ export default function MapMarkerStyleDrawer({
                 ? t("map.marker_colors_wash", "Цвет маркера мойки")
                 : t("map.marker_colors_ev", "Цвет маркера ЭЗС")}
             </p>
-            <div className="map-marker-colors__live">
-              <PreviewMarker kind={tab} prefs={current} />
+            <div
+              className="map-marker-colors__live"
+              style={
+                {
+                  "--map-marker-free-color": current.progressFree,
+                  "--map-marker-busy-color": current.progressBusy,
+                } as CSSProperties
+              }
+            >
+              <div className="map-marker-colors__stage">
+                <PreviewMarker kind={tab} prefs={current} />
+              </div>
+              <div className="map-marker-ratio">
+                <p className="map-marker-ratio__value" aria-hidden>
+                  <span className="map-marker-ratio__free">{PREVIEW_FREE}</span>
+                  <span className="map-marker-ratio__slash">/</span>
+                  <span className="map-marker-ratio__total">{PREVIEW_TOTAL}</span>
+                </p>
+                <div className="map-marker-ratio__chips">
+                  <span className="map-marker-ratio__chip map-marker-ratio__chip--free">
+                    <span className="map-marker-ratio__dot" aria-hidden />
+                    {t("map.free", "свободно")}
+                  </span>
+                  <span className="map-marker-ratio__chip map-marker-ratio__chip--total">
+                    <span className="map-marker-ratio__dot" aria-hidden />
+                    {t("map.total_slots", "всего")}
+                  </span>
+                </div>
+                <p className="map-marker-ratio__hint">
+                  {tab === "wash"
+                    ? t(
+                        "map.marker_ratio_hint_wash",
+                        "Клиент сразу видит свободные посты мойки",
+                      )
+                    : t(
+                        "map.marker_ratio_hint_ev",
+                        "Клиент сразу видит свободные слоты ЭЗС",
+                      )}
+                </p>
+              </div>
             </div>
             <ColorField
               label={t("map.marker_accent", "Основной цвет")}

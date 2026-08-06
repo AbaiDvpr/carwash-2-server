@@ -293,7 +293,7 @@ export default function AvatarCropper({
               value={scale}
               disabled={!ready || busy}
               onChange={(e) => setScale(Number(e.target.value))}
-              className="min-w-0 flex-1 accent-blue-600"
+              className="min-w-0 flex-1 accent-[var(--app-button)]"
             />
             <button
               type="button"
@@ -312,7 +312,7 @@ export default function AvatarCropper({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="rounded-xl border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
+            className="theme-button-secondary rounded-xl px-4 py-3 text-sm"
           >
             Отмена
           </button>
@@ -320,7 +320,7 @@ export default function AvatarCropper({
             type="button"
             disabled={!ready || busy}
             onClick={() => void handleConfirm()}
-            className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            className="theme-button rounded-xl px-4 py-3 text-sm"
           >
             {busy ? "Сохранение…" : "Готово"}
           </button>

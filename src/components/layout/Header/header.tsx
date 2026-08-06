@@ -31,7 +31,11 @@ export default function Header() {
 
   if (!showHeader) return null;
 
-  if (pathname.startsWith("/payment") || pathname.startsWith("/map")) {
+  if (
+    pathname === "/" ||
+    pathname.startsWith("/payment") ||
+    pathname.startsWith("/map")
+  ) {
     return null;
   }
 

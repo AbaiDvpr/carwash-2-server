@@ -81,7 +81,7 @@ export default function Main() {
             {t("home.categories", "Категории")}
           </h2>
           <Link
-            href="/map"
+            href="/"
             className="inline-flex items-center gap-0.5 text-[13px] font-medium"
             style={{ color: "var(--app-button)" }}
           >
@@ -105,7 +105,7 @@ export default function Main() {
             return (
               <Link
                 key={category.kind}
-                href="/map"
+                href="/"
                 onClick={() => writeMapFilters(createDefaultFilters(category.kind))}
                 className="app-section group relative flex min-h-[168px] flex-col transition active:scale-[0.98]"
               >

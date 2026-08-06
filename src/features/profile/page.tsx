@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { PageLayout } from "@/components/layout";
 import { formatPhoneDisplay, useAuthUser } from "@/hooks/useAuthUser";
 import { forceLogout } from "@/lib/forceLogout";
+import { openBrowser } from "@/lib/browserController";
 import { openTelegram, openWhatsApp } from "@/lib/messengerController";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setHeaderNav } from "@/store/slices/appSlice";
@@ -38,8 +39,7 @@ import BalanceTopUp from "./components/BalanceTopUp";
 import AvatarCropper from "./components/AvatarCropper";
 import GaragePanel, { type MockCar } from "./components/GaragePanel";
 import ProfileNavRow from "./components/ProfileNavRow";
-import ProfileVersion from "./components/ProfileVersion";
-import DocumentsDrawer from "./components/DocumentsDrawer";
+import FaqSection from "./components/FaqSection";
 import { deleteUserPhoto, resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
 import { pickImage } from "@/lib/pickImage";
 import "./components/profile.css";
@@ -51,9 +51,8 @@ type ProfileView =
   | "history"
   | "garage"
   | "promo"
-  | "referral"
   | "support"
-  | "faq"
+  | "documents"
   | "language"
   | "city"
   | "appearance";
@@ -64,34 +63,10 @@ const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
 ];
 
 const LANGUAGE_OPTIONS = [
-  { id: "ru", label: "Русский", code: "RU" },
-  { id: "kz", label: "Қазақша", code: "KZ" },
-  { id: "en", label: "English", code: "EN" },
+  { id: "ru", label: "Русский" },
+  { id: "kz", label: "Қазақша" },
+  { id: "en", label: "English" },
 ] as const;
-
-const FAQ_ITEMS = [
-  {
-    id: "payment",
-    question: "Как оплатить мойку?",
-    answer:
-      "Выберите мойку на карте, откройте оплату, выберите тариф и подтвердите платёж.",
-  },
-  {
-    id: "refund",
-    question: "Можно ли вернуть деньги?",
-    answer: "Если услуга не оказана — напишите в поддержку, разберём в течение 24 часов.",
-  },
-  {
-    id: "promo",
-    question: "Как использовать промокод?",
-    answer: "Введите код в разделе «Промокод». Скидка учтётся при следующей оплате.",
-  },
-  {
-    id: "referral",
-    question: "Как работает рефералка?",
-    answer: "Поделитесь ссылкой. После первой оплаты друга оба получите бонус.",
-  },
-];
 
 const REFERRAL_CODE = "CARWASH-FRIEND";
 const REFERRAL_LINK = "https://carwash.app/invite/CARWASH-FRIEND";
@@ -187,28 +162,10 @@ function IconTag() {
     </svg>
   );
 }
-function IconUsers() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-      <circle cx="9" cy="8.5" r="2.75" />
-      <circle cx="16.5" cy="9.5" r="2.1" />
-      <path strokeLinecap="round" d="M3.8 18.5c1.2-2.6 3.1-3.9 5.2-3.9s4 1.3 5.2 3.9M14 14.8c1.5-.3 2.9.3 4.1 1.9" />
-    </svg>
-  );
-}
 function IconChat() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 17.5 4 20l3-1.2A8.5 8.5 0 1 0 5 17.5Z" />
-    </svg>
-  );
-}
-function IconHelp() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-      <circle cx="12" cy="12" r="8.25" />
-      <path strokeLinecap="round" d="M9.6 9.4a2.4 2.4 0 1 1 3.5 2.1c-.8.5-1.3 1-1.3 2" />
-      <circle cx="12" cy="16.4" r="0.85" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -241,10 +198,8 @@ function RadioMark({ checked, busy = false }: { checked: boolean; busy?: boolean
   return (
     <span
       className={[
-        "relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition",
-        checked
-          ? "border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-500"
-          : "border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-900",
+        "theme-radio relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition",
+        checked ? "is-on" : "",
         busy ? "opacity-60" : "",
       ].join(" ")}
       aria-hidden
@@ -252,17 +207,16 @@ function RadioMark({ checked, busy = false }: { checked: boolean; busy?: boolean
       {busy ? (
         <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-white/80" />
       ) : checked ? (
-        <span className="h-2 w-2 rounded-full bg-white" />
+        <span className="h-2 w-2 rounded-full bg-[var(--app-button-text)]" />
       ) : null}
     </span>
   );
 }
 
-function BackBar({ title, onBack }: { title: string; onBack: () => void }) {
+function BackBar({ onBack }: { onBack: () => void }) {
   return (
-    <div className="mb-4 flex items-center gap-2">
-      <BackButton onClick={onBack} />
-      <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{title}</h1>
+    <div className="mb-3">
+      <BackButton iconOnly onClick={onBack} />
     </div>
   );
 }
@@ -339,7 +293,7 @@ function PaletteColorRow({
           }}
           onBlur={() => setDraft(value)}
           spellCheck={false}
-          className="w-[7.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-xs uppercase text-zinc-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          className="theme-field w-[7.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-xs uppercase text-zinc-700 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
           aria-label={`${label} hex`}
         />
       </div>
@@ -418,9 +372,9 @@ function LayoutSpacingRow({
 export default function ProfilePage() {
   const { name, phone, photoUrl, mounted } = useAuthUser();
   const dispatch = useAppDispatch();
-  const appVersion = useAppSelector((state) => state.app.version);
   const showHeaderNav = useAppSelector((state) => state.app.showHeaderNav);
   const support = useAppSelector((state) => state.variables.support);
+  const documents = useAppSelector((state) => state.variables.documents);
   const { promoCode, promoMessage, applyPromo, updatePromoCode } = usePromoCode();
   const {
     pushEnabled,
@@ -460,9 +414,7 @@ export default function ProfilePage() {
   const [view, setView] = useState<ProfileView>("home");
   const [cars, setCars] = useState<MockCar[]>(INITIAL_CARS);
   const [copied, setCopied] = useState(false);
-  const [openFaqId, setOpenFaqId] = useState<string | null>(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
-  const [docsOpen, setDocsOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
 
@@ -608,14 +560,6 @@ export default function ProfilePage() {
               <h1 className="profile-hero__hello">
                 {t("profile.hello", "Здравствуйте")}, {firstName}!
               </h1>
-
-              <button
-                type="button"
-                className="profile-hero__manage"
-                onClick={() => setView("edit")}
-              >
-                {t("profile.manage_account", "Управление аккаунтом")}
-              </button>
             </header>
 
             <section className="profile-card">
@@ -634,7 +578,7 @@ export default function ProfilePage() {
                   <p className="profile-card__balance-label">
                     {t("profile.phone", "Телефон")}
                   </p>
-                  <p className="profile-card__balance-phone">{displayPhone}</p>
+                  <p className="profile-card__balance-value">{displayPhone}</p>
                 </div>
               </div>
             </section>
@@ -735,59 +679,38 @@ export default function ProfilePage() {
               <ProfileNavRow
                 icon={<IconCar />}
                 label={t("profile.garage", "Гараж")}
-                hint={`${cars.length} авто`}
+                hint={
+                  cars.length === 0
+                    ? t("garage.empty", "Пока нет авто")
+                    : `${cars.length} авто`
+                }
                 onClick={() => setView("garage")}
               />
               <ProfileNavRow
                 icon={<IconTag />}
                 label={t("profile.promo", "Промокод")}
-                hint="Применить скидку"
+                hint={`${t("profile.referral", "Рефералка")} · ${REFERRAL_CODE}`}
                 onClick={() => setView("promo")}
-              />
-              <ProfileNavRow
-                icon={<IconUsers />}
-                label={t("profile.referral", "Рефералка")}
-                hint={REFERRAL_CODE}
-                onClick={() => setView("referral")}
               />
               <ProfileNavRow
                 icon={<IconChat />}
                 label={t("profile.support", "Поддержка")}
-                hint="Telegram · WhatsApp"
-                onClick={() => setView("support")}
-              />
-              <ProfileNavRow
-                icon={<IconHelp />}
-                label={t("profile.faq", "FAQ")}
                 hint={t("profile.faq", "Частые вопросы")}
-                onClick={() => setView("faq")}
+                onClick={() => setView("support")}
               />
               <ProfileNavRow
                 icon={<IconDocs />}
                 label={t("profile.documents", "Документы")}
                 hint={t("profile.documents_hint", "Политика и оферта")}
-                onClick={() => setDocsOpen(true)}
+                onClick={() => setView("documents")}
               />
             </section>
-
-            <section className="profile-card">
-              <ProfileNavRow
-                icon={<IconLogout />}
-                label={t("profile.logout", "Выйти")}
-                danger
-                onClick={() => setLogoutConfirmOpen(true)}
-              />
-            </section>
-
-            <div className="profile-home__foot">
-              <ProfileVersion version={appVersion} />
-            </div>
           </div>
         ) : null}
 
         {view === "balance" ? (
           <>
-            <BackBar title={t("profile.top_up", "Пополнить")} onBack={() => setView("home")} />
+            <BackBar onBack={() => setView("home")} />
             <BalanceTopUp
               balance={balance}
               loading={balanceLoading}
@@ -798,15 +721,15 @@ export default function ProfilePage() {
 
         {view === "history" ? (
           <>
-            <BackBar title={t("common.nav_history", "История")} onBack={() => setView("home")} />
+            <BackBar onBack={() => setView("home")} />
             <HistoryList />
           </>
         ) : null}
 
         {view === "edit" ? (
-          <>
-            <BackBar title={t("profile.title", "Профиль")} onBack={() => setView("home")} />
-            <div className="space-y-4">
+          <div className="profile-edit">
+            <BackBar onBack={() => setView("home")} />
+            <div className="profile-edit__main space-y-4">
               <SectionCard>
                 <div className="flex flex-col items-center gap-3 px-3 py-4">
                   <AvatarBubble size="lg" />
@@ -815,7 +738,7 @@ export default function ProfilePage() {
                       type="button"
                       disabled={photoBusy}
                       onClick={() => void handlePickPhoto()}
-                      className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                      className="theme-button px-3 py-2 text-xs"
                     >
                       {photoUrl ? "Изменить фото" : "Добавить фото"}
                     </button>
@@ -824,7 +747,7 @@ export default function ProfilePage() {
                         type="button"
                         disabled={photoBusy}
                         onClick={() => void handleDeletePhoto()}
-                        className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 disabled:opacity-50 dark:border-red-900 dark:text-red-400"
+                        className="theme-button-secondary px-3 py-2 text-xs text-[var(--app-danger)]"
                       >
                         Удалить
                       </button>
@@ -846,7 +769,7 @@ export default function ProfilePage() {
                       disabled={profileEdit.loading || profileEdit.saving}
                       placeholder="Имя"
                       autoComplete="given-name"
-                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:bg-zinc-950"
+                      className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                     />
                   </label>
                   <label className="block">
@@ -860,7 +783,7 @@ export default function ProfilePage() {
                       disabled={profileEdit.loading || profileEdit.saving}
                       placeholder="Фамилия"
                       autoComplete="family-name"
-                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:bg-zinc-950"
+                      className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                     />
                   </label>
                   <label className="block">
@@ -875,7 +798,7 @@ export default function ProfilePage() {
                       placeholder="example@mail.com"
                       autoComplete="email"
                       inputMode="email"
-                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:bg-zinc-950"
+                      className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                     />
                   </label>
                 </div>
@@ -891,7 +814,7 @@ export default function ProfilePage() {
                     }
                   });
                 }}
-                className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                className="theme-button w-full rounded-xl px-4 py-3 text-sm"
               >
                 {profileEdit.saving
                   ? t("common.saving", "Сохранение…")
@@ -909,12 +832,23 @@ export default function ProfilePage() {
                 </p>
               ) : null}
             </div>
-          </>
+
+            <div className="profile-edit__logout">
+              <SectionCard>
+                <ProfileNavRow
+                  icon={<IconLogout />}
+                  label={t("profile.logout", "Выйти")}
+                  danger
+                  onClick={() => setLogoutConfirmOpen(true)}
+                />
+              </SectionCard>
+            </div>
+          </div>
         ) : null}
 
         {view === "city" ? (
           <>
-            <BackBar title={t("profile.city", "Ваш город")} onBack={() => setView("home")} />
+            <BackBar onBack={() => setView("home")} />
             <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
               Мойки и ЭЗС показываются только в выбранном городе.
             </p>
@@ -942,7 +876,7 @@ export default function ProfilePage() {
                             try {
                               await updateUserSettings({ geo_id: city.id });
                               refreshCity();
-                              showToast(`Город: ${formatCityName(city.city)}`);
+                              showToast(`Город: ${formatCityName(city, locale)}`);
                               setView("home");
                             } catch {
                               showToast("Не удалось сохранить город");
@@ -954,13 +888,8 @@ export default function ProfilePage() {
                       className="app-row text-left hover:bg-[var(--app-hover)] disabled:opacity-60"
                       >
                         <RadioMark checked={selected} busy={busy} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                            {formatCityName(city.city)}
-                          </span>
-                          <span className="mt-0.5 block text-[11px] text-zinc-400">
-                            {city.country}
-                          </span>
+                        <span className="min-w-0 flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                          {formatCityName(city, locale)}
                         </span>
                       </button>
                     </div>
@@ -973,7 +902,7 @@ export default function ProfilePage() {
 
         {view === "language" ? (
           <>
-            <BackBar title={t("profile.language", "Язык")} onBack={() => setView("home")} />
+            <BackBar onBack={() => setView("home")} />
             <SectionCard>
               {LANGUAGE_OPTIONS.map((lang, index) => (
                 <div key={lang.id}>
@@ -992,13 +921,8 @@ export default function ProfilePage() {
                     className="app-row text-left hover:bg-[var(--app-hover)]"
                   >
                     <RadioMark checked={lang.id === locale} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                        {lang.label}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-zinc-400">
-                        {lang.code}
-                      </span>
+                    <span className="min-w-0 flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                      {lang.label}
                     </span>
                   </button>
                 </div>
@@ -1009,7 +933,7 @@ export default function ProfilePage() {
 
         {view === "appearance" ? (
           <>
-            <BackBar title={t("profile.appearance", "Оформление")} onBack={() => setView("home")} />
+            <BackBar onBack={() => setView("home")} />
 
             <section className="mb-5">
               <SectionTitle>Тема</SectionTitle>
@@ -1191,7 +1115,7 @@ export default function ProfilePage() {
                           <button
                             type="button"
                             onClick={() => resetPalette(editPaletteMode)}
-                            className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                            className="theme-button-secondary flex-1 px-3 py-2 text-xs"
                           >
                             Сбросить эту тему
                           </button>
@@ -1204,7 +1128,7 @@ export default function ProfilePage() {
                               setEditPaletteMode("light");
                               showToast("Оформление сброшено к значениям по умолчанию");
                             }}
-                            className="theme-button flex-1 rounded-lg px-3 py-2 text-xs font-semibold"
+                            className="theme-button flex-1 px-3 py-2 text-xs"
                           >
                             Всё по умолчанию
                           </button>
@@ -1284,7 +1208,7 @@ export default function ProfilePage() {
                       resetLayout();
                       showToast("Отступы сброшены");
                     }}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                    className="theme-button-secondary w-full px-3 py-2 text-xs"
                   >
                     Сбросить отступы
                   </button>
@@ -1296,120 +1220,107 @@ export default function ProfilePage() {
 
         {view === "garage" ? (
           <>
-            <BackBar title={t("profile.garage", "Гараж")} onBack={() => setView("home")} />
+            <BackBar onBack={() => setView("home")} />
             <GaragePanel cars={cars} onChange={setCars} />
           </>
         ) : null}
 
         {view === "promo" ? (
           <>
-            <BackBar title={t("profile.promo", "Промокод")} onBack={() => setView("home")} />
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => updatePromoCode(e.target.value)}
-                placeholder="Введите код"
-                className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-              />
-              <button
-                type="button"
-                onClick={applyPromo}
-                className="rounded-lg bg-zinc-900 px-3 py-2 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
-              >
-                OK
-              </button>
-            </div>
-            {promoMessage ? (
-              <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">{promoMessage}</p>
-            ) : (
-              <p className="mt-2 text-xs text-zinc-400">Дизайн без API — подтверждение локальное.</p>
-            )}
-          </>
-        ) : null}
-
-        {view === "referral" ? (
-          <>
-            <BackBar title={t("profile.referral", "Рефералка")} onBack={() => setView("home")} />
-            <SectionCard>
-              <div className="px-3 py-3">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Поделитесь ссылкой — бонус после первой мойки друга
+            <BackBar onBack={() => setView("home")} />
+            <div className="space-y-4">
+              <div>
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                  {t("profile.promo", "Промокод")}
                 </p>
-                <p className="mt-3 font-mono text-base font-semibold tracking-wide text-zinc-900 dark:text-zinc-50">
-                  {REFERRAL_CODE}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void handleCopyReferral()}
-                  className="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
-                >
-                  {copied ? "Скопировано" : "Скопировать ссылку"}
-                </button>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => updatePromoCode(e.target.value)}
+                    placeholder="Введите код"
+                    className="theme-field min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyPromo}
+                    className="theme-button px-3 py-2 text-xs"
+                  >
+                    OK
+                  </button>
+                </div>
+                {promoMessage ? (
+                  <p className="theme-accent-text mt-2 text-xs">{promoMessage}</p>
+                ) : (
+                  <p className="mt-2 text-xs text-zinc-400">Дизайн без API — подтверждение локальное.</p>
+                )}
               </div>
-            </SectionCard>
+
+              <SectionCard>
+                <div className="px-3 py-3">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                    {t("profile.referral", "Рефералка")}
+                  </p>
+                  <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    Поделитесь ссылкой — бонус после первой мойки друга
+                  </p>
+                  <p className="mt-3 font-mono text-base font-semibold tracking-wide text-zinc-900 dark:text-zinc-50">
+                    {REFERRAL_CODE}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyReferral()}
+                    className="theme-button mt-3 w-full px-3 py-2 text-xs"
+                  >
+                    {copied ? "Скопировано" : "Скопировать ссылку"}
+                  </button>
+                </div>
+              </SectionCard>
+            </div>
           </>
         ) : null}
 
         {view === "support" ? (
           <>
-            <BackBar title={t("profile.support", "Поддержка")} onBack={() => setView("home")} />
-            <SectionCard>
-              <ProfileNavRow
-                label={support.telegram.title}
-                hint={support.telegram.hint}
-                onClick={() => openTelegram(support.telegram.url)}
-              />
-              <div className="border-t border-zinc-100 dark:border-zinc-800" />
-              <ProfileNavRow
-                label={support.whatsapp.title}
-                hint={support.whatsapp.hint}
-                onClick={() => openWhatsApp(support.whatsapp.url)}
-              />
-            </SectionCard>
+            <BackBar onBack={() => setView("home")} />
+            <div className="space-y-4">
+              <SectionCard>
+                <ProfileNavRow
+                  label={support.telegram.title}
+                  hint={support.telegram.hint}
+                  onClick={() => openTelegram(support.telegram.url)}
+                />
+                <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                <ProfileNavRow
+                  label={support.whatsapp.title}
+                  hint={support.whatsapp.hint}
+                  onClick={() => openWhatsApp(support.whatsapp.url)}
+                />
+              </SectionCard>
+
+              <FaqSection />
+            </div>
           </>
         ) : null}
 
-        {view === "faq" ? (
+        {view === "documents" ? (
           <>
-            <BackBar title={t("profile.faq", "FAQ")} onBack={() => setView("home")} />
+            <BackBar onBack={() => setView("home")} />
             <SectionCard>
-              {FAQ_ITEMS.map((item, index) => {
-                const isOpen = openFaqId === item.id;
-                return (
-                  <div key={item.id}>
-                    {index > 0 ? (
-                      <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFaqId(isOpen ? null : item.id)}
-                      className="app-row app-row--between text-left hover:bg-[var(--app-hover)]"
-                    >
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                          {item.question}
-                        </span>
-                        {isOpen ? (
-                          <span className="mt-1 block text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-                            {item.answer}
-                          </span>
-                        ) : null}
-                      </span>
-                      <svg
-                        className={`mt-1 h-3.5 w-3.5 shrink-0 text-zinc-300 transition ${isOpen ? "rotate-180" : ""}`}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        aria-hidden
-                      >
-                        <path strokeLinecap="round" d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
-                  </div>
-                );
-              })}
+              {documents.map((doc, index) => (
+                <div key={doc.id}>
+                  {index > 0 ? (
+                    <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                  ) : null}
+                  <ProfileNavRow
+                    icon={<IconDocs />}
+                    label={doc.title}
+                    onClick={
+                      doc.url ? () => openBrowser(doc.url) : undefined
+                    }
+                  />
+                </div>
+              ))}
             </SectionCard>
           </>
         ) : null}
@@ -1426,8 +1337,6 @@ export default function ProfilePage() {
             onCropped={(blob) => void handleCroppedPhoto(blob)}
           />
         ) : null}
-
-        {docsOpen ? <DocumentsDrawer onClose={() => setDocsOpen(false)} /> : null}
 
         {logoutConfirmOpen ? (
           <div
@@ -1458,7 +1367,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setLogoutConfirmOpen(false)}
-                  className="flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  className="theme-button-secondary rounded-xl px-4 py-3 text-sm"
                 >
                   {t("common.cancel", "Отмена")}
                 </button>
@@ -1472,7 +1381,7 @@ export default function ProfilePage() {
                       source: "ProfilePage",
                     });
                   }}
-                  className="flex items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
+                  className="rounded-xl bg-[var(--app-danger)] px-4 py-3 text-sm font-semibold text-white"
                 >
                   {t("profile.logout_yes", "Да, выйти")}
                 </button>

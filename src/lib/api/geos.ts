@@ -1,9 +1,16 @@
 import { apiFetch } from "@/lib/api";
+import type { AppLocale } from "@/lib/i18n/storage";
 
 export type GeoCity = {
   id: number;
   country: string;
   city: string;
+  country_ru?: string;
+  country_en?: string;
+  country_kz?: string;
+  city_ru?: string;
+  city_en?: string;
+  city_kz?: string;
 };
 
 export type MapCenter = {
@@ -17,14 +24,6 @@ type GeosResponse = {
   geos: GeoCity[];
 };
 
-const CITY_LABELS: Record<string, string> = {
-  Almaty: "Алматы",
-  Astana: "Астана",
-  Shymkent: "Шымкент",
-  Karaganda: "Қарағанды",
-  Aktobe: "Ақтөбе",
-};
-
 /** Центры городов: обзор города по центру, не зум на мойку. */
 const CITY_CENTERS: Record<string, MapCenter> = {
   Almaty: { longitude: 76.889709, latitude: 43.238949, zoom: 10 },
@@ -36,8 +35,16 @@ const CITY_CENTERS: Record<string, MapCenter> = {
 
 const DEFAULT_MAP_CENTER: MapCenter = CITY_CENTERS.Almaty!;
 
-export function formatCityName(city: string): string {
-  return CITY_LABELS[city] ?? city;
+/** Название города на выбранном языке (city_ru / city_en / city_kz). */
+export function formatCityName(city: GeoCity, locale: AppLocale = "ru"): string {
+  const localized =
+    locale === "kz"
+      ? city.city_kz
+      : locale === "en"
+        ? city.city_en
+        : city.city_ru;
+  const value = localized?.trim();
+  return value || city.city;
 }
 
 /** Расстояние между двумя точками в км (haversine). */

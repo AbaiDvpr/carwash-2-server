@@ -5,12 +5,15 @@ import type { ReactNode } from "react";
 import { useT } from "@/hooks/useT";
 
 const backClassName =
-  "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-medium text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40";
+  "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-medium theme-accent-text transition hover:bg-[var(--app-hover)]";
 
-function BackIcon() {
+const backIconOnlyClassName =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--app-text)] transition hover:bg-[var(--app-hover)]";
+
+function BackIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg
-      className="h-4 w-4 shrink-0"
+      className={`${className} shrink-0`}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -28,21 +31,31 @@ type BackButtonProps = {
   disabled?: boolean;
   className?: string;
   children?: ReactNode;
+  /** Только стрелка, без текста «Назад» */
+  iconOnly?: boolean;
 };
 
-/** Единая кнопка назад: SVG-стрелка + «Назад» */
+/** Единая кнопка назад: SVG-стрелка (+ «Назад» по умолчанию) */
 export default function BackButton({
   onClick,
   href,
   disabled,
   className,
   children,
+  iconOnly = false,
 }: BackButtonProps) {
   const t = useT();
   const label = children ?? t("common.back", "Назад");
-  const classes = [backClassName, className].filter(Boolean).join(" ");
+  const classes = [
+    iconOnly ? backIconOnlyClassName : backClassName,
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-  const content = (
+  const content = iconOnly ? (
+    <BackIcon className="h-5 w-5" />
+  ) : (
     <>
       <BackIcon />
       <span>{label}</span>

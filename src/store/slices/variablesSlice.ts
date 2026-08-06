@@ -28,12 +28,12 @@ const initialState: VariablesState = {
     {
       id: "privacy",
       title: "Политика конфиденциальности",
-      url: "",
+      url: "https://www.google.com",
     },
     {
       id: "offer",
       title: "Публичная оферта",
-      url: "",
+      url: "https://www.youtube.com",
     },
   ],
   support: {
