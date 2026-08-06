@@ -39,6 +39,7 @@ import AvatarCropper from "./components/AvatarCropper";
 import GaragePanel, { type MockCar } from "./components/GaragePanel";
 import ProfileNavRow from "./components/ProfileNavRow";
 import ProfileVersion from "./components/ProfileVersion";
+import DocumentsDrawer from "./components/DocumentsDrawer";
 import { deleteUserPhoto, resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
 import { pickImage } from "@/lib/pickImage";
 import "./components/profile.css";
@@ -208,6 +209,14 @@ function IconHelp() {
       <circle cx="12" cy="12" r="8.25" />
       <path strokeLinecap="round" d="M9.6 9.4a2.4 2.4 0 1 1 3.5 2.1c-.8.5-1.3 1-1.3 2" />
       <circle cx="12" cy="16.4" r="0.85" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function IconDocs() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 3.5h7.5L19 8v12.5H7V3.5Z" />
+      <path strokeLinecap="round" d="M14.5 3.5V8H19M9.5 12h5M9.5 15.5h5" />
     </svg>
   );
 }
@@ -411,6 +420,7 @@ export default function ProfilePage() {
   const dispatch = useAppDispatch();
   const appVersion = useAppSelector((state) => state.app.version);
   const showHeaderNav = useAppSelector((state) => state.app.showHeaderNav);
+  const support = useAppSelector((state) => state.variables.support);
   const { promoCode, promoMessage, applyPromo, updatePromoCode } = usePromoCode();
   const {
     pushEnabled,
@@ -452,6 +462,7 @@ export default function ProfilePage() {
   const [copied, setCopied] = useState(false);
   const [openFaqId, setOpenFaqId] = useState<string | null>(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
 
@@ -750,6 +761,12 @@ export default function ProfilePage() {
                 label={t("profile.faq", "FAQ")}
                 hint={t("profile.faq", "Частые вопросы")}
                 onClick={() => setView("faq")}
+              />
+              <ProfileNavRow
+                icon={<IconDocs />}
+                label={t("profile.documents", "Документы")}
+                hint={t("profile.documents_hint", "Политика и оферта")}
+                onClick={() => setDocsOpen(true)}
               />
             </section>
 
@@ -1339,15 +1356,15 @@ export default function ProfilePage() {
             <BackBar title={t("profile.support", "Поддержка")} onBack={() => setView("home")} />
             <SectionCard>
               <ProfileNavRow
-                label="Telegram"
-                hint="@carwash_support"
-                onClick={() => openTelegram("https://t.me/carwash_support")}
+                label={support.telegram.title}
+                hint={support.telegram.hint}
+                onClick={() => openTelegram(support.telegram.url)}
               />
               <div className="border-t border-zinc-100 dark:border-zinc-800" />
               <ProfileNavRow
-                label="WhatsApp"
-                hint="Написать в чат"
-                onClick={() => openWhatsApp("https://wa.me/77001234567")}
+                label={support.whatsapp.title}
+                hint={support.whatsapp.hint}
+                onClick={() => openWhatsApp(support.whatsapp.url)}
               />
             </SectionCard>
           </>
@@ -1409,6 +1426,8 @@ export default function ProfilePage() {
             onCropped={(blob) => void handleCroppedPhoto(blob)}
           />
         ) : null}
+
+        {docsOpen ? <DocumentsDrawer onClose={() => setDocsOpen(false)} /> : null}
 
         {logoutConfirmOpen ? (
           <div
