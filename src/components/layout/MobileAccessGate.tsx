@@ -3,9 +3,12 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useAppEnvironment } from "@/hooks/useAppEnvironment";
+import { isAuthDebugEnabled } from "@/lib/authDebug";
 import { hasAccessToken } from "@/lib/authToken";
 import { forceLogout } from "@/lib/forceLogout";
 import { grantAccess, isAccessGranted } from "@/lib/userSession";
+import { useAppDispatch } from "@/store/hooks";
+import { setTestVersion } from "@/store/slices/appSlice";
 import AppPreloader from "./AppPreloader";
 
 /** Ждём bridge / source=mobile из Flutter */
@@ -22,7 +25,7 @@ function AccessDenied() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-zinc-50 px-6 dark:bg-zinc-950">
       <div className="w-full max-w-xs text-center">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">HiPoint</p>
+        <p className="text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">HiPoint</p>
         <h1 className="mt-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Скачайте приложение
         </h1>
@@ -59,11 +62,14 @@ function AccessDenied() {
 }
 
 export default function MobileAccessGate({ children }: MobileAccessGateProps) {
+  const dispatch = useAppDispatch();
   const { isMobileApp, mounted } = useAppEnvironment();
   // Всегда "checking" на SSR и первом клиентском рендере — иначе hydration mismatch
   const [status, setStatus] = useState<"checking" | "granted" | "denied">("checking");
 
   useEffect(() => {
+    dispatch(setTestVersion(isAuthDebugEnabled()));
+
     let cancelled = false;
     let pollId: number | undefined;
     let denyTimer: number | undefined;
@@ -77,11 +83,13 @@ export default function MobileAccessGate({ children }: MobileAccessGateProps) {
     const logoutMissingToken = (reason: string) => {
       if (cancelled) return;
       forceLogout({
-        immediate: true,
         reason,
         source: "MobileAccessGate",
+        detail:
+          "Токен не появился за отведённое время ожидания (Flutter bridge / localStorage).",
       });
-      // После logout native перехватит; UI не оставляем «залипшим» на checking
+      // При debug — модалка; без debug native перехватит.
+      // UI не оставляем «залипшим» на checking.
       setStatus("granted");
     };
 
@@ -108,6 +116,7 @@ export default function MobileAccessGate({ children }: MobileAccessGateProps) {
     };
 
     if (isAccessGranted()) {
+      document.documentElement.classList.add("is-mobile-app");
       waitForTokenThen(
         () => {
           if (!cancelled) setStatus("granted");
@@ -116,17 +125,20 @@ export default function MobileAccessGate({ children }: MobileAccessGateProps) {
       );
       return () => {
         cancelled = true;
+        document.documentElement.classList.remove("is-mobile-app");
         if (pollId != null) window.clearInterval(pollId);
       };
     }
 
     if (isMobileApp) {
+      document.documentElement.classList.add("is-mobile-app");
       waitForTokenThen(
         grant,
         "MobileAccessGate: WebView/приложение определено, но access_token не передан",
       );
       return () => {
         cancelled = true;
+        document.documentElement.classList.remove("is-mobile-app");
         if (pollId != null) window.clearInterval(pollId);
       };
     }
@@ -142,7 +154,7 @@ export default function MobileAccessGate({ children }: MobileAccessGateProps) {
       if (denyTimer != null) window.clearTimeout(denyTimer);
       if (pollId != null) window.clearInterval(pollId);
     };
-  }, [mounted, isMobileApp]);
+  }, [mounted, isMobileApp, dispatch]);
 
   if (status === "denied") {
     return <AccessDenied />;

@@ -10,6 +10,8 @@ import {
   formatPowerKw,
   formatPricePerKwh,
 } from "@/features/map/evConnectors";
+import MarkerFaceContent from "@/features/map/MarkerFaceContent";
+import MarkerProgress from "@/features/map/MarkerProgress";
 import {
   markerColorStyle,
   markerStyleClass,
@@ -41,7 +43,7 @@ function SheetCloseButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      className="map-drawer__close"
+      className="app-drawer-close"
       onClick={onClick}
       aria-label={t("common.close", "Закрыть")}
     >
@@ -309,16 +311,17 @@ function ConnectorInfoCard({ port }: { port: StationConnectorPort }) {
       </div>
       <div className="map-conn-card__state">
         {isCharging ? (
-          <span className="map-conn-card__charge" title={port.statusLabel}>
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M7 4h10a2 2 0 0 1 2 2v14a1 1 0 0 1-1.45.9L12 18.2l-5.55 2.7A1 1 0 0 1 5 20V6a2 2 0 0 1 2-2Zm1 3v7.2l4-1.95 4 1.95V7H8Z" />
-            </svg>
-            {percent != null ? `${percent}%` : "Зарядка"}
+          <span className="map-conn-card__charge" title={port.statusLabel || "Зарядка"}>
+            {percent != null ? `${percent}%` : port.statusLabel || "Зарядка"}
           </span>
         ) : isFree ? (
-          <span className="map-conn-card__free">{port.statusLabel || "Свободен"}</span>
+          <span className="map-conn-card__free">
+            {port.statusLabel || "Свободен"}
+          </span>
         ) : (
-          <span className="map-conn-card__offline">{port.statusLabel}</span>
+          <span className="map-conn-card__offline">
+            {port.statusLabel || "Не в сети"}
+          </span>
         )}
       </div>
     </article>
@@ -379,7 +382,7 @@ function StationSheetMarker({ station }: { station: Station }) {
       aria-label={`${free} из ${total} свободно`}
     >
       <span
-        className={`${markerStyleClass(isCharging ? "charging" : "wash", kindPrefs.shapeId)} map-marker--sheet`}
+        className={`${markerStyleClass(isCharging ? "charging" : "wash", kindPrefs.shapeId)} map-marker--sheet map-marker--no-tip`}
         style={
           {
             "--map-marker-free": String(freeRatio),
@@ -388,24 +391,15 @@ function StationSheetMarker({ station }: { station: Station }) {
         }
         aria-hidden
       >
-        <span className="map-marker__progress" />
+        <MarkerProgress free={free} total={total} />
         <span className="map-marker__face">
-          <span className="map-marker__icon">
-            {isCharging ? (
-              <svg viewBox="7 3 10 18" fill="currentColor">
-                <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2.2C12 2.2 5.5 9.4 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 9.4 12 2.2 12 2.2Z" />
-              </svg>
-            )}
-          </span>
-          <span className="map-marker__count">
-            {free}/{total}
-          </span>
+          <MarkerFaceContent
+            kind={isCharging ? "charging" : "wash"}
+            prefs={kindPrefs}
+            free={free}
+            total={total}
+          />
         </span>
-        <span className="map-marker__tip" />
       </span>
     </div>
   );
@@ -677,17 +671,14 @@ export default function StationMapDrawer({
 
   return (
     <>
-      <button
-        type="button"
-        className="map-drawer__backdrop"
-        onClick={dismissAll}
-        aria-label={t("common.close", "Закрыть")}
-      />
+      {/* Затемнение без закрытия — закрытие только по X / «Назад» */}
+      <div className="map-drawer__backdrop" aria-hidden />
 
       <div
         className={`map-station-photo-layer is-visible${!hasStationPhoto ? " is-placeholder is-ready" : ""}${hasStationPhoto && stationPhotoLoading ? " is-loading" : ""}${hasStationPhoto && stationPhotoReady ? " is-ready" : ""}${isCharging ? " is-charging" : " is-wash"}`}
         aria-busy={hasStationPhoto && stationPhotoLoading}
         aria-hidden={false}
+        onClick={(event) => event.stopPropagation()}
       >
         {hasStationPhoto ? (
           <>

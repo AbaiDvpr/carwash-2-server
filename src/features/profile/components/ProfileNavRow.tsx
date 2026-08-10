@@ -34,13 +34,11 @@ export default function ProfileNavRow({
       ) : null}
       <span className="profile-nav-row__main">
         <span className="profile-nav-row__label">{label}</span>
-        {hint ? (
-          <span className="profile-nav-row__hint theme-description">{hint}</span>
-        ) : null}
+        {hint ? <span className="profile-nav-row__hint">{hint}</span> : null}
       </span>
       {trailing ? (
         <span className="profile-nav-row__trailing">{trailing}</span>
-      ) : !danger ? (
+      ) : !danger && (onClick || href) ? (
         <svg
           className="profile-nav-row__chevron"
           viewBox="0 0 24 24"
@@ -66,6 +64,10 @@ export default function ProfileNavRow({
         {content}
       </a>
     );
+  }
+
+  if (!onClick) {
+    return <div className={`${className} is-static`}>{content}</div>;
   }
 
   return (

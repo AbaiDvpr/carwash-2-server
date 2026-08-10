@@ -1,13 +1,15 @@
 import type { AuthUser } from "@/lib/api/auth";
+import { getUserEmail } from "@/lib/userSession";
 
 export const PROFILE_COMPLETE_KEY = "profile_complete";
 
-/** Профиль неполный, если нет имени, фамилии или email. */
+/** Профиль неполный, если нет имени или email (фамилия необязательна). */
 export function isProfileIncomplete(
   user: Pick<AuthUser, "name" | "last_name" | "email"> | null | undefined,
 ): boolean {
   if (!user) return true;
-  return !user.name?.trim() || !user.last_name?.trim() || !user.email?.trim();
+  const email = user.email?.trim() || getUserEmail()?.trim() || "";
+  return !user.name?.trim() || !email;
 }
 
 /** `true` / `false` если уже проверяли, `null` — ещё не знаем. */

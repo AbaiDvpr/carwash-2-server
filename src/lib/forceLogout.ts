@@ -3,9 +3,17 @@ import {
   clearUserId,
   getAccessToken,
 } from "@/lib/authToken";
+import {
+  collectAuthDebugSnapshot,
+  isAuthDebugEnabled,
+} from "@/lib/authDebug";
 import { logout as nativeLogout } from "@/lib/navbarController";
 import { revokeAccess } from "@/lib/userSession";
-import { clearAuthError, setAuthError, type AuthErrorPayload } from "@/store/slices/appSlice";
+import {
+  clearAuthError,
+  setAuthError,
+  type AuthErrorPayload,
+} from "@/store/slices/appSlice";
 import { getAppStore } from "@/store/storeRef";
 
 let logoutInProgress = false;
@@ -38,35 +46,66 @@ function revokeServerToken(token: string): void {
 
 export type ForceLogoutOptions = Partial<AuthErrorPayload> & {
   /**
-   * true — выйти сразу (кнопка «Выйти» в error-блоке).
-   * false/undefined — в test_version показать ошибку без логаута.
+   * @deprecated используйте skipDebug / confirmed.
+   * Раньше: true = выйти сразу. В debug-режиме больше не обходит диалог.
    */
   immediate?: boolean;
+  /**
+   * Пользователь нажал «ОК» в debug-модалке — выполнить выход.
+   */
+  confirmed?: boolean;
+  /**
+   * Намеренный выход (кнопка «Выйти» в профиле и т.п.) — без debug-модалки.
+   */
+  skipDebug?: boolean;
   /** Сырой body ответа API */
   body?: unknown;
 };
 
-function isTestVersion(): boolean {
+function isDebugHoldEnabled(): boolean {
+  if (isAuthDebugEnabled()) return true;
   const store = getAppStore();
-  if (!store) return true;
+  if (!store) return false;
   return store.getState().app.test_version === true;
 }
 
 function formatDetail(detail?: string, body?: unknown): string | undefined {
-  if (detail) return detail;
-  if (body == null) return undefined;
-  if (typeof body === "string") return body;
-  try {
-    return JSON.stringify(body, null, 2);
-  } catch {
-    return String(body);
+  const parts: string[] = [];
+  if (detail) parts.push(detail);
+  if (body != null) {
+    if (typeof body === "string") parts.push(body);
+    else {
+      try {
+        parts.push(JSON.stringify(body, null, 2));
+      } catch {
+        parts.push(String(body));
+      }
+    }
   }
+  if (parts.length === 0) return undefined;
+  return parts.join("\n\n");
+}
+
+function buildPayload(opts: ForceLogoutOptions): AuthErrorPayload {
+  const reason = opts.reason ?? "forceLogout без указания причины";
+  const apiDetail = formatDetail(opts.detail, opts.body);
+  const snapshot = collectAuthDebugSnapshot();
+  const detail = [apiDetail, "— сессия —", snapshot].filter(Boolean).join("\n");
+
+  return {
+    reason,
+    source: opts.source,
+    path: opts.path,
+    status: opts.status,
+    detail,
+  };
 }
 
 /**
- * Полный logout: сразу очистка storage + native logout.
- * Ответ /api/auth/logout (в т.ч. 401 при исчерпанном токене) ни на что не влияет.
- * В test_version без immediate — только error-блок.
+ * Полный logout: очистка storage + native logout.
+ *
+ * При AUTH_DEBUG=true сначала показывается модалка с причиной;
+ * выход — после «ОК» (`confirmed: true`) или при `skipDebug` (намеренный выход).
  */
 export function forceLogout(options?: ForceLogoutOptions | string): void {
   if (typeof window === "undefined") return;
@@ -74,16 +113,22 @@ export function forceLogout(options?: ForceLogoutOptions | string): void {
   const opts: ForceLogoutOptions =
     typeof options === "string" ? { reason: options } : (options ?? {});
 
-  const reason = opts.reason ?? "forceLogout без указания причины";
-  const payload: AuthErrorPayload = {
-    reason,
-    source: opts.source,
-    path: opts.path,
-    status: opts.status,
-    detail: formatDetail(opts.detail, opts.body),
-  };
+  const payload = buildPayload(opts);
 
-  if (!opts.immediate && isTestVersion()) {
+  console.warn("[forceLogout]", {
+    reason: payload.reason,
+    source: payload.source,
+    path: payload.path,
+    status: payload.status,
+    confirmed: opts.confirmed === true,
+    skipDebug: opts.skipDebug === true,
+    debugHold: isDebugHoldEnabled(),
+  });
+
+  const hold =
+    isDebugHoldEnabled() && opts.confirmed !== true && opts.skipDebug !== true;
+
+  if (hold) {
     const store = getAppStore();
     if (store) {
       store.dispatch(setAuthError(payload));
@@ -97,7 +142,6 @@ export function forceLogout(options?: ForceLogoutOptions | string): void {
   const store = getAppStore();
   store?.dispatch(clearAuthError());
 
-  // Сначала локальный выход — сервер может ответить 401 на мёртвый токен
   const token = getAccessToken();
   clearAccessToken();
   clearUserId();

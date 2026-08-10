@@ -1,439 +1,499 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { fetchPlateTypes, type PlateType } from "@/lib/api/garage";
-import { useT } from "@/hooks/useT";
 import {
-  applyPlateMask,
-  formatPlateDisplay,
-  normalizePlate,
-  plateMaxLength,
-  type PlateCountryCode,
-  type PlateTypeCode,
-} from "@/lib/plateMask";
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
+import {
+  createGarage,
+  deleteGarage,
+  fetchGarages,
+  fetchPlateTypes,
+  updateGarage,
+  type Garage,
+  type PlateType,
+} from "@/lib/api/garage";
+import { ApiError } from "@/lib/api";
+import { useT } from "@/hooks/useT";
+import "@/features/history/components/history.css";
+import "./profile.css";
+import IconActionButton, { IconEdit, IconTrash } from "./IconActionButton";
 
-export type MockCar = {
-  id: number;
-  plate: string;
-  plateTypeCode?: string;
-  plateTypeId?: number | null;
-  countryCode?: string;
-};
-
-type GaragePanelProps = {
-  cars: MockCar[];
-  onChange: (cars: MockCar[]) => void;
-};
-
-/** Fallback если API ещё не ответил */
-const FALLBACK_TYPES: PlateType[] = [
-  {
-    id: 1,
-    country_code: "kz",
-    code: "kz_new",
-    name: "Казахстан · новый",
-    mask: "000 AA(A) 00",
-    example: "123 AB 01",
-    flag: "🇰🇿",
-    sort_order: 10,
-  },
-  {
-    id: 2,
-    country_code: "kz",
-    code: "kz_old",
-    name: "Казахстан · старый",
-    mask: "A 000 AAA",
-    example: "Z 001 AST",
-    flag: "🇰🇿",
-    sort_order: 20,
-  },
-  {
-    id: 3,
-    country_code: "ru",
-    code: "ru",
-    name: "Россия",
-    mask: "A 000 AA 00(0)",
-    example: "A 123 BC 77",
-    flag: "🇷🇺",
-    sort_order: 30,
-  },
-  {
-    id: 4,
-    country_code: "am",
-    code: "am",
-    name: "Армения",
-    mask: "00 AA 000",
-    example: "12 AB 345",
-    flag: "🇦🇲",
-    sort_order: 40,
-  },
-  {
-    id: 5,
-    country_code: "ge",
-    code: "ge",
-    name: "Грузия",
-    mask: "AA 000 AA",
-    example: "AB 123 CD",
-    flag: "🇬🇪",
-    sort_order: 50,
-  },
-  {
-    id: 6,
-    country_code: "cn",
-    code: "cn",
-    name: "Китай",
-    mask: "A A00000",
-    example: "B A12345",
-    flag: "🇨🇳",
-    sort_order: 60,
-  },
-  {
-    id: 8,
-    country_code: "kg",
-    code: "kg",
-    name: "Кыргызстан",
-    mask: "00 000 AAA",
-    example: "01 123 ABC",
-    flag: "🇰🇬",
-    sort_order: 70,
-  },
-  {
-    id: 9,
-    country_code: "tj",
-    code: "tj",
-    name: "Таджикистан",
-    mask: "0000 AA 00",
-    example: "1234 AB 01",
-    flag: "🇹🇯",
-    sort_order: 80,
-  },
-  {
-    id: 7,
-    country_code: "other",
-    code: "other",
-    name: "Другой",
-    mask: "свободный",
-    example: null,
-    flag: "🌐",
-    sort_order: 100,
-  },
-];
-
-const COUNTRY_META: {
-  code: PlateCountryCode;
+type CountryOption = {
+  code: string;
   label: string;
   flag: string;
-}[] = [
-  { code: "kz", label: "Казахстан", flag: "🇰🇿" },
-  { code: "ru", label: "Россия", flag: "🇷🇺" },
-  { code: "am", label: "Армения", flag: "🇦🇲" },
-  { code: "ge", label: "Грузия", flag: "🇬🇪" },
-  { code: "cn", label: "Китай", flag: "🇨🇳" },
-  { code: "kg", label: "Кыргызстан", flag: "🇰🇬" },
-  { code: "tj", label: "Таджикистан", flag: "🇹🇯" },
-  { code: "other", label: "Другой", flag: "🌐" },
+  plateTypeId: number;
+};
+
+const FALLBACK_COUNTRIES: CountryOption[] = [
+  { code: "kz", label: "Казахстан", flag: "🇰🇿", plateTypeId: 1 },
+  { code: "ru", label: "Россия", flag: "🇷🇺", plateTypeId: 3 },
+  { code: "kg", label: "Кыргызстан", flag: "🇰🇬", plateTypeId: 8 },
+  { code: "tj", label: "Таджикистан", flag: "🇹🇯", plateTypeId: 9 },
+  { code: "am", label: "Армения", flag: "🇦🇲", plateTypeId: 4 },
+  { code: "ge", label: "Грузия", flag: "🇬🇪", plateTypeId: 5 },
+  { code: "cn", label: "Китай", flag: "🇨🇳", plateTypeId: 6 },
+  { code: "other", label: "Другой", flag: "🌐", plateTypeId: 7 },
 ];
 
-const inputClassName =
-  "theme-field min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm uppercase tracking-wide text-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
+/** Только латиница A–Z и цифры 0–9. */
+function normalizePlate(value: string): string {
+  return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 16);
+}
 
-export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
+function countriesFromTypes(types: PlateType[]): CountryOption[] {
+  const seen = new Map<string, CountryOption>();
+  for (const type of types) {
+    if (seen.has(type.country_code)) continue;
+    const fallback = FALLBACK_COUNTRIES.find((c) => c.code === type.country_code);
+    seen.set(type.country_code, {
+      code: type.country_code,
+      label: fallback?.label ?? type.name.split("·")[0]?.trim() ?? type.country_code,
+      flag: type.flag || fallback?.flag || "🌐",
+      plateTypeId: type.id,
+    });
+  }
+  return seen.size > 0 ? Array.from(seen.values()) : FALLBACK_COUNTRIES;
+}
+
+function countryForGarage(
+  garage: Garage,
+  countries: CountryOption[],
+): CountryOption {
+  const code = garage.plate_type?.country_code;
+  if (code) {
+    const found = countries.find((c) => c.code === code);
+    if (found) return found;
+  }
+  if (garage.plate_type_id != null) {
+    const byId = countries.find((c) => c.plateTypeId === garage.plate_type_id);
+    if (byId) return byId;
+  }
+  return countries[0] ?? FALLBACK_COUNTRIES[0]!;
+}
+
+function apiPlateError(err: unknown, fallback: string): string {
+  const body =
+    err instanceof ApiError
+      ? (err.body as { message?: string; errors?: Record<string, string[]> })
+      : null;
+  return body?.errors?.car_plate?.[0] ?? body?.message ?? fallback;
+}
+
+function RadioMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={`theme-radio inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2${
+        checked ? " is-on" : ""
+      }`}
+      aria-hidden
+    >
+      {checked ? (
+        <span className="h-2 w-2 rounded-full bg-[var(--app-button-text)]" />
+      ) : null}
+    </span>
+  );
+}
+
+type CountryDrawerProps = {
+  countries: CountryOption[];
+  value: CountryOption;
+  onSelect: (country: CountryOption) => void;
+  onClose: () => void;
+};
+
+/** Drawer только для выбора флага / страны. */
+function CountryDrawer({
+  countries,
+  value,
+  onSelect,
+  onClose,
+}: CountryDrawerProps) {
   const t = useT();
-  const [types, setTypes] = useState<PlateType[]>(FALLBACK_TYPES);
-  const [country, setCountry] = useState<PlateCountryCode>("kz");
-  const [typeCode, setTypeCode] = useState<string>("kz_new");
-  const [plate, setPlate] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editPlate, setEditPlate] = useState("");
-  const [editTypeCode, setEditTypeCode] = useState<string>("kz_new");
-  const [editTypeOpen, setEditTypeOpen] = useState(false);
-  const [flagOpen, setFlagOpen] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const list = await fetchPlateTypes();
-        if (!cancelled && list.length > 0) setTypes(list);
-      } catch {
-        // fallback локальный
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setPortalReady(true);
   }, []);
 
-  const countryTypes = useMemo(
-    () => types.filter((t) => t.country_code === country),
-    [types, country],
-  );
-
-  const activeType = useMemo(() => {
-    return (
-      types.find((t) => t.code === typeCode) ??
-      countryTypes[0] ??
-      types[0] ??
-      FALLBACK_TYPES[0]!
-    );
-  }, [types, typeCode, countryTypes]);
-
-  const countryMeta =
-    COUNTRY_META.find((c) => c.code === country) ?? COUNTRY_META[0]!;
-
   useEffect(() => {
-    if (countryTypes.length === 0) return;
-    if (!countryTypes.some((t) => t.code === typeCode)) {
-      setTypeCode(countryTypes[0]!.code);
-      setPlate("");
-    }
-  }, [country, countryTypes, typeCode]);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
-  function handleCountryChange(next: PlateCountryCode) {
-    setCountry(next);
-    setFlagOpen(false);
-    const first = types.find((t) => t.country_code === next);
-    if (first) {
-      setTypeCode(first.code);
-      setPlate((prev) => applyPlateMask(first.code, prev));
-    }
-  }
+  if (!portalReady) return null;
 
-  function handleTypeChange(code: string) {
-    setTypeCode(code);
-    setPlate((prev) => applyPlateMask(code, prev));
-  }
+  return createPortal(
+    <>
+      <button
+        type="button"
+        className="history-drawer__backdrop"
+        onClick={onClose}
+        aria-label={t("common.close", "Закрыть")}
+      />
+      <div
+        className="history-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("garage.country", "Страна номера")}
+      >
+        <div className="history-drawer__top">
+          <button
+            type="button"
+            className="app-drawer-close"
+            onClick={onClose}
+            aria-label={t("common.close", "Закрыть")}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
 
-  function handlePlateChange(value: string, forEdit = false) {
-    const code = forEdit ? editTypeCode : typeCode;
-    const next = applyPlateMask(code, value);
-    if (forEdit) setEditPlate(next);
-    else setPlate(next);
-  }
+        <div className="history-drawer__body">
+          <div>
+            <p className="mb-1 text-base font-semibold text-[var(--app-text)]">
+              {t("garage.country", "Страна номера")}
+            </p>
+            <p className="text-xs text-[var(--app-description)]">
+              {t("garage.country_hint", "Выберите страну госномера")}
+            </p>
+          </div>
 
-  function handleAdd(event: FormEvent) {
-    event.preventDefault();
-    const next = normalizePlate(plate);
-    if (!next) return;
-    onChange([
-      ...cars,
-      {
-        id: Date.now(),
-        plate: next,
-        plateTypeCode: activeType.code,
-        plateTypeId: activeType.id,
-        countryCode: activeType.country_code,
-      },
-    ]);
-    setPlate("");
-  }
-
-  function handleSave(id: number) {
-    const next = normalizePlate(editPlate);
-    if (!next) return;
-    const type = types.find((t) => t.code === editTypeCode);
-    onChange(
-      cars.map((car) =>
-        car.id === id
-          ? {
-              ...car,
-              plate: next,
-              plateTypeCode: editTypeCode,
-              plateTypeId: type?.id ?? car.plateTypeId,
-              countryCode: type?.country_code ?? car.countryCode,
-            }
-          : car,
-      ),
-    );
-    setEditingId(null);
-    setEditTypeOpen(false);
-  }
-
-  function handleDelete(id: number) {
-    onChange(cars.filter((car) => car.id !== id));
-    if (editingId === id) {
-      setEditingId(null);
-      setEditTypeOpen(false);
-    }
-  }
-
-  function handleEditTypeChange(code: string) {
-    setEditTypeCode(code);
-    setEditPlate((prev) => applyPlateMask(code, prev));
-    setEditTypeOpen(false);
-  }
-
-  const editType =
-    types.find((item) => item.code === editTypeCode) ?? types[0] ?? FALLBACK_TYPES[0]!;
-
-  return (
-    <div className="space-y-4">
-      <section className="app-section">
-        {cars.length === 0 ? (
-          <p className="px-3 py-5 text-center text-xs text-zinc-400">
-            {t("garage.empty", "Пока нет авто")}
-          </p>
-        ) : (
-          <ul>
-            {cars.map((car, index) => {
-              const isEditing = editingId === car.id;
-              const carType =
-                types.find((t) => t.code === (car.plateTypeCode ?? "kz_new")) ??
-                types[0];
+          <div className="app-section overflow-hidden" role="listbox">
+            {countries.map((item, index) => {
+              const selected = item.code === value.code;
               return (
-                <li key={car.id}>
+                <div key={item.code}>
                   {index > 0 ? (
                     <div className="border-t border-zinc-100 dark:border-zinc-800" />
                   ) : null}
-                  <div className="px-3 py-2.5">
-                    {isEditing ? (
-                      <div className="space-y-2">
-                        <div className={`relative ${editTypeOpen ? "z-40" : "z-30"}`}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditTypeOpen((v) => !v);
-                              setFlagOpen(false);
-                            }}
-                            className="flex w-full items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                            aria-expanded={editTypeOpen}
-                            aria-haspopup="listbox"
-                          >
-                            <span className="text-lg leading-none" aria-hidden>
-                              {editType.flag}
-                            </span>
-                            <span className="min-w-0 flex-1 font-medium text-zinc-900 dark:text-zinc-50">
-                              {editType.name}
-                            </span>
-                            <span className="text-xs text-zinc-400">{editType.mask}</span>
-                            <svg
-                              className={[
-                                "h-4 w-4 text-zinc-400 transition",
-                                editTypeOpen ? "rotate-180" : "",
-                              ].join(" ")}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                              aria-hidden
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-                            </svg>
-                          </button>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onSelect(item);
+                      onClose();
+                    }}
+                    className="app-row w-full text-left"
+                  >
+                    <span className="text-xl leading-none" aria-hidden>
+                      {item.flag}
+                    </span>
+                    <span className="min-w-0 flex-1 text-sm font-medium text-[var(--app-text)]">
+                      {item.label}
+                    </span>
+                    <RadioMark checked={selected} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body,
+  );
+}
 
-                          {editTypeOpen ? (
-                            <ul
-                              role="listbox"
-                              className="absolute left-0 right-0 top-full z-40 mt-1 max-h-56 overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
-                            >
-                              {types.map((item) => (
-                                <li key={item.code}>
-                                  <button
-                                    type="button"
-                                    role="option"
-                                    aria-selected={editTypeCode === item.code}
-                                    onClick={() => handleEditTypeChange(item.code)}
-                                    className={[
-                                      "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900",
-                                      editTypeCode === item.code
-                                        ? "theme-choice-active"
-                                        : "text-zinc-800 dark:text-zinc-100",
-                                    ].join(" ")}
-                                  >
-                                    <span className="text-lg leading-none" aria-hidden>
-                                      {item.flag}
-                                    </span>
-                                    <span className="min-w-0 flex-1 font-medium">
-                                      {item.name}
-                                    </span>
-                                    <span className="text-[10px] text-zinc-400">
-                                      {item.mask}
-                                    </span>
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={editPlate}
-                            onChange={(e) => handlePlateChange(e.target.value, true)}
-                            placeholder={
-                              editType.example ?? t("garage.plate", "Госномер")
-                            }
-                            maxLength={plateMaxLength(editTypeCode)}
-                            autoCapitalize="characters"
-                            autoCorrect="off"
-                            spellCheck={false}
-                            className={inputClassName}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSave(car.id)}
-                            className="theme-accent-text text-xs font-medium"
-                          >
-                            {t("common.save", "Сохранить")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditTypeOpen(false);
-                            }}
-                            className="text-xs text-zinc-400"
-                          >
-                            {t("common.cancel", "Отмена")}
-                          </button>
-                        </div>
+type FlagButtonProps = {
+  country: CountryOption;
+  disabled?: boolean;
+  onClick: () => void;
+};
+
+function FlagButton({ country, disabled, onClick }: FlagButtonProps) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={country.label}
+      className="flex h-11 items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900"
+    >
+      <span className="text-xl leading-none" aria-hidden>
+        {country.flag}
+      </span>
+      <svg
+        className="h-3.5 w-3.5 text-zinc-400"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        aria-hidden
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+      </svg>
+    </button>
+  );
+}
+
+/** Гараж: drawer только при выборе флага. */
+export default function GaragePanel() {
+  const t = useT();
+  const [countries, setCountries] = useState<CountryOption[]>(FALLBACK_COUNTRIES);
+  const [garages, setGarages] = useState<Garage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [plate, setPlate] = useState("");
+  const [countryCode, setCountryCode] = useState("kz");
+  const [flagDrawerFor, setFlagDrawerFor] = useState<"add" | "edit" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editPlate, setEditPlate] = useState("");
+  const [editCountryCode, setEditCountryCode] = useState("kz");
+
+  const activeCountry = useMemo(
+    () =>
+      countries.find((c) => c.code === countryCode) ??
+      countries[0] ??
+      FALLBACK_COUNTRIES[0]!,
+    [countries, countryCode],
+  );
+
+  const editCountry = useMemo(
+    () =>
+      countries.find((c) => c.code === editCountryCode) ??
+      countries[0] ??
+      FALLBACK_COUNTRIES[0]!,
+    [countries, editCountryCode],
+  );
+
+  const flagDrawerCountry =
+    flagDrawerFor === "edit" ? editCountry : activeCountry;
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [types, list] = await Promise.all([
+        fetchPlateTypes().catch(() => [] as PlateType[]),
+        fetchGarages(),
+      ]);
+      const nextCountries = countriesFromTypes(types);
+      setCountries(nextCountries);
+      setCountryCode((prev) =>
+        nextCountries.some((c) => c.code === prev)
+          ? prev
+          : (nextCountries[0]?.code ?? "kz"),
+      );
+      setGarages(list);
+      setError(null);
+    } catch {
+      setError(t("garage.load_error", "Не удалось загрузить гараж"));
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  function startEdit(garage: Garage) {
+    const country = countryForGarage(garage, countries);
+    setFlagDrawerFor(null);
+    setEditingId(garage.id);
+    setEditPlate(normalizePlate(garage.car_plate));
+    setEditCountryCode(country.code);
+    setError(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditPlate("");
+    setFlagDrawerFor(null);
+  }
+
+  function handleFlagSelect(country: CountryOption) {
+    if (flagDrawerFor === "edit") {
+      setEditCountryCode(country.code);
+    } else {
+      setCountryCode(country.code);
+    }
+  }
+
+  async function handleAdd(event: FormEvent) {
+    event.preventDefault();
+    const next = normalizePlate(plate);
+    if (!next || busy || editingId != null) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const garage = await createGarage({
+        car_plate: next,
+        plate_type_id: activeCountry.plateTypeId,
+      });
+      setGarages((prev) => [garage, ...prev]);
+      setPlate("");
+    } catch (err) {
+      setError(apiPlateError(err, t("garage.add_error", "Не удалось добавить авто")));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (editingId == null || busy) return;
+    const next = normalizePlate(editPlate);
+    if (!next) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await updateGarage(editingId, {
+        car_plate: next,
+        plate_type_id: editCountry.plateTypeId,
+      });
+      setGarages((prev) =>
+        prev.map((g) => (g.id === editingId ? updated : g)),
+      );
+      cancelEdit();
+    } catch (err) {
+      setError(
+        apiPlateError(err, t("garage.save_error", "Не удалось сохранить номер")),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteGarage(id);
+      setGarages((prev) => prev.filter((g) => g.id !== id));
+      if (editingId === id) cancelEdit();
+    } catch {
+      setError(t("garage.delete_error", "Не удалось удалить авто"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const canAdd = Boolean(normalizePlate(plate)) && !busy && editingId == null;
+  const canSaveEdit =
+    Boolean(normalizePlate(editPlate)) && !busy && editingId != null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <section className="app-section overflow-visible">
+        {loading ? (
+          <p className="px-3 py-8 text-center text-xs text-zinc-400">
+            {t("common.loading", "Загрузка...")}
+          </p>
+        ) : garages.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+              {t("garage.empty", "Пока нет авто")}
+            </p>
+            <p className="mt-1 text-xs text-zinc-400">
+              {t("garage.empty_hint", "Добавьте госномер ниже")}
+            </p>
+          </div>
+        ) : (
+          <ul>
+            {garages.map((garage, index) => {
+              const country = countryForGarage(garage, countries);
+              const isEditing = editingId === garage.id;
+
+              return (
+                <li key={garage.id}>
+                  {index > 0 ? (
+                    <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                  ) : null}
+
+                  {isEditing ? (
+                    <div className="space-y-2.5 px-3 py-3">
+                      <div className="flex items-center gap-2">
+                        <FlagButton
+                          country={editCountry}
+                          disabled={busy}
+                          onClick={() => setFlagDrawerFor("edit")}
+                        />
+                        <input
+                          type="text"
+                          inputMode="text"
+                          pattern="[A-Za-z0-9]*"
+                          value={editPlate}
+                          onChange={(e) =>
+                            setEditPlate(normalizePlate(e.target.value))
+                          }
+                          autoCapitalize="characters"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          maxLength={16}
+                          disabled={busy}
+                          autoFocus
+                          aria-label={t("garage.plate", "Госномер")}
+                          className="theme-field h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 font-mono text-sm font-semibold uppercase tracking-wide text-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                        />
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-mono text-sm tracking-wide text-zinc-900 dark:text-zinc-50">
-                            <span className="mr-1.5" aria-hidden>
-                              {carType?.flag ?? "🚗"}
-                            </span>
-                            {formatPlateDisplay(
-                              car.plate,
-                              (car.plateTypeCode as PlateTypeCode) ?? "kz_new",
-                            )}
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-zinc-400">
-                            {carType?.name ?? "Номер"}
-                          </p>
-                        </div>
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingId(car.id);
-                              setEditTypeCode(car.plateTypeCode ?? "kz_new");
-                              setEditPlate(
-                                formatPlateDisplay(
-                                  car.plate,
-                                  car.plateTypeCode ?? "kz_new",
-                                ),
-                              );
-                              setEditTypeOpen(false);
-                              setFlagOpen(false);
-                            }}
-                            className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                          >
-                            {t("common.edit", "Изменить")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(car.id)}
-                            className="text-xs text-red-500 hover:text-red-600"
-                          >
-                            {t("common.delete", "Удалить")}
-                          </button>
-                        </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={!canSaveEdit}
+                          onClick={() => void handleSaveEdit()}
+                          className="theme-button flex-1 rounded-xl px-3 py-2.5 text-sm disabled:opacity-50"
+                        >
+                          {t("common.save", "Сохранить")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={cancelEdit}
+                          className="theme-button-secondary flex-1 rounded-xl px-3 py-2.5 text-sm disabled:opacity-50"
+                        >
+                          {t("common.cancel", "Отмена")}
+                        </button>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-2.5">
+                      <span
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-50 text-xl leading-none dark:bg-zinc-900"
+                        title={country.label}
+                        aria-hidden
+                      >
+                        {country.flag}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-mono text-[1rem] font-semibold tracking-wide text-zinc-900 dark:text-zinc-50">
+                          {garage.car_plate}
+                        </p>
+                        <p className="truncate text-[0.8125rem] text-zinc-400">
+                          {country.label}
+                        </p>
+                      </div>
+                      <IconActionButton
+                        label={t("common.edit", "Изменить")}
+                        disabled={busy}
+                        onClick={() => startEdit(garage)}
+                      >
+                        <IconEdit />
+                      </IconActionButton>
+                      <IconActionButton
+                        label={t("common.delete", "Удалить")}
+                        danger
+                        disabled={busy}
+                        onClick={() => void handleDelete(garage.id)}
+                      >
+                        <IconTrash />
+                      </IconActionButton>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -441,147 +501,59 @@ export default function GaragePanel({ cars, onChange }: GaragePanelProps) {
         )}
       </section>
 
-      <section className="space-y-3">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-          {t("common.add", "Добавить")}
+      <section className="space-y-2.5">
+        <p className="px-0.5 text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
+          {t("garage.add", "Добавить авто")}
         </p>
 
-        <div className="space-y-2">
-          <div className={`relative ${flagOpen ? "z-40" : "z-30"}`}>
-            <button
-              type="button"
-              onClick={() => {
-                setFlagOpen((v) => !v);
-                setEditTypeOpen(false);
-              }}
-              className="flex w-full items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left text-sm dark:border-zinc-700 dark:bg-zinc-950"
-              aria-expanded={flagOpen}
-              aria-haspopup="listbox"
-            >
-              <span className="text-lg leading-none" aria-hidden>
-                {countryMeta.flag}
-              </span>
-              <span className="min-w-0 flex-1 font-medium text-zinc-900 dark:text-zinc-50">
-                {countryMeta.label}
-              </span>
-              <span className="text-xs text-zinc-400">{activeType.mask}</span>
-              <svg
-                className={[
-                  "h-4 w-4 text-zinc-400 transition",
-                  flagOpen ? "rotate-180" : "",
-                ].join(" ")}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-
-            {flagOpen ? (
-              <ul
-                role="listbox"
-                className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
-              >
-                {COUNTRY_META.map((item) => (
-                  <li key={item.code}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={country === item.code}
-                      onClick={() => handleCountryChange(item.code)}
-                      className={[
-                        "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900",
-                        country === item.code
-                          ? "theme-choice-active"
-                          : "text-zinc-800 dark:text-zinc-100",
-                      ].join(" ")}
-                    >
-                      <span className="text-lg leading-none" aria-hidden>
-                        {item.flag}
-                      </span>
-                      <span className="flex-1 font-medium">{item.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </div>
-
-        {countryTypes.length > 1 ? (
-          <div className="space-y-1.5">
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900">
-              {countryTypes.map((item) => {
-                const active = typeCode === item.code;
-                return (
-                  <button
-                    key={item.code}
-                    type="button"
-                    onClick={() => handleTypeChange(item.code)}
-                    className={[
-                      "rounded-lg px-2 py-2 text-xs font-semibold transition",
-                      active
-                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
-                        : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
-                    ].join(" ")}
-                  >
-                    {item.code === "kz_new"
-                      ? t("garage.new", "Новый")
-                      : item.code === "kz_old"
-                        ? t("garage.old", "Старый")
-                        : item.name}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] text-zinc-400">
-              {activeType.code === "kz_new"
-                ? "Можно 2 или 3 буквы. После 2 букв пробел — сразу регион (например 123 AB 01)."
-                : `Пример: ${activeType.example ?? "любой формат"} · маска `}
-              {activeType.code !== "kz_new" ? (
-                <span className="font-mono">{activeType.mask}</span>
-              ) : null}
-            </p>
-          </div>
-        ) : (
-          <p className="text-[11px] text-zinc-400">
-            {activeType.code === "other"
-              ? "Свободный ввод — без маски."
-              : `Маска: ${activeType.mask}${activeType.example ? ` · пример ${activeType.example}` : ""}`}
-          </p>
-        )}
-
-        <form onSubmit={handleAdd} className="flex gap-2">
-          <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-            <span
-              className="flex items-center border-r border-zinc-200 bg-zinc-50 px-2.5 text-base dark:border-zinc-700 dark:bg-zinc-900"
-              aria-hidden
-            >
-              {countryMeta.flag}
-            </span>
+        <form onSubmit={(e) => void handleAdd(e)} className="space-y-2.5">
+          <div className="flex items-center gap-2">
+            <FlagButton
+              country={activeCountry}
+              disabled={busy || editingId != null}
+              onClick={() => setFlagDrawerFor("add")}
+            />
             <input
               type="text"
+              inputMode="text"
+              pattern="[A-Za-z0-9]*"
               value={plate}
-              onChange={(e) => handlePlateChange(e.target.value)}
-              placeholder={activeType.example ?? activeType.mask}
+              onChange={(e) => setPlate(normalizePlate(e.target.value))}
+              placeholder={t("garage.plate_example", "777AAA01")}
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
-              maxLength={plateMaxLength(activeType.code)}
-              className="min-w-0 flex-1 border-0 bg-white px-3 py-2 text-sm uppercase tracking-wide text-zinc-900 outline-none dark:bg-zinc-950 dark:text-zinc-50"
+              maxLength={16}
+              disabled={busy || editingId != null}
+              aria-label={t("garage.plate", "Госномер")}
+              className="theme-field h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 font-mono text-sm font-semibold uppercase tracking-wide text-zinc-900 outline-none placeholder:font-sans placeholder:font-normal placeholder:tracking-normal placeholder:text-zinc-400 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
             />
           </div>
+
           <button
             type="submit"
-            className="theme-button shrink-0 px-3 py-2 text-xs"
+            disabled={!canAdd}
+            className="theme-button w-full rounded-xl px-4 py-3 text-sm disabled:opacity-50"
           >
-            {t("common.add", "Добавить")}
+            {t("garage.add_car", "Добавить авто")}
           </button>
         </form>
+
+        {error ? (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-400">
+            {error}
+          </p>
+        ) : null}
       </section>
+
+      {flagDrawerFor ? (
+        <CountryDrawer
+          countries={countries}
+          value={flagDrawerCountry}
+          onSelect={handleFlagSelect}
+          onClose={() => setFlagDrawerFor(null)}
+        />
+      ) : null}
     </div>
   );
 }

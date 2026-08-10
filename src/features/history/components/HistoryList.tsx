@@ -246,7 +246,7 @@ export default function HistoryList({ title }: HistoryListProps) {
                   >
                     <div className="flex w-full items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="theme-description text-[10px] font-medium uppercase tracking-wider">
+                        <p className="theme-description text-[0.75rem] font-medium uppercase tracking-wider">
                           {kindLabel}
                         </p>
                         <p
@@ -255,7 +255,7 @@ export default function HistoryList({ title }: HistoryListProps) {
                         >
                           {session.address ?? `${kindLabel} #${session.location_id}`}
                         </p>
-                        <p className="theme-description mt-0.5 font-mono text-[11px] tracking-wide">
+                        <p className="theme-description mt-0.5 font-mono text-[0.8125rem] tracking-wide">
                           {session.car_plate ?? "—"}
                           {session.payment_amount != null
                             ? ` · ${new Intl.NumberFormat("ru-RU").format(Number(session.payment_amount))} ₸`
@@ -263,13 +263,13 @@ export default function HistoryList({ title }: HistoryListProps) {
                         </p>
                       </div>
                       <span
-                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${statusTone(session.status)}`}
+                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[0.75rem] font-medium uppercase tracking-wide ${statusTone(session.status)}`}
                       >
                         {session.status_ru ?? session.status ?? "—"}
                       </span>
                     </div>
 
-                    <div className="mt-2 grid w-full grid-cols-3 gap-1.5 text-[11px]">
+                    <div className="mt-2 grid w-full grid-cols-3 gap-1.5 text-[0.8125rem]">
                       <div>
                         <p className="theme-description">{t("history.start", "Начало")}</p>
                         <p className="mt-0.5 font-medium" style={{ color: "var(--app-text)" }}>

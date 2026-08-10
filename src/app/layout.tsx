@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AppShell } from "@/components/layout";
 import ThemeProvider from "@/components/theme/ThemeProvider";
@@ -16,11 +16,25 @@ export const metadata: Metadata = {
   description: "CarWash — React + Next.js",
 };
 
-/** До гидрации: тема + полная палитра из localStorage. */
+/** Корректный масштаб в телефоне / Fold / Flutter WebView */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f4f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
+};
+
+/** До гидрации: тема + палитра из localStorage. */
 const themeBootScript = `
 (function () {
   try {
     var root = document.documentElement;
+    root.style.zoom = "";
     var t = localStorage.getItem("theme");
     if (t !== "dark" && t !== "light") t = "light";
     root.setAttribute("data-theme", t);
@@ -137,7 +151,7 @@ const themeBootScript = `
       buttonPadX: "0.75rem",
       buttonPadY: "0.5rem",
       borderWidth: "1px",
-      fontSize: "14px",
+      fontSize: "0.9375rem",
       lineHeight: "1.45"
     };
     var layout = Object.assign({}, layoutDefaults);
@@ -152,6 +166,10 @@ const themeBootScript = `
         }
       }
     } catch (e3) {}
+    if (/px$/i.test(String(layout.fontSize || ""))) {
+      var fsPx = parseFloat(layout.fontSize);
+      if (!isNaN(fsPx)) layout.fontSize = (Math.round((fsPx / 16) * 1000) / 1000) + "rem";
+    }
     root.style.setProperty("--app-page-pad-x", layout.pagePadX);
     root.style.setProperty("--app-page-pad-top", layout.pagePadTop);
     root.style.setProperty("--app-page-pad-bottom", layout.pagePadBottom);

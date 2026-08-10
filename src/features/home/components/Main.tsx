@@ -7,7 +7,6 @@ import {
   useUserBalance,
 } from "@/features/profile/hooks/useUserBalance";
 import { useT } from "@/hooks/useT";
-import { navigateNavbar } from "@/lib/navbarController";
 import type { StationKind } from "@/data/stations";
 import { createDefaultFilters, writeMapFilters } from "@/features/map/filters";
 import Stories from "./Stories";
@@ -36,10 +35,6 @@ export default function Main() {
   const balanceLabel =
     balanceLoading && balance == null ? "…" : formatted || formatBalance(0);
 
-  const openProfile = () => {
-    navigateNavbar("profile");
-  };
-
   return (
     <div className="app-stack">
       <Stories />
@@ -47,42 +42,46 @@ export default function Main() {
       <section className="app-section">
         <div className="app-row app-row--between">
           <div className="min-w-0">
-            <p className="theme-description text-[11px] font-medium">
+            <p className="theme-description text-[0.875rem] font-semibold">
               {t("home.phone", "Телефон")}
             </p>
             <p
-              className="mt-0.5 truncate text-[16px] font-semibold tracking-tight"
+              className="mt-0.5 truncate text-[1.125rem] font-bold tracking-tight"
               style={{ color: "var(--app-text)" }}
             >
               {userMounted ? formatPhoneDisplay(phone) : "…"}
             </p>
           </div>
 
-          <button type="button" onClick={openProfile} className="shrink-0 text-right">
-            <p className="theme-description text-[11px] font-medium">
+          <Link
+            href="/profile/top-up"
+            className="shrink-0 text-right no-underline"
+            aria-label={t("profile.top_up", "Пополнить баланс")}
+          >
+            <p className="theme-description text-[0.875rem] font-semibold">
               {t("home.balance", "Баланс")}
             </p>
             <p
-              className="mt-0.5 text-[16px] font-semibold tracking-tight tabular-nums"
+              className="mt-0.5 text-[1.125rem] font-bold tracking-tight tabular-nums"
               style={{ color: "var(--app-text)" }}
             >
               {balanceLabel}
             </p>
-          </button>
+          </Link>
         </div>
       </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-2 px-0.5">
           <h2
-            className="text-[16px] font-semibold tracking-tight"
+            className="text-[1.0625rem] font-semibold tracking-tight"
             style={{ color: "var(--app-text)" }}
           >
             {t("home.categories", "Категории")}
           </h2>
           <Link
             href="/"
-            className="inline-flex items-center gap-0.5 text-[13px] font-medium"
+            className="inline-flex items-center gap-0.5 text-[0.875rem] font-medium"
             style={{ color: "var(--app-button)" }}
           >
             {t("common.nav_map", "Карта")}
@@ -124,7 +123,7 @@ export default function Main() {
                   }}
                 >
                   <h3
-                    className="text-[14px] font-semibold leading-snug"
+                    className="text-[0.9375rem] font-semibold leading-snug"
                     style={{ color: "var(--app-text)" }}
                   >
                     {t(category.titleKey, category.fallback)}

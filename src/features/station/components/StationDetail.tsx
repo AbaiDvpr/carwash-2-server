@@ -215,7 +215,7 @@ export default function StationDetail({ station }: { station: Station }) {
 
           <div className="border-b border-zinc-100 px-3 py-3 dark:border-zinc-800">
             <span
-              className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+              className={`inline-block rounded-md px-1.5 py-0.5 text-[0.75rem] font-medium uppercase tracking-wide ${
                 isOpen
                   ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                   : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
@@ -229,7 +229,7 @@ export default function StationDetail({ station }: { station: Station }) {
               {station.name}
             </h1>
             <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{station.address}</p>
-            <p className="mt-2 text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+            <p className="mt-2 text-[0.8125rem] font-medium text-zinc-700 dark:text-zinc-300">
               <span className="font-normal text-zinc-400 dark:text-zinc-500">
                 {t("station.hours_today", "Режим сегодня")}
                 {": "}
@@ -240,7 +240,7 @@ export default function StationDetail({ station }: { station: Station }) {
 
           <div className="grid grid-cols-2 gap-px bg-zinc-100 dark:bg-zinc-800">
             <div className="bg-white px-3 py-2.5 dark:bg-zinc-950">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+              <p className="text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
                 {t("station.free", "Свободно")}
               </p>
               <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
@@ -248,7 +248,7 @@ export default function StationDetail({ station }: { station: Station }) {
               </p>
             </div>
             <div className="bg-white px-3 py-2.5 dark:bg-zinc-950">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+              <p className="text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
                 {t("station.total", "Всего")}
               </p>
               <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
@@ -348,10 +348,10 @@ export default function StationDetail({ station }: { station: Station }) {
             ) : (
               <>
                 <div className="mb-2 flex items-end justify-between gap-2">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                  <p className="text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
                     {slotsTitle}
                   </p>
-                  <p className="text-[11px] text-zinc-500">
+                  <p className="text-[0.8125rem] text-zinc-500">
                     {freeCount} из {totalPosts}
                   </p>
                 </div>
@@ -402,7 +402,7 @@ export default function StationDetail({ station }: { station: Station }) {
 
                 {!isCharging ? (
                   <>
-                    <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+                    <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[0.8125rem] text-zinc-500">
                       <span className="inline-flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                         Свободен
@@ -429,7 +429,7 @@ export default function StationDetail({ station }: { station: Station }) {
                               {index + 1}
                             </span>
                             <span
-                              className={`mt-0.5 text-[9px] font-medium uppercase ${tone.label}`}
+                              className={`mt-0.5 text-[0.6875rem] font-medium uppercase ${tone.label}`}
                             >
                               {washer.statusLabel}
                             </span>
@@ -444,7 +444,7 @@ export default function StationDetail({ station }: { station: Station }) {
           </div>
 
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+            <p className="mb-2 text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
               {t("station.on_map", "На карте")}
             </p>
             <Link
@@ -457,7 +457,7 @@ export default function StationDetail({ station }: { station: Station }) {
               </svg>
               {t("station.view_map", "Посмотреть на карте")}
             </Link>
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+            <p className="mb-2 text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
               {t("map.route", "Маршрут")}
             </p>
             <div className="grid grid-cols-2 gap-1.5">
@@ -488,7 +488,7 @@ export default function StationDetail({ station }: { station: Station }) {
 
           {!isCharging && washTariffs.length > 0 ? (
             <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+              <p className="mb-2 text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
                 {t("payment.tariffs", "Тарифы")}
               </p>
               <div className="space-y-1.5">
@@ -502,12 +502,12 @@ export default function StationDetail({ station }: { station: Station }) {
                         {tariff.title}
                       </p>
                       {tariff.description ? (
-                        <p className="text-[11px] text-zinc-500">{tariff.description}</p>
+                        <p className="text-[0.8125rem] text-zinc-500">{tariff.description}</p>
                       ) : null}
                       {tariff.items && tariff.items.length > 0 ? (
                         <ul className="mt-1 space-y-0.5">
                           {tariff.items.map((item) => (
-                            <li key={item} className="text-[11px] text-zinc-500">
+                            <li key={item} className="text-[0.8125rem] text-zinc-500">
                               · {item}
                             </li>
                           ))}
@@ -525,7 +525,7 @@ export default function StationDetail({ station }: { station: Station }) {
 
           {station.market.length > 0 ? (
             <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+              <p className="mb-2 text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
                 {t("station.market", "Маркет")}
               </p>
               <div className="space-y-1.5">
@@ -537,7 +537,7 @@ export default function StationDetail({ station }: { station: Station }) {
                     <p className="text-xs font-medium text-zinc-900 dark:text-zinc-50">
                       {market.name}
                     </p>
-                    <p className="text-[11px] text-zinc-500">{market.description}</p>
+                    <p className="text-[0.8125rem] text-zinc-500">{market.description}</p>
                   </div>
                 ))}
               </div>

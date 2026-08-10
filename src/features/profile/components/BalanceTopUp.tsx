@@ -33,6 +33,21 @@ function topUpErrorMessage(err: unknown): string {
   return "Не удалось пополнить баланс";
 }
 
+function RadioMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={`theme-radio inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2${
+        checked ? " is-on" : ""
+      }`}
+      aria-hidden
+    >
+      {checked ? (
+        <span className="h-2 w-2 rounded-full bg-[var(--app-button-text)]" />
+      ) : null}
+    </span>
+  );
+}
+
 export default function BalanceTopUp({
   balance,
   loading,
@@ -75,111 +90,111 @@ export default function BalanceTopUp({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="app-section" style={{ padding: "var(--app-row-pad-y) var(--app-row-pad-x)" }}>
-        <p className="text-[11px] text-zinc-400">
-          {t("payment.current_balance", "Текущий баланс")}
-        </p>
-        <p className="mt-0.5 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-          {loading && balance == null ? "…" : formatBalance(balance ?? 0)}
-        </p>
-      </div>
+    <div className="space-y-3">
+      <section className="profile-card">
+        <div className="profile-card__balance">
+          <div className="profile-card__balance-item">
+            <p className="profile-card__balance-label">
+              {t("payment.current_balance", "Текущий баланс")}
+            </p>
+            <p className="profile-card__balance-value">
+              {loading && balance == null ? "…" : formatBalance(balance ?? 0)}
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <div className="app-section" style={{ padding: "var(--app-row-pad-y) var(--app-row-pad-x)" }}>
-        <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+      <section className="profile-card">
+        <p className="px-4 pt-3 text-[0.8125rem] font-medium uppercase tracking-wider text-[var(--app-description)]">
           {t("payment.method", "Способ оплаты")}
         </p>
-        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Банк">
-          {METHODS.map((item) => {
+        <div role="radiogroup" aria-label={t("payment.method", "Способ оплаты")}>
+          {METHODS.map((item, index) => {
             const active = method === item.id;
             return (
+              <div key={item.id}>
+                {index > 0 ? (
+                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                ) : null}
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  disabled={saving}
+                  onClick={() => {
+                    setMethod(item.id);
+                    setMessage(null);
+                    setError(null);
+                  }}
+                  className="profile-nav-row theme-hover disabled:opacity-60"
+                >
+                  <RadioMark checked={active} />
+                  <span className="profile-nav-row__main">
+                    <span className="profile-nav-row__label">{item.label}</span>
+                    <span className="profile-nav-row__hint theme-description">
+                      {item.hint}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="profile-card">
+        <div className="space-y-3 px-4 py-3">
+          <label className="block">
+            <span className="mb-1.5 block text-[0.8125rem] font-medium uppercase tracking-wider text-[var(--app-description)]">
+              {t("payment.amount", "Сумма пополнения")}
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={amount}
+              disabled={saving}
+              onChange={(e) => {
+                setAmount(e.target.value.replace(/[^\d]/g, ""));
+                setMessage(null);
+                setError(null);
+              }}
+              placeholder="2000"
+              className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            />
+          </label>
+
+          <div className="flex flex-wrap gap-1.5">
+            {PRESETS.map((value) => (
               <button
-                key={item.id}
+                key={value}
                 type="button"
-                role="radio"
-                aria-checked={active}
                 disabled={saving}
                 onClick={() => {
-                  setMethod(item.id);
+                  setAmount(String(value));
                   setMessage(null);
                   setError(null);
                 }}
                 className={[
-                  "rounded-xl border px-3 py-3 text-left transition disabled:opacity-60",
-                  active
-                    ? "theme-choice-active"
-                    : "border-zinc-200 bg-zinc-50 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800",
+                  "rounded-lg px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-60",
+                  parsed === value
+                    ? "theme-chip-active"
+                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
                 ].join(" ")}
               >
-                <span
-                  className={[
-                    "block text-sm font-semibold",
-                    active ? "" : "text-zinc-900 dark:text-zinc-50",
-                  ].join(" ")}
-                >
-                  {item.label}
-                </span>
-                <span className="mt-0.5 block text-[11px] text-zinc-500 dark:text-zinc-400">
-                  {item.hint}
-                </span>
+                {formatBalance(value)}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
-
-      <div className="app-section" style={{ padding: "var(--app-row-pad-y) var(--app-row-pad-x)" }}>
-        <label className="block">
-          <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-            {t("payment.amount", "Сумма пополнения")}
-          </span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={amount}
-            disabled={saving}
-            onChange={(e) => {
-              setAmount(e.target.value.replace(/[^\d]/g, ""));
-              setMessage(null);
-              setError(null);
-            }}
-            placeholder="2000"
-            className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-          />
-        </label>
-
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {PRESETS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              disabled={saving}
-              onClick={() => {
-                setAmount(String(value));
-                setMessage(null);
-                setError(null);
-              }}
-              className={[
-                "rounded-lg px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-60",
-                parsed === value
-                  ? "theme-chip-active"
-                  : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700",
-              ].join(" ")}
-            >
-              {formatBalance(value)}
-            </button>
-          ))}
-        </div>
-      </div>
+      </section>
 
       {error ? (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-400">
+        <p className="px-1 text-center text-xs text-red-600 dark:text-red-400">
           {error}
         </p>
       ) : null}
-
       {message ? (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+        <p className="px-1 text-center text-xs text-emerald-600 dark:text-emerald-400">
           {message}
         </p>
       ) : null}
@@ -192,8 +207,12 @@ export default function BalanceTopUp({
       >
         {saving
           ? t("payment.topping_up", "Пополняем…")
-          : `Пополнить через ${methodLabel}`}
+          : `${t("profile.top_up", "Пополнить")} · ${methodLabel}`}
       </button>
+
+      <p className="theme-description px-1 text-center text-[0.8125rem]">
+        {t("payment.min_note", "Минимум 100 ₸")}
+      </p>
     </div>
   );
 }

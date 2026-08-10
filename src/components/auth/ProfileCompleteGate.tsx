@@ -14,6 +14,7 @@ import {
   syncProfileCompleteCache,
 } from "@/lib/profileComplete";
 import { useT } from "@/hooks/useT";
+import { cacheUserProfile } from "@/lib/userSession";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -22,8 +23,8 @@ function isHomePath(pathname: string | null): boolean {
 }
 
 /**
- * Модалка только на главной: если нет имени / фамилии / email — заполнить.
- * Крестик → logout. Результат в localStorage (`profile_complete`).
+ * Sheet на главной (как drawer на карте): если нет имени / email — заполнить.
+ * Фамилия необязательна. Крестик → logout.
  */
 export default function ProfileCompleteGate() {
   const t = useT();
@@ -59,14 +60,8 @@ export default function ProfileCompleteGate() {
       return;
     }
 
-    const cached = getProfileCompleteCached();
-
-    if (cached === false) {
-      setOpen(true);
-      setChecking(false);
-    } else {
-      setChecking(true);
-    }
+    // Ждём user_info до показа формы — иначе ответ API затирает уже введённый email
+    setChecking(true);
 
     try {
       const user = await fetchUserInfo();
@@ -116,7 +111,7 @@ export default function ProfileCompleteGate() {
       if (event.key === "Escape") {
         event.preventDefault();
         forceLogout({
-          immediate: true,
+          skipDebug: true,
           reason: "Закрытие обязательной анкеты (Escape)",
           source: "ProfileCompleteGate",
         });
@@ -133,7 +128,7 @@ export default function ProfileCompleteGate() {
 
   const handleClose = () => {
     forceLogout({
-      immediate: true,
+      skipDebug: true,
       reason: "Закрытие обязательной анкеты без заполнения",
       source: "ProfileCompleteGate",
     });
@@ -141,15 +136,11 @@ export default function ProfileCompleteGate() {
 
   const handleSave = async () => {
     const name = firstName.trim();
-    const last_name = lastName.trim();
+    const last_name = lastName.trim() || null;
     const emailValue = email.trim();
 
     if (!name) {
       setError(t("profile.gate_name_required", "Укажите имя"));
-      return;
-    }
-    if (!last_name) {
-      setError(t("profile.gate_last_name_required", "Укажите фамилию"));
       return;
     }
     if (!emailValue) {
@@ -171,15 +162,47 @@ export default function ProfileCompleteGate() {
         email: emailValue,
       });
 
+      const savedName = user.name?.trim() || name;
+      const savedEmail = user.email?.trim() || emailValue;
+      const savedLastName = user.last_name?.trim() || last_name || "";
+
+      // Сначала помечаем сохранённым — чтобы параллельный user_info не открыл анкету снова
       savedRef.current = true;
       setProfileCompleteCached(true);
-      setFirstName(user.name?.trim() ?? name);
-      setLastName(user.last_name?.trim() ?? last_name);
-      setEmail(user.email?.trim() ?? emailValue);
+      cacheUserProfile({
+        id: user.id,
+        name: savedName,
+        last_name: savedLastName || null,
+        email: savedEmail,
+      });
+      syncProfileCompleteCache({
+        name: savedName,
+        last_name: savedLastName || null,
+        email: savedEmail,
+      });
+
+      setFirstName(savedName);
+      setLastName(savedLastName);
+      setEmail(savedEmail);
       setOpen(false);
       setChecking(false);
-    } catch {
-      setError(t("profile.gate_save_error", "Не удалось сохранить. Попробуйте ещё раз."));
+    } catch (err) {
+      const apiErr = err instanceof ApiError ? err : null;
+      const body = apiErr?.body as
+        | { message?: string; errors?: Record<string, string[]> }
+        | null;
+      const emailErr = body?.errors?.email?.[0];
+      if (emailErr) {
+        setError(
+          /taken|unique|уже/i.test(emailErr)
+            ? t("profile.gate_email_taken", "Этот email уже занят")
+            : emailErr,
+        );
+      } else {
+        setError(
+          t("profile.gate_save_error", "Не удалось сохранить. Попробуйте ещё раз."),
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -194,112 +217,130 @@ export default function ProfileCompleteGate() {
   if (!open) return null;
 
   const canSubmit =
-    firstName.trim().length > 0 &&
-    lastName.trim().length > 0 &&
-    email.trim().length > 0 &&
-    !saving;
+    firstName.trim().length > 0 && email.trim().length > 0 && !saving;
+
+  const fieldClass =
+    "theme-field w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition disabled:opacity-60";
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center p-0 sm:items-center sm:p-4" role="presentation">
-      <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" />
+    <>
+      <div className="app-bottom-sheet-backdrop" aria-hidden />
+
       <div
+        className="app-bottom-sheet"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative flex max-h-[min(92dvh,640px)] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-zinc-200 bg-white shadow-2xl sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900"
       >
-        <div className="relative border-b border-zinc-200 px-5 pb-4 pt-5 dark:border-zinc-800">
+        <div className="app-bottom-sheet__toolbar">
           <button
             type="button"
             onClick={handleClose}
             aria-label={t("common.close", "Закрыть")}
-            className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="app-drawer-close"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
             </svg>
           </button>
-
-          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">HiPoint</p>
-          <h2
-            id={titleId}
-            className="mt-1 pr-10 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50"
-          >
-            {t("profile.gate_welcome", "Добро пожаловать!")}
-          </h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-            {t(
-              "profile.gate_subtitle",
-              "Заполните информацию, чтобы продолжить пользоваться приложением.",
-            )}
-          </p>
         </div>
 
-        <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-              {t("profile.gate_first_name", "Имя")} *
-            </span>
-            <input
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              disabled={saving}
-              placeholder={t("profile.gate_first_name", "Имя")}
-              autoComplete="given-name"
-              autoFocus
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-            />
-          </label>
+        <div className="app-bottom-sheet__body">
+          <div>
+            <h2 id={titleId} className="app-bottom-sheet__title">
+              {t("profile.gate_welcome", "Добро пожаловать!")}
+            </h2>
+            <p className="app-bottom-sheet__subtitle">
+              {t(
+                "profile.gate_subtitle",
+                "Заполните информацию, чтобы продолжить пользоваться приложением.",
+              )}
+            </p>
+          </div>
 
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-              {t("profile.gate_last_name", "Фамилия")} *
-            </span>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              disabled={saving}
-              placeholder={t("profile.gate_last_name", "Фамилия")}
-              autoComplete="family-name"
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-            />
-          </label>
+          <div className="app-bottom-sheet__fields">
+            <label className="block">
+              <span className="app-bottom-sheet__label">
+                {t("profile.gate_first_name", "Имя")} *
+              </span>
+              <input
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                disabled={saving}
+                placeholder={t("profile.gate_first_name", "Имя")}
+                autoComplete="given-name"
+                autoFocus
+                className={fieldClass}
+                style={{
+                  borderColor: "var(--app-border)",
+                  background: "var(--app-hover)",
+                  color: "var(--app-text)",
+                }}
+              />
+            </label>
 
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-              Email *
-            </span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={saving}
-              placeholder="example@mail.com"
-              autoComplete="email"
-              inputMode="email"
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-            />
-          </label>
+            <label className="block">
+              <span className="app-bottom-sheet__label">
+                {t("profile.gate_last_name", "Фамилия")}{" "}
+                <span className="font-normal">
+                  ({t("common.optional", "необязательно")})
+                </span>
+              </span>
+              <input
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                disabled={saving}
+                placeholder={t(
+                  "profile.gate_last_name_optional",
+                  "Фамилия (необязательно)",
+                )}
+                autoComplete="family-name"
+                className={fieldClass}
+                style={{
+                  borderColor: "var(--app-border)",
+                  background: "var(--app-hover)",
+                  color: "var(--app-text)",
+                }}
+              />
+            </label>
 
-          {error ? (
-            <p className="text-center text-xs text-red-600 dark:text-red-400">{error}</p>
-          ) : null}
+            <label className="block">
+              <span className="app-bottom-sheet__label">Email *</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={saving}
+                placeholder="example@mail.com"
+                autoComplete="email"
+                inputMode="email"
+                className={fieldClass}
+                style={{
+                  borderColor: "var(--app-border)",
+                  background: "var(--app-hover)",
+                  color: "var(--app-text)",
+                }}
+              />
+            </label>
+
+            {error ? <p className="app-bottom-sheet__error">{error}</p> : null}
+          </div>
         </div>
 
-        <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="app-bottom-sheet__footer">
           <button
             type="button"
             disabled={!canSubmit}
             onClick={() => void handleSave()}
-            className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            className="theme-button"
           >
             {saving
               ? t("common.saving", "Сохранение…")
               : t("profile.gate_continue", "Продолжить")}
           </button>
-          <p className="mt-2 text-center text-[11px] leading-relaxed text-zinc-400">
+          <p className="app-bottom-sheet__hint">
             {t(
               "profile.gate_close_hint",
               "Закрытие окна вернёт вас к авторизации.",
@@ -307,6 +348,6 @@ export default function ProfileCompleteGate() {
           </p>
         </div>
       </div>
-    </div>
+    </>
   );
 }

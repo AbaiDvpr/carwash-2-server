@@ -16,7 +16,7 @@
 
 .chat-gate__title {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: var(--app-text-xl);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--app-text);
@@ -25,7 +25,7 @@
 .chat-gate__hint {
   margin: 0;
   max-width: 18rem;
-  font-size: 0.8125rem;
+  font-size: var(--app-text-sm);
   line-height: 1.4;
 }
 
@@ -93,13 +93,13 @@
 }
 
 .chat-gate__label {
-  font-size: 0.95rem;
+  font-size: var(--app-text-md);
   font-weight: 650;
   color: var(--app-text);
 }
 
 .chat-gate__sub {
-  font-size: 0.75rem;
+  font-size: var(--app-text-xs);
   line-height: 1.3;
 }
 

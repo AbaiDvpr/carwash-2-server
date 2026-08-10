@@ -84,14 +84,14 @@ export async function apiFetch<T>(
       body = null;
     }
 
-    // истёк / неверный / отсутствует на сервере — сразу logout
+    // истёк / неверный / отсутствует на сервере → logout
+    // (при AUTH_DEBUG сначала модалка с причиной, выход после «ОК»)
     if (requireAuth && (response.status === 401 || response.status === 403)) {
       forceLogout({
-        immediate: true,
         reason:
           response.status === 401
-            ? "API вернул 401 Unauthorized"
-            : "API вернул 403 Forbidden",
+            ? "API вернул 401 Unauthorized — токен не принят сервером"
+            : "API вернул 403 Forbidden — нет доступа",
         source: "apiFetch",
         path,
         status: response.status,

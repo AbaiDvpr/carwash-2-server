@@ -18,6 +18,8 @@ import {
   type MapCenter,
 } from "@/lib/api/geos";
 import { getCachedUserLocation, getUserLocation, subscribeUserLocation } from "@/lib/locationController";
+import MarkerFaceContent from "@/features/map/MarkerFaceContent";
+import MarkerProgress from "@/features/map/MarkerProgress";
 import {
   DEFAULT_MARKER_STYLE_PREFS,
   clampMarkerShapeId,
@@ -34,6 +36,8 @@ type StationDotProps = {
   onSelect: (station: Station) => void;
   washPrefs?: KindMarkerPrefs;
   chargingPrefs?: KindMarkerPrefs;
+  /** Скрыть хвостик, когда открыт drawer точки */
+  hideTip?: boolean;
 };
 
 type MapStatus = "loading" | "ready" | "error";
@@ -52,16 +56,22 @@ type HomeMapProps = {
 type StationPointProps = {
   stationId: string;
   kind: StationKind;
-  /** Кол-во станций/постов на этой точке */
-  stationsCount: number;
-  wash: number;
-  charging: number;
+  /** Свободные посты мойки / пистолеты ЭЗС на этой точке */
+  freeCount: number;
+  washFree: number;
+  chargingFree: number;
+  washSites: number;
+  chargingSites: number;
 };
 
 type StationClusterProps = {
-  wash: number;
-  charging: number;
-  stationsCount: number;
+  freeCount: number;
+  /** Сумма свободных постов мойки */
+  washFree: number;
+  /** Сумма свободных пистолетов ЭЗС */
+  chargingFree: number;
+  washSites: number;
+  chargingSites: number;
 };
 
 type LngLatBoundsLike = [number, number, number, number];
@@ -225,6 +235,7 @@ function StationDot({
   onSelect,
   washPrefs,
   chargingPrefs,
+  hideTip = false,
 }: StationDotProps) {
   const isCharging = station.kind === "charging";
   const prefs = isCharging ? chargingPrefs : washPrefs;
@@ -239,18 +250,22 @@ function StationDot({
   const free = Math.max(0, station.freeSlots);
   const total = Math.max(station.washersTotal || count, 1);
   const freeRatio = Math.min(1, Math.max(0, free / total));
+  const markerClass = markerStyleClass(
+    isCharging ? "charging" : "wash",
+    shapeId,
+  );
 
   return (
     <button
       type="button"
-      className={markerStyleClass(isCharging ? "charging" : "wash", shapeId)}
+      className={`${markerClass}${hideTip ? " map-marker--no-tip" : ""}`}
       onClick={(event) => {
         event.stopPropagation();
         onSelect(station);
       }}
       onPointerDown={(event) => event.stopPropagation()}
-      aria-label={`${station.name}: ${free} из ${total} свободно`}
-      title={`${free}/${total}`}
+      aria-label={`${station.name}: ${free} свободно`}
+      title={`${free} свободно`}
       style={
         {
           "--map-marker-free": String(freeRatio),
@@ -258,20 +273,23 @@ function StationDot({
         } as CSSProperties
       }
     >
-      <span className="map-marker__progress" aria-hidden />
+      <MarkerProgress free={free} total={total} />
       <span className="map-marker__face">
-        <span className="map-marker__icon" aria-hidden>
-          {isCharging ? (
-            <EvIcon className="map-marker__icon-svg" />
-          ) : (
-            <WashIcon className="map-marker__icon-svg" />
-          )}
-        </span>
-        <span className="map-marker__count">
-          {free}/{total}
-        </span>
+        <MarkerFaceContent
+          kind={isCharging ? "charging" : "wash"}
+          prefs={prefs ?? DEFAULT_MARKER_STYLE_PREFS[isCharging ? "charging" : "wash"]}
+          free={free}
+          total={total}
+          icon={
+            isCharging ? (
+              <EvIcon className="map-marker__icon-svg" />
+            ) : (
+              <WashIcon className="map-marker__icon-svg" />
+            )
+          }
+        />
       </span>
-      <span className="map-marker__tip" aria-hidden />
+      {!hideTip ? <span className="map-marker__tip" aria-hidden /> : null}
     </button>
   );
 }
@@ -310,40 +328,54 @@ function SpiderLegs({ count, zoom }: { count: number; zoom: number }) {
   );
 }
 
-function stationPinCount(station: Station): number {
-  if (station.stationsCount != null && station.stationsCount > 0) {
-    return station.stationsCount;
-  }
-  if (station.kind === "charging") {
-    return Math.max(1, station.chargerStands?.length ?? 1);
-  }
-  return Math.max(1, station.washersTotal || 1);
+/** Свободные посты мойки или пистолеты ЭЗС */
+function stationFreeCount(station: Station): number {
+  return Math.max(0, station.freeSlots ?? 0);
 }
 
 function ZoomClusterBubble({
-  stationsTotal,
-  wash,
-  charging,
+  freeTotal,
+  washFree,
+  chargingFree,
+  washSites,
+  chargingSites,
   locationsCount,
   onExpand,
+  washPrefs,
+  chargingPrefs,
 }: {
-  stationsTotal: number;
-  wash: number;
-  charging: number;
+  freeTotal: number;
+  washFree: number;
+  chargingFree: number;
+  washSites: number;
+  chargingSites: number;
   locationsCount: number;
   onExpand: () => void;
+  washPrefs: KindMarkerPrefs;
+  chargingPrefs: KindMarkerPrefs;
 }) {
-  const mixed = wash > 0 && charging > 0;
+  const hasWash = washSites > 0;
+  const hasCharging = chargingSites > 0;
+  const mixed = hasWash && hasCharging;
   const kindClass = mixed
     ? "map-cluster--mixed"
-    : wash > 0
+    : hasWash
       ? "map-cluster--wash"
       : "map-cluster--charging";
 
   return (
     <button
       type="button"
-      className={`map-cluster ${kindClass}`}
+      className={`map-cluster map-cluster--pill ${kindClass}`}
+      style={
+        {
+          "--cluster-wash": washPrefs.accent,
+          "--cluster-wash-ink": washPrefs.ink,
+          "--cluster-charging": chargingPrefs.accent,
+          "--cluster-charging-ink": chargingPrefs.ink,
+          "--cluster-border": "#ffffff",
+        } as CSSProperties
+      }
       onClick={(event) => {
         event.stopPropagation();
         onExpand();
@@ -351,31 +383,34 @@ function ZoomClusterBubble({
       onPointerDown={(event) => event.stopPropagation()}
       aria-label={
         mixed
-          ? `Мойки ${wash}, зарядки ${charging} · ${locationsCount} точек — приблизить`
-          : `${stationsTotal} станций · ${locationsCount} точек — приблизить`
+          ? `Свободно: посты ${washFree}, пистолеты ${chargingFree} · ${locationsCount} точек — приблизить`
+          : hasWash
+            ? `Свободно постов мойки ${freeTotal} · ${locationsCount} точек — приблизить`
+            : `Свободно пистолетов ${freeTotal} · ${locationsCount} точек — приблизить`
       }
     >
       {mixed ? (
         <>
           <span className="map-cluster__half map-cluster__half--wash">
             <WashIcon className="map-cluster__icon" />
-            <span className="map-cluster__num">{wash}</span>
+            <span className="map-cluster__num">{washFree}</span>
           </span>
           <span className="map-cluster__half map-cluster__half--charging">
             <EvIcon className="map-cluster__icon map-cluster__icon--ev" />
-            <span className="map-cluster__num">{charging}</span>
+            <span className="map-cluster__num">{chargingFree}</span>
           </span>
         </>
       ) : (
         <span className="map-cluster__solo">
-          {wash > 0 ? (
+          {hasWash ? (
             <WashIcon className="map-cluster__icon" />
           ) : (
             <EvIcon className="map-cluster__icon map-cluster__icon--ev" />
           )}
-          <span className="map-cluster__num">{stationsTotal}</span>
+          <span className="map-cluster__num">{freeTotal}</span>
         </span>
       )}
+      <span className="map-cluster__tip" aria-hidden />
     </button>
   );
 }
@@ -395,6 +430,7 @@ async function createMapView() {
     stations,
     cityCenter,
     focusStation,
+    selectedStation,
     onSelectStation,
     washPrefs,
     chargingPrefs,
@@ -422,28 +458,35 @@ async function createMapView() {
         maxZoom: CLUSTER_MAX_ZOOM,
         minPoints: 2,
         map: (props) => ({
-          wash: props.wash,
-          charging: props.charging,
-          stationsCount: props.stationsCount,
+          freeCount: props.freeCount,
+          washFree: props.washFree,
+          chargingFree: props.chargingFree,
+          washSites: props.washSites,
+          chargingSites: props.chargingSites,
         }),
         reduce: (accumulated, props) => {
-          accumulated.wash += props.wash;
-          accumulated.charging += props.charging;
-          accumulated.stationsCount += props.stationsCount;
+          accumulated.freeCount += props.freeCount;
+          accumulated.washFree += props.washFree;
+          accumulated.chargingFree += props.chargingFree;
+          accumulated.washSites += props.washSites;
+          accumulated.chargingSites += props.chargingSites;
         },
       });
 
       index.load(
         stations.map((station) => {
-          const stationsCount = stationPinCount(station);
+          const freeCount = stationFreeCount(station);
+          const isWash = station.kind === "wash";
           return {
             type: "Feature" as const,
             properties: {
               stationId: station.id,
               kind: station.kind,
-              stationsCount,
-              wash: station.kind === "wash" ? stationsCount : 0,
-              charging: station.kind === "charging" ? stationsCount : 0,
+              freeCount,
+              washFree: isWash ? freeCount : 0,
+              chargingFree: isWash ? 0 : freeCount,
+              washSites: isWash ? 1 : 0,
+              chargingSites: isWash ? 0 : 1,
             },
             geometry: {
               type: "Point" as const,
@@ -673,6 +716,7 @@ async function createMapView() {
                         onSelect={onSelectStation}
                         washPrefs={washPrefs}
                         chargingPrefs={chargingPrefs}
+                        hideTip={selectedStation?.id === station.id}
                       />
                     </Marker>,
                   ];
@@ -704,11 +748,12 @@ async function createMapView() {
                         anchor="bottom"
                       >
                         <StationDot
-                        station={station}
-                        onSelect={onSelectStation}
-                        washPrefs={washPrefs}
-                        chargingPrefs={chargingPrefs}
-                      />
+                          station={station}
+                          onSelect={onSelectStation}
+                          washPrefs={washPrefs}
+                          chargingPrefs={chargingPrefs}
+                          hideTip={selectedStation?.id === station.id}
+                        />
                       </Marker>
                     );
                   }),
@@ -722,11 +767,13 @@ async function createMapView() {
                 if (isCluster) {
                   const clusterId = Number(props.cluster_id);
                   const locationsCount = Number(props.point_count ?? 0);
-                  const wash = Number(props.wash ?? 0);
-                  const charging = Number(props.charging ?? 0);
-                  const stationsTotal = Math.max(
-                    1,
-                    Number(props.stationsCount ?? wash + charging),
+                  const washFree = Number(props.washFree ?? 0);
+                  const chargingFree = Number(props.chargingFree ?? 0);
+                  const washSites = Number(props.washSites ?? 0);
+                  const chargingSites = Number(props.chargingSites ?? 0);
+                  const freeTotal = Math.max(
+                    0,
+                    Number(props.freeCount ?? washFree + chargingFree),
                   );
 
                   return [
@@ -734,19 +781,21 @@ async function createMapView() {
                       key={`cluster-${clusterId}`}
                       longitude={longitude}
                       latitude={latitude}
-                      anchor="center"
+                      anchor="bottom"
                     >
                       <ZoomClusterBubble
-                        stationsTotal={stationsTotal}
-                        wash={wash}
-                        charging={charging}
+                        freeTotal={freeTotal}
+                        washFree={washFree}
+                        chargingFree={chargingFree}
+                        washSites={washSites}
+                        chargingSites={chargingSites}
                         locationsCount={locationsCount}
+                        washPrefs={washPrefs}
+                        chargingPrefs={chargingPrefs}
                         onExpand={() =>
                           expandCluster(clusterId, longitude, latitude)
                         }
                       />
-
-                  
                     </Marker>,
                   ];
                 }
@@ -766,6 +815,7 @@ async function createMapView() {
                       onSelect={onSelectStation}
                       washPrefs={washPrefs}
                       chargingPrefs={chargingPrefs}
+                      hideTip={selectedStation?.id === station.id}
                     />
                   </Marker>,
                 ];

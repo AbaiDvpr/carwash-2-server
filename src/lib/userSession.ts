@@ -85,12 +85,18 @@ export function formatUserDisplayName(user: {
   return [user.name, user.last_name].filter(Boolean).join(" ").trim();
 }
 
-export function cacheUserProfile(user: {
-  id?: number | null;
-  name?: string | null;
-  last_name?: string | null;
-  email?: string | null;
-}): string {
+export function cacheUserProfile(
+  user: {
+    id?: number | null;
+    name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+  },
+  options?: {
+    /** true — пустой email из API не затирает уже сохранённый локально */
+    preserveEmailIfEmpty?: boolean;
+  },
+): string {
   const displayName = formatUserDisplayName(user);
   if (typeof window !== "undefined") {
     if (displayName) {
@@ -100,10 +106,17 @@ export function cacheUserProfile(user: {
       localStorage.setItem("user_id", String(user.id));
     }
     if ("email" in user) {
-      setUserEmail(user.email ?? null);
+      const next = user.email?.trim() || null;
+      if (next) {
+        setUserEmail(next);
+      } else if (!options?.preserveEmailIfEmpty) {
+        setUserEmail(null);
+      }
+      // preserveEmailIfEmpty + пустой next → оставляем прежний email в storage
     }
     // Подтверждаем полноту профиля (не сбрасываем в false здесь)
-    if (user.name?.trim() && user.last_name?.trim() && user.email?.trim()) {
+    const emailNow = getUserEmail();
+    if (user.name?.trim() && emailNow) {
       localStorage.setItem("profile_complete", "true");
     }
   }

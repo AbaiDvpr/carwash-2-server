@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import AuthDebugBoot from "@/components/auth/AuthDebugBoot";
 import ProfileCompleteGate from "@/components/auth/ProfileCompleteGate";
 import I18nBoot from "@/components/i18n/I18nBoot";
 import LocationPoller from "@/components/location/LocationPoller";
@@ -13,16 +14,20 @@ type AppShellProps = {
 
 export default function AppShell({ children }: AppShellProps) {
   return (
-    <MobileAccessGate>
-      <I18nBoot />
-      <LocationPoller />
-      <div className="app-layout">
-        <PagePreloader />
-        <Header />
-        <div className="app-shell">{children}</div>
-        <AuthErrorBlock />
-        <ProfileCompleteGate />
-      </div>
-    </MobileAccessGate>
+    <>
+      {/* До gate: debug успеет включиться, модалка видна даже на preloader */}
+      <AuthDebugBoot />
+      <MobileAccessGate>
+        <I18nBoot />
+        <LocationPoller />
+        <div className="app-layout">
+          <PagePreloader />
+          <Header />
+          <div className="app-shell">{children}</div>
+          <ProfileCompleteGate />
+        </div>
+      </MobileAccessGate>
+      <AuthErrorBlock />
+    </>
   );
 }

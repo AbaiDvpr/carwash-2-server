@@ -26,7 +26,6 @@ import {
   toggleKindEnabled,
   writeMapFilters,
 } from "@/features/map/filters";
-import { useMapSheetDrag } from "@/features/map/useMapSheetDrag";
 import { useStations } from "@/hooks/useStations";
 import { useT } from "@/hooks/useT";
 import { useUserLocation } from "@/hooks/useUserLocation";
@@ -494,26 +493,9 @@ function MapFilterDrawer({
   const [activeTab, setActiveTab] = useState<StationKind>(() =>
     filters.wash.enabled || !filters.charging.enabled ? "wash" : "charging",
   );
-  const {
-    sheetStyle,
-    handleProps,
-    headerProps,
-    scrollProps,
-    sheetProps,
-    offsetY,
-    dragging,
-    closing,
-  } = useMapSheetDrag({
-    onClose,
-  });
-
   const activeSection =
     FILTER_SECTIONS.find((section) => section.kind === activeTab) ?? FILTER_SECTIONS[0]!;
   const sectionDraft = draft[activeTab];
-  const backdropOpacity = Math.max(
-    0.08,
-    0.45 * (1 - Math.min(1, offsetY / 260)),
-  );
 
   useEffect(() => {
     setPortalReady(true);
@@ -535,43 +517,20 @@ function MapFilterDrawer({
         className="map-drawer__backdrop"
         onClick={onClose}
         aria-label={t("common.close", "Закрыть")}
-        style={
-          offsetY > 0 || closing ? { opacity: backdropOpacity } : undefined
-        }
       />
       <div
-        className={`map-filter-sheet${dragging || closing ? " is-dragging" : ""}`}
+        className="map-filter-sheet"
         role="dialog"
         aria-label={t("map.filter", "Фильтр")}
-        style={sheetStyle}
-        {...sheetProps}
       >
-        <div className="map-filter-sheet__header" {...headerProps}>
-          <div
-            className="map-drawer__grab"
-            {...handleProps}
-            aria-label={t("map.sheet_drag", "Потяните вниз, чтобы закрыть")}
-          >
-            <div className="map-drawer__handle" aria-hidden />
-          </div>
+        <div className="map-filter-sheet__header">
           <div className="map-filter-sheet__title-row">
-            <div className="map-filter-sheet__tabs" role="tablist" aria-label={t("map.filter", "Тип")}>
-              {FILTER_SECTIONS.map((section) => (
-                <button
-                  key={section.kind}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === section.kind}
-                  className={`map-filter-sheet__tab map-filter-sheet__tab--${section.kind}${activeTab === section.kind ? " is-active" : ""}`}
-                  onClick={() => setActiveTab(section.kind)}
-                >
-                  {t(section.titleKey, section.titleFallback)}
-                </button>
-              ))}
-            </div>
+            <h2 className="map-filter-sheet__title">
+              {t("map.filter", "Фильтр")}
+            </h2>
             <button
               type="button"
-              className="map-drawer__close"
+              className="app-drawer-close"
               onClick={onClose}
               aria-label={t("common.close", "Закрыть")}
             >
@@ -580,9 +539,27 @@ function MapFilterDrawer({
               </svg>
             </button>
           </div>
+          <div
+            className="map-filter-sheet__tabs"
+            role="tablist"
+            aria-label={t("map.filter_type", "Тип точек")}
+          >
+            {FILTER_SECTIONS.map((section) => (
+              <button
+                key={section.kind}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === section.kind}
+                className={`map-filter-sheet__tab map-filter-sheet__tab--${section.kind}${activeTab === section.kind ? " is-active" : ""}`}
+                onClick={() => setActiveTab(section.kind)}
+              >
+                {t(section.titleKey, section.titleFallback)}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="map-filter-sheet__body" {...scrollProps}>
+        <div className="map-filter-sheet__body">
           <div className="map-filter-flat">
             {activeTab === "charging" ? (
               <ChargingSpeedFilters
@@ -994,22 +971,6 @@ function MapStationList({
   const [portalReady, setPortalReady] = useState(false);
   const empty = nearby.length === 0 && others.length === 0;
   const totalPoints = nearby.length + others.length;
-  const {
-    sheetStyle,
-    handleProps,
-    headerProps,
-    scrollProps,
-    sheetProps,
-    offsetY,
-    dragging,
-    closing,
-  } = useMapSheetDrag({
-    onClose,
-  });
-  const backdropOpacity = Math.max(
-    0.08,
-    0.45 * (1 - Math.min(1, offsetY / 260)),
-  );
 
   useEffect(() => {
     setPortalReady(true);
@@ -1028,30 +989,15 @@ function MapStationList({
         className="map-drawer__backdrop"
         onClick={onClose}
         aria-label={t("common.close", "Закрыть")}
-        style={
-          offsetY > 0 || closing ? { opacity: backdropOpacity } : undefined
-        }
       />
       <div
-        className={`map-list-sheet is-expanded${dragging || closing ? " is-dragging" : ""}`}
+        className="map-list-sheet is-expanded"
         role="dialog"
         aria-label={t("map.list", "Список")}
-        style={sheetStyle}
-        {...sheetProps}
       >
-        <div className="map-list-sheet__header" {...headerProps}>
-          <div
-            className="map-drawer__grab"
-            {...handleProps}
-            aria-label={t("map.sheet_drag", "Потяните вниз, чтобы закрыть")}
-          >
-            <div className="map-drawer__handle" aria-hidden />
-          </div>
+        <div className="map-list-sheet__header">
           <div className="map-list-sheet__title-row">
             <div className="map-list-sheet__heading">
-              <p className="map-list-sheet__eyebrow">
-                {t("map.list", "Список")}
-              </p>
               <h2 className="map-list-sheet__title">
                 {t("map.stations_list", "Список станций")}
               </h2>
@@ -1064,7 +1010,7 @@ function MapStationList({
             <div className="map-list-sheet__tools">
               <button
                 type="button"
-                className="map-drawer__close map-drawer__close--badge"
+                className="app-drawer-close map-drawer__close--badge"
                 onClick={onOpenFilter}
                 aria-label={t("map.filter", "Фильтр")}
               >
@@ -1073,7 +1019,7 @@ function MapStationList({
               </button>
               <button
                 type="button"
-                className="map-drawer__close"
+                className="app-drawer-close"
                 onClick={onClose}
                 aria-label={t("common.close", "Закрыть")}
               >
@@ -1104,7 +1050,7 @@ function MapStationList({
           ) : null}
         </div>
 
-        <div className="map-list-sheet__scroll" {...scrollProps}>
+        <div className="map-list-sheet__scroll">
           {empty ? (
             <p className="map-list-sheet__empty">
               {!hasLocation

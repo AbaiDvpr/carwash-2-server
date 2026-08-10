@@ -7,7 +7,7 @@
 
 - [flutter-theme.md](./flutter-theme.md) — bridge `set_theme`
 - [flutter-locale.md](./flutter-locale.md) — bridge `set_locale`
-- [flutter-fullscreen.md](./flutter-fullscreen.md) — bridge `fullscreen`
+- [flutter-fullscreen.md](./flutter-fullscreen.md) — bridge `fullscreen` / `map_fullscreen`
 
 Источник правды в коде:
 
@@ -373,7 +373,8 @@ showModalBottomSheet(
 - [ ] Sheet объекта на карте ≈ **70%** высоты
 - [ ] Touch targets ≥ 48
 - [ ] Маркеры: wash `#38BDF8`, charging `#FACC15`
-- [ ] При fullscreen (сторис) прятать AppBar + bottom nav
+- [ ] При fullscreen (сторис) прятать AppBar + bottom nav (можно снять top SafeArea)
+- [ ] При map_fullscreen (шторка станции) прятать bottom nav, **top SafeArea оставить**
 
 ---
 

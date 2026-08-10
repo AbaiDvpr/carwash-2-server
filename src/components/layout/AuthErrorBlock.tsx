@@ -1,66 +1,86 @@
 "use client";
 
 import { forceLogout } from "@/lib/forceLogout";
+import { isAuthDebugEnabled } from "@/lib/authDebug";
 import { useAppSelector } from "@/store/hooks";
 
 export default function AuthErrorBlock() {
   const testVersion = useAppSelector((s) => s.app.test_version);
   const authError = useAppSelector((s) => s.app.authError);
+  const debug = testVersion || isAuthDebugEnabled();
 
-  if (!testVersion || !authError) return null;
+  if (!debug || !authError) return null;
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-[100] border-t border-red-200 bg-red-50 px-4 py-3 text-left shadow-lg dark:border-red-900/60 dark:bg-red-950/95"
-      role="alert"
+      className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50 p-4 sm:items-center"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="auth-debug-title"
     >
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-red-500">
-            Test · auth error
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-red-200 bg-white shadow-xl dark:border-red-900/50 dark:bg-zinc-950">
+        <div className="border-b border-red-100 bg-red-50 px-4 py-3 dark:border-red-900/40 dark:bg-red-950/50">
+          <p className="text-[0.75rem] font-medium uppercase tracking-wider text-red-500">
+            Debug · почему кинуло на авторизацию
           </p>
-          <p className="mt-1 text-sm font-semibold text-red-900 dark:text-red-100">
+          <h2
+            id="auth-debug-title"
+            className="mt-1 text-base font-semibold text-red-950 dark:text-red-50"
+          >
             {authError.reason}
-          </p>
-          <dl className="mt-2 space-y-0.5 text-[11px] text-red-800/90 dark:text-red-200/90">
-            {authError.source && (
+          </h2>
+        </div>
+
+        <div className="max-h-[min(55dvh,420px)] space-y-2 overflow-y-auto px-4 py-3 text-[0.8125rem] text-zinc-700 dark:text-zinc-300">
+          <dl className="space-y-1">
+            {authError.source ? (
               <div>
-                <span className="text-red-500">source: </span>
+                <span className="text-zinc-400">source: </span>
                 {authError.source}
               </div>
-            )}
-            {authError.path && (
+            ) : null}
+            {authError.path ? (
               <div>
-                <span className="text-red-500">path: </span>
+                <span className="text-zinc-400">path: </span>
                 {authError.path}
               </div>
-            )}
-            {authError.status != null && (
+            ) : null}
+            {authError.status != null ? (
               <div>
-                <span className="text-red-500">status: </span>
+                <span className="text-zinc-400">status: </span>
                 {authError.status}
               </div>
-            )}
+            ) : null}
           </dl>
-          {authError.detail && (
-            <pre className="mt-2 max-h-28 overflow-auto rounded bg-red-100/80 p-2 text-[10px] leading-snug text-red-950 dark:bg-red-900/50 dark:text-red-50">
+
+          {authError.detail ? (
+            <pre className="whitespace-pre-wrap break-words rounded-lg bg-zinc-100 p-3 text-[0.75rem] leading-snug text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
               {authError.detail}
             </pre>
-          )}
+          ) : null}
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            forceLogout({
-              immediate: true,
-              reason: "Пользователь нажал «Выйти» в auth error-блоке",
-              source: "AuthErrorBlock",
-            })
-          }
-          className="inline-flex shrink-0 items-center justify-center rounded-lg bg-red-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-800"
-        >
-          Выйти
-        </button>
+
+        <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
+          <button
+            type="button"
+            onClick={() =>
+              forceLogout({
+                confirmed: true,
+                reason: authError.reason,
+                source: "AuthErrorBlock",
+                path: authError.path,
+                status: authError.status,
+                detail: "Пользователь нажал ОК в debug-модалке",
+              })
+            }
+            className="theme-button w-full rounded-xl px-4 py-3 text-sm font-semibold"
+          >
+            ОК
+          </button>
+          <p className="mt-2 text-center text-[0.75rem] text-zinc-400">
+            После ОК — выход и переход на авторизацию
+          </p>
+        </div>
       </div>
     </div>
   );

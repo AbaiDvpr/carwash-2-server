@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { PageLayout } from "@/components/layout";
 import { formatPhoneDisplay, useAuthUser } from "@/hooks/useAuthUser";
 import { forceLogout } from "@/lib/forceLogout";
 import { openBrowser } from "@/lib/browserController";
+import { copyText } from "@/lib/clipboardController";
 import { openTelegram, openWhatsApp } from "@/lib/messengerController";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setHeaderNav } from "@/store/slices/appSlice";
@@ -24,20 +26,33 @@ import type { ThemeMode } from "@/lib/themeColors";
 import { isHexColor, PALETTE_FIELD_META } from "@/lib/themeColors";
 import {
   LAYOUT_FIELD_META,
+  LAYOUT_GROUP_HINTS,
+  LAYOUT_GROUP_LABELS,
   formatLayoutValue,
   parseLayoutNumber,
+  type LayoutFieldGroup,
   type LayoutUnit,
 } from "@/lib/themeLayout";
 import { useUserCity } from "@/hooks/useUserCity";
-import { updateUserSettings } from "@/lib/api/auth";
+import { fetchUserInfo, updateUserSettings, type AuthUser } from "@/lib/api/auth";
 import { formatCityName } from "@/lib/api/geos";
 import { useEditProfile } from "./hooks/useEditProfile";
 import { usePromoCode } from "./hooks/usePromoCode";
+import {
+  fetchReferralClients,
+  type ReferralClient,
+} from "@/lib/api/referral";
+import { hasAccessToken } from "@/lib/authToken";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { useUserBalance, formatBalance } from "./hooks/useUserBalance";
 import BalanceTopUp from "./components/BalanceTopUp";
 import AvatarCropper from "./components/AvatarCropper";
-import GaragePanel, { type MockCar } from "./components/GaragePanel";
+import GaragePanel from "./components/GaragePanel";
+import IconActionButton, {
+  IconCheck,
+  IconCopy,
+  IconTrash,
+} from "./components/IconActionButton";
 import ProfileNavRow from "./components/ProfileNavRow";
 import FaqSection from "./components/FaqSection";
 import { deleteUserPhoto, resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
@@ -51,6 +66,7 @@ type ProfileView =
   | "history"
   | "garage"
   | "promo"
+  | "referral-clients"
   | "support"
   | "documents"
   | "language"
@@ -58,8 +74,8 @@ type ProfileView =
   | "appearance";
 
 const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
-  { id: "light", label: "Светлая", hint: "Белый фон и тёмный текст" },
-  { id: "dark", label: "Тёмная", hint: "Тёмный фон и светлый текст" },
+  { id: "light", label: "Тема", hint: "Светлая" },
+  { id: "dark", label: "Тема", hint: "Тёмная" },
 ];
 
 const LANGUAGE_OPTIONS = [
@@ -68,21 +84,79 @@ const LANGUAGE_OPTIONS = [
   { id: "en", label: "English" },
 ] as const;
 
-const REFERRAL_CODE = "CARWASH-FRIEND";
-const REFERRAL_LINK = "https://carwash.app/invite/CARWASH-FRIEND";
+function SectionCard({ children }: { children: ReactNode }) {
+  return <section className="profile-card">{children}</section>;
+}
 
-const INITIAL_CARS: MockCar[] = [
-  { id: 1, plate: "777AAA01" },
-  { id: 2, plate: "101ABC02" },
+/** Разделы экрана «Оформление» — меню слева по смыслу */
+type AppearanceSection =
+  | "menu"
+  | "theme"
+  | "text"
+  | "rows"
+  | "page"
+  | "buttons"
+  | "shape";
+
+const APPEARANCE_MENU: {
+  id: Exclude<AppearanceSection, "menu">;
+  label: string;
+  hint: string;
+  /** Длинное описание под меню (не в строке — там короткий hint как в профиле) */
+  description: string;
+}[] = [
+  {
+    id: "theme",
+    label: "Тема и цвета",
+    hint: "Палитра",
+    description: "Светлая / тёмная тема и цвета интерфейса",
+  },
+  {
+    id: "text",
+    label: "Текст",
+    hint: "Размер",
+    description: "Базовый rem, межстрочный интервал и превью размеров",
+  },
+  {
+    id: "rows",
+    label: "Боковые пункты",
+    hint: "Отступы",
+    description: "Отступы строк меню: иконка, подпись, высота",
+  },
+  {
+    id: "page",
+    label: "Страница",
+    hint: "Поля",
+    description: "Отступы экрана слева / справа / сверху / снизу",
+  },
+  {
+    id: "buttons",
+    label: "Кнопки",
+    hint: "Стиль",
+    description: "Скругление и padding кнопок",
+  },
+  {
+    id: "shape",
+    label: "Скругления и рамки",
+    hint: "Карточки",
+    description: "Радиус карточек и толщина границ",
+  },
 ];
 
-function SectionCard({ children }: { children: ReactNode }) {
-  return <div className="app-section">{children}</div>;
-}
+const APPEARANCE_LAYOUT_GROUPS: Record<
+  Exclude<AppearanceSection, "menu" | "theme">,
+  LayoutFieldGroup[]
+> = {
+  text: ["text"],
+  rows: ["row"],
+  page: ["page"],
+  buttons: ["button"],
+  shape: ["radius", "border"],
+};
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <p className="theme-description mb-1.5 px-0.5 text-[11px] font-medium uppercase tracking-wider">
+    <p className="profile-card__balance-label mb-1.5 px-0.5 uppercase tracking-wider">
       {children}
     </p>
   );
@@ -243,9 +317,21 @@ function PaletteColorRow({
   }, [value]);
 
   return (
-    <div className="theme-hover px-3 py-3">
-      <div className="flex items-start gap-3">
-        <label className="relative mt-0.5 h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-700">
+    <div
+      className="theme-hover"
+      style={{
+        padding: "var(--app-row-pad-y) var(--app-row-pad-x)",
+      }}
+    >
+      <div className="flex items-start" style={{ gap: "var(--app-row-gap)" }}>
+        <label
+          className="relative mt-0.5 h-10 w-10 shrink-0 overflow-hidden border shadow-sm"
+          style={{
+            borderRadius: "var(--app-button-radius)",
+            borderColor: "var(--app-border)",
+            borderWidth: "var(--app-border-width)",
+          }}
+        >
           <span
             className="absolute inset-0"
             style={{ backgroundColor: value }}
@@ -259,22 +345,33 @@ function PaletteColorRow({
             aria-label={label}
           />
         </label>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium" style={{ color: "var(--app-text)" }}>
-            {label}
-          </p>
-          <p className="theme-description mt-0.5 text-[11px]">{hint}</p>
-          <p className="theme-description mt-1 text-[10px] leading-relaxed">
-            Где: {uses}
+        <div className="profile-nav-row__main min-w-0 flex-1">
+          <p className="profile-nav-row__label">{label}</p>
+          <p className="profile-nav-row__hint">{hint}</p>
+          <p
+            className="mt-1.5 px-2 py-1.5 leading-relaxed"
+            style={{
+              borderRadius: "var(--app-section-radius-sm)",
+              backgroundColor: "color-mix(in oklab, var(--app-button) 8%, transparent)",
+              color: "var(--app-description)",
+              fontSize: "var(--app-text-xs)",
+            }}
+          >
+            <span className="font-semibold" style={{ color: "var(--app-button)" }}>
+              Где применяется:{" "}
+            </span>
+            {uses}
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1">
             {cssVars.map((cssVar) => (
               <code
                 key={cssVar}
-                className="rounded-md px-1.5 py-0.5 font-mono text-[10px]"
+                className="px-1.5 py-0.5 font-mono"
                 style={{
+                  borderRadius: "var(--app-button-radius)",
                   backgroundColor: "var(--app-hover)",
                   color: "var(--app-button)",
+                  fontSize: "var(--app-text-xs)",
                 }}
               >
                 {cssVar}
@@ -293,7 +390,17 @@ function PaletteColorRow({
           }}
           onBlur={() => setDraft(value)}
           spellCheck={false}
-          className="theme-field w-[7.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-xs uppercase text-zinc-700 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          className="theme-field w-[7.25rem] shrink-0 font-mono uppercase outline-none"
+          style={{
+            borderRadius: "var(--app-button-radius)",
+            borderWidth: "var(--app-border-width)",
+            borderStyle: "solid",
+            borderColor: "var(--app-border)",
+            background: "var(--app-block)",
+            color: "var(--app-text)",
+            padding: "0.35rem 0.5rem",
+            fontSize: "var(--app-text-sm)",
+          }}
           aria-label={`${label} hex`}
         />
       </div>
@@ -325,33 +432,71 @@ function LayoutSpacingRow({
   onChange: (cssValue: string) => void;
 }) {
   const numeric = parseLayoutNumber(value);
+  const unitLabel = unit === "" ? "×" : unit;
 
   return (
-    <div className="theme-hover px-3 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium" style={{ color: "var(--app-text)" }}>
-            {label}
+    <div
+      className="theme-hover"
+      style={{
+        padding: "var(--app-row-pad-y) var(--app-row-pad-x)",
+      }}
+    >
+      <div
+        className="flex items-start justify-between"
+        style={{ gap: "var(--app-row-gap)" }}
+      >
+        <div className="profile-nav-row__main min-w-0 flex-1">
+          <p className="profile-nav-row__label">{label}</p>
+          <p className="profile-nav-row__hint">{value}</p>
+          <p
+            className="mt-1"
+            style={{
+              color: "var(--app-description)",
+              fontSize: "var(--app-text-sm)",
+              lineHeight: 1.35,
+            }}
+          >
+            {hint}
           </p>
-          <p className="theme-description mt-0.5 text-[11px]">{hint}</p>
-          <p className="theme-description mt-1 text-[10px] leading-relaxed">
-            Где: {uses}
+          <p
+            className="mt-1.5 px-2 py-1.5 leading-relaxed"
+            style={{
+              borderRadius: "var(--app-section-radius-sm)",
+              backgroundColor: "color-mix(in oklab, var(--app-button) 8%, transparent)",
+              color: "var(--app-description)",
+              fontSize: "var(--app-text-xs)",
+            }}
+          >
+            <span className="font-semibold" style={{ color: "var(--app-button)" }}>
+              Где применяется:{" "}
+            </span>
+            {uses}
           </p>
-          <div className="mt-1.5">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <code
-              className="rounded-md px-1.5 py-0.5 font-mono text-[10px]"
+              className="px-1.5 py-0.5 font-mono"
               style={{
+                borderRadius: "var(--app-button-radius)",
                 backgroundColor: "var(--app-hover)",
                 color: "var(--app-button)",
+                fontSize: "var(--app-text-xs)",
               }}
             >
               {cssVar}
             </code>
+            <span
+              className="px-1.5 py-0.5 font-mono font-semibold uppercase"
+              style={{
+                borderRadius: "var(--app-button-radius)",
+                backgroundColor: "var(--app-hover)",
+                color: "var(--app-description)",
+                fontSize: "var(--app-text-xs)",
+              }}
+            >
+              {unitLabel}
+            </span>
           </div>
         </div>
-        <span className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
-          {value}
-        </span>
       </div>
       <input
         type="range"
@@ -370,12 +515,41 @@ function LayoutSpacingRow({
 }
 
 export default function ProfilePage() {
-  const { name, phone, photoUrl, mounted } = useAuthUser();
+  const {
+    name,
+    email: authEmail,
+    phone,
+    photoUrl,
+    loading: profileLoading,
+    mounted,
+  } = useAuthUser();
   const dispatch = useAppDispatch();
   const showHeaderNav = useAppSelector((state) => state.app.showHeaderNav);
   const support = useAppSelector((state) => state.variables.support);
   const documents = useAppSelector((state) => state.variables.documents);
-  const { promoCode, promoMessage, applyPromo, updatePromoCode } = usePromoCode();
+  const [referralUser, setReferralUser] = useState<AuthUser | null>(null);
+  const [referralClients, setReferralClients] = useState<ReferralClient[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
+
+  const hasReferrer = Boolean(referralUser?.has_referrer);
+  const myReferralCode = referralUser?.referral_code ?? "—";
+  const clientsCount = referralUser?.referral_clients_count ?? 0;
+
+  const syncReferralUser = useCallback((user: AuthUser) => {
+    setReferralUser(user);
+  }, []);
+
+  const {
+    promoCode,
+    promoMessage,
+    promoError,
+    busy: promoBusy,
+    applyPromo,
+    updatePromoCode,
+  } = usePromoCode({
+    hasReferrer,
+    onApplied: syncReferralUser,
+  });
   const {
     pushEnabled,
     loading: pushLoading,
@@ -401,6 +575,8 @@ export default function ProfilePage() {
   const languageHint =
     LANGUAGE_OPTIONS.find((lang) => lang.id === locale)?.label ?? "Русский";
   const [editPaletteMode, setEditPaletteMode] = useState<ThemeMode>("light");
+  const [appearanceSection, setAppearanceSection] =
+    useState<AppearanceSection>("menu");
   const { message: toastMessage, showToast } = useToast();
   const {
     geoId,
@@ -412,13 +588,36 @@ export default function ProfilePage() {
   const [citySavingId, setCitySavingId] = useState<number | null>(null);
 
   const [view, setView] = useState<ProfileView>("home");
-  const [cars, setCars] = useState<MockCar[]>(INITIAL_CARS);
   const [copied, setCopied] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [avatarReady, setAvatarReady] = useState(false);
 
   const avatarSrc = resolveMediaUrl(photoUrl);
+  const bootLoading = !mounted || profileLoading;
+  const heroPhotoLoading = Boolean(avatarSrc) && !avatarReady;
+
+  useEffect(() => {
+    if (!avatarSrc) {
+      setAvatarReady(true);
+      return;
+    }
+    setAvatarReady(false);
+    const img = new window.Image();
+    let active = true;
+    img.onload = () => {
+      if (active) setAvatarReady(true);
+    };
+    img.onerror = () => {
+      if (active) setAvatarReady(true);
+    };
+    img.src = avatarSrc;
+    if (img.complete) setAvatarReady(true);
+    return () => {
+      active = false;
+    };
+  }, [avatarSrc]);
 
   useEffect(() => {
     if (!logoutConfirmOpen) return;
@@ -431,8 +630,55 @@ export default function ProfilePage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [logoutConfirmOpen]);
 
+  useEffect(() => {
+    if (!hasAccessToken()) return;
+    let cancelled = false;
+    void fetchUserInfo()
+      .then((user) => {
+        if (!cancelled) setReferralUser(user);
+      })
+      .catch(() => {
+        /* gate handles auth */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (view !== "referral-clients" || !hasAccessToken()) return;
+    let cancelled = false;
+    setClientsLoading(true);
+    void fetchReferralClients()
+      .then((data) => {
+        if (cancelled) return;
+        setReferralClients(data.clients);
+        setReferralUser((prev) =>
+          prev
+            ? { ...prev, referral_clients_count: data.total }
+            : prev,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setReferralClients([]);
+      })
+      .finally(() => {
+        if (!cancelled) setClientsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
   const displayName = mounted ? name || "…" : "…";
-  const displayEmail = mounted ? profileEdit.email || "Не указан" : "…";
+  const resolvedEmail =
+    profileEdit.email.trim() ||
+    authEmail.trim() ||
+    referralUser?.email?.trim() ||
+    "";
+  const displayEmail = !mounted || (profileLoading && !resolvedEmail)
+    ? "…"
+    : resolvedEmail || "Не указан";
   const displayPhone = mounted
     ? phone
       ? formatPhoneDisplay(phone)
@@ -494,12 +740,21 @@ export default function ProfilePage() {
         : "h-12 w-12 text-sm";
     if (avatarSrc) {
       return (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={avatarSrc}
-          alt=""
-          className={`shrink-0 rounded-full object-cover ${box}`}
-        />
+        <span className={`relative shrink-0 overflow-hidden rounded-full ${box}`}>
+          {!avatarReady ? (
+            <span className="profile-avatar-shimmer absolute inset-0" aria-hidden />
+          ) : null}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={avatarSrc}
+            alt=""
+            onLoad={() => setAvatarReady(true)}
+            onError={() => setAvatarReady(true)}
+            className={`h-full w-full rounded-full object-cover transition-opacity duration-200 ${
+              avatarReady ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        </span>
       );
     }
     return (
@@ -512,31 +767,77 @@ export default function ProfilePage() {
   }
 
   async function handleCopyReferral() {
-    try {
-      await navigator.clipboard.writeText(REFERRAL_LINK);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
+    const text = myReferralCode && myReferralCode !== "—" ? myReferralCode : "";
+    if (!text) return;
+    const ok = await copyText(text);
+    if (!ok) {
+      showToast(t("profile.copy_error", "Не удалось скопировать"));
+      return;
     }
+    setCopied(true);
+    showToast(t("profile.copied", "Скопировано"));
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+
+  function formatReferredAt(value: string | null): string {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("ru-RU", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   }
 
   return (
-    <PageLayout title="Profile" description="Профиль пользователя CarWash">
+    <PageLayout
+      title="Profile"
+      description="Профиль пользователя CarWash"
+      className={view === "edit" ? "page--profile-edit" : undefined}
+    >
       <>
-        {view === "home" ? (
+        {view === "home" && bootLoading ? (
+          <div className="profile-boot" role="status" aria-live="polite">
+            <div className="profile-boot__avatar" aria-hidden>
+              <span className="profile-boot__spinner" />
+            </div>
+            <p className="profile-boot__title">
+              {t("common.loading", "Загрузка...")}
+            </p>
+            <p className="profile-boot__hint">
+              {t("profile.loading_hint", "Загружаем профиль")}
+            </p>
+            <div className="profile-boot__cards" aria-hidden>
+              <div className="profile-boot__card" />
+              <div className="profile-boot__card" />
+              <div className="profile-boot__card profile-boot__card--short" />
+            </div>
+          </div>
+        ) : null}
+
+        {view === "home" && !bootLoading ? (
           <div className="profile-home">
             <header className="profile-hero">
               <p className="profile-hero__email">{displayEmail}</p>
 
               <div className="profile-hero__avatar-wrap">
                 {avatarSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={avatarSrc}
-                    alt=""
-                    className="profile-hero__avatar"
-                  />
+                  <span className="profile-hero__avatar-frame">
+                    {heroPhotoLoading ? (
+                      <span className="profile-avatar-shimmer profile-hero__avatar" aria-hidden />
+                    ) : null}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={avatarSrc}
+                      alt=""
+                      onLoad={() => setAvatarReady(true)}
+                      onError={() => setAvatarReady(true)}
+                      className={`profile-hero__avatar${
+                        heroPhotoLoading ? " profile-hero__avatar--loading" : ""
+                      }`}
+                    />
+                  </span>
                 ) : (
                   <span className="profile-hero__avatar profile-hero__avatar--fallback">
                     {initials}
@@ -545,7 +846,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   className="profile-hero__camera"
-                  disabled={photoBusy}
+                  disabled={photoBusy || heroPhotoLoading}
                   onClick={() => void handlePickPhoto()}
                   aria-label={
                     photoUrl
@@ -553,7 +854,11 @@ export default function ProfilePage() {
                       : t("profile.add_photo", "Добавить фото")
                   }
                 >
-                  <IconCamera />
+                  {photoBusy || heroPhotoLoading ? (
+                    <span className="profile-boot__spinner profile-boot__spinner--sm" />
+                  ) : (
+                    <IconCamera />
+                  )}
                 </button>
               </div>
 
@@ -565,20 +870,47 @@ export default function ProfilePage() {
             <section className="profile-card">
               <div className="profile-card__balance">
                 <div className="profile-card__balance-item">
-                  <p className="profile-card__balance-label">
-                    {t("home.balance", "Баланс")}
-                  </p>
-                  <p className="profile-card__balance-value">
-                    {balanceLoading && balance == null
-                      ? "…"
-                      : formatBalance(balance ?? 0)}
-                  </p>
+                  <Link
+                    href="/profile/top-up"
+                    className="profile-card__balance-link"
+                    aria-label={t("profile.top_up", "Пополнить баланс")}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <p className="profile-card__balance-label">
+                        {t("home.balance", "Баланс")}
+                      </p>
+                      <p className="profile-card__balance-value">
+                        {balanceLoading && balance == null
+                          ? "…"
+                          : formatBalance(balance ?? 0)}
+                      </p>
+                    </span>
+                    <span className="profile-card__balance-action">
+                      {t("profile.top_up_short", "Пополнить")}
+                      <svg
+                        className="profile-card__balance-chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        aria-hidden
+                      >
+                        <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+                      </svg>
+                    </span>
+                  </Link>
                 </div>
                 <div className="profile-card__balance-item">
-                  <p className="profile-card__balance-label">
-                    {t("profile.phone", "Телефон")}
-                  </p>
-                  <p className="profile-card__balance-value">{displayPhone}</p>
+                  <button
+                    type="button"
+                    className="profile-card__phone-btn"
+                    onClick={() => setView("edit")}
+                  >
+                    <p className="profile-card__balance-label">
+                      {t("profile.phone", "Телефон")}
+                    </p>
+                    <p className="profile-card__balance-value">{displayPhone}</p>
+                  </button>
                 </div>
               </div>
             </section>
@@ -588,13 +920,11 @@ export default function ProfilePage() {
                 icon={<IconUser />}
                 label={t("profile.full_name", "Имя и фамилия")}
                 hint={displayName}
-                onClick={() => setView("edit")}
               />
               <ProfileNavRow
                 icon={<IconMail />}
                 label="Email"
                 hint={displayEmail}
-                onClick={() => setView("edit")}
               />
               <ProfileNavRow
                 icon={<IconPin />}
@@ -618,6 +948,7 @@ export default function ProfilePage() {
                 }
                 onClick={() => {
                   setEditPaletteMode(theme);
+                  setAppearanceSection("menu");
                   setView("appearance");
                 }}
               />
@@ -637,9 +968,7 @@ export default function ProfilePage() {
                   <span className="profile-nav-row__label">
                     {t("profile.notifications", "Уведомления")}
                   </span>
-                  <span className="profile-nav-row__hint theme-description">
-                    {pushHint}
-                  </span>
+                  <span className="profile-nav-row__hint">{pushHint}</span>
                 </span>
                 <span
                   className={`profile-switch${!pushLoading && pushEnabled ? " is-on" : ""}`}
@@ -662,7 +991,7 @@ export default function ProfilePage() {
                 </span>
                 <span className="profile-nav-row__main">
                   <span className="profile-nav-row__label">Header</span>
-                  <span className="profile-nav-row__hint theme-description">
+                  <span className="profile-nav-row__hint">
                     {showHeaderNav ? "Показан" : "Скрыт"}
                   </span>
                 </span>
@@ -679,17 +1008,17 @@ export default function ProfilePage() {
               <ProfileNavRow
                 icon={<IconCar />}
                 label={t("profile.garage", "Гараж")}
-                hint={
-                  cars.length === 0
-                    ? t("garage.empty", "Пока нет авто")
-                    : `${cars.length} авто`
-                }
+                hint={t("garage.plate", "Госномер")}
                 onClick={() => setView("garage")}
               />
               <ProfileNavRow
                 icon={<IconTag />}
                 label={t("profile.promo", "Промокод")}
-                hint={`${t("profile.referral", "Рефералка")} · ${REFERRAL_CODE}`}
+                hint={
+                  hasReferrer
+                    ? t("profile.promo_already", "Вы уже зашли через промокод")
+                    : `${t("profile.referral", "Рефералка")} · ${myReferralCode}`
+                }
                 onClick={() => setView("promo")}
               />
               <ProfileNavRow
@@ -738,19 +1067,19 @@ export default function ProfilePage() {
                       type="button"
                       disabled={photoBusy}
                       onClick={() => void handlePickPhoto()}
-                      className="theme-button px-3 py-2 text-xs"
+                      className="theme-button"
                     >
                       {photoUrl ? "Изменить фото" : "Добавить фото"}
                     </button>
                     {photoUrl ? (
-                      <button
-                        type="button"
+                      <IconActionButton
+                        label={t("common.delete", "Удалить")}
+                        danger
                         disabled={photoBusy}
                         onClick={() => void handleDeletePhoto()}
-                        className="theme-button-secondary px-3 py-2 text-xs text-[var(--app-danger)]"
                       >
-                        Удалить
-                      </button>
+                        <IconTrash />
+                      </IconActionButton>
                     ) : null}
                   </div>
                 </div>
@@ -759,8 +1088,8 @@ export default function ProfilePage() {
               <SectionCard>
                 <div className="space-y-3 px-3 py-3">
                   <label className="block">
-                    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-                      Имя
+                    <span className="mb-1.5 block text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
+                      Имя *
                     </span>
                     <input
                       type="text"
@@ -773,22 +1102,25 @@ export default function ProfilePage() {
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-                      Фамилия
+                    <span className="mb-1.5 block text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
+                      Фамилия{" "}
+                      <span className="normal-case tracking-normal text-zinc-400/80">
+                        (необязательно)
+                      </span>
                     </span>
                     <input
                       type="text"
                       value={profileEdit.lastName}
                       onChange={(e) => profileEdit.setLastName(e.target.value)}
                       disabled={profileEdit.loading || profileEdit.saving}
-                      placeholder="Фамилия"
+                      placeholder="Фамилия (необязательно)"
                       autoComplete="family-name"
                       className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-                      Email
+                    <span className="mb-1.5 block text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
+                      Email *
                     </span>
                     <input
                       type="email"
@@ -814,7 +1146,7 @@ export default function ProfilePage() {
                     }
                   });
                 }}
-                className="theme-button w-full rounded-xl px-4 py-3 text-sm"
+                className="theme-button w-full"
               >
                 {profileEdit.saving
                   ? t("common.saving", "Сохранение…")
@@ -849,50 +1181,62 @@ export default function ProfilePage() {
         {view === "city" ? (
           <>
             <BackBar onBack={() => setView("home")} />
-            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+            <p
+              className="mb-3 px-0.5"
+              style={{
+                color: "var(--app-description)",
+                fontSize: "var(--app-text-sm)",
+              }}
+            >
               Мойки и ЭЗС показываются только в выбранном городе.
             </p>
             {citiesLoading ? (
-              <div className="h-28 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900" />
+              <div
+                className="h-28 animate-pulse"
+                style={{
+                  borderRadius: "var(--app-section-radius)",
+                  border: "var(--app-border-width) solid var(--app-border)",
+                  background: "var(--app-hover)",
+                }}
+              />
             ) : (
               <SectionCard>
-                {cities.map((city, index) => {
+                {cities.map((city) => {
                   const selected = geoId === city.id;
                   const busy = citySavingId === city.id;
                   return (
-                    <div key={city.id}>
-                      {index > 0 ? (
-                        <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                      ) : null}
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        disabled={citySavingId != null}
-                        onClick={() => {
-                          void (async () => {
-                            if (selected) return;
-                            setCitySavingId(city.id);
-                            try {
-                              await updateUserSettings({ geo_id: city.id });
-                              refreshCity();
-                              showToast(`Город: ${formatCityName(city, locale)}`);
-                              setView("home");
-                            } catch {
-                              showToast("Не удалось сохранить город");
-                            } finally {
-                              setCitySavingId(null);
-                            }
-                          })();
-                        }}
-                      className="app-row text-left hover:bg-[var(--app-hover)] disabled:opacity-60"
-                      >
-                        <RadioMark checked={selected} busy={busy} />
-                        <span className="min-w-0 flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                    <button
+                      key={city.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={citySavingId != null}
+                      onClick={() => {
+                        void (async () => {
+                          if (selected) return;
+                          setCitySavingId(city.id);
+                          try {
+                            await updateUserSettings({ geo_id: city.id });
+                            refreshCity();
+                            showToast(`Город: ${formatCityName(city, locale)}`);
+                            setView("home");
+                          } catch {
+                            showToast("Не удалось сохранить город");
+                          } finally {
+                            setCitySavingId(null);
+                          }
+                        })();
+                      }}
+                      className="profile-nav-row theme-hover text-left disabled:opacity-60"
+                    >
+                      <RadioMark checked={selected} busy={busy} />
+                      <span className="profile-nav-row__main">
+                        <span className="profile-nav-row__label">Город</span>
+                        <span className="profile-nav-row__hint">
                           {formatCityName(city, locale)}
                         </span>
-                      </button>
-                    </div>
+                      </span>
+                    </button>
                   );
                 })}
               </SectionCard>
@@ -904,28 +1248,25 @@ export default function ProfilePage() {
           <>
             <BackBar onBack={() => setView("home")} />
             <SectionCard>
-              {LANGUAGE_OPTIONS.map((lang, index) => (
-                <div key={lang.id}>
-                  {index > 0 ? (
-                    <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  ) : null}
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={lang.id === locale}
-                    onClick={() => {
-                      dispatch(setLocale(lang.id));
-                      notifyLocaleChanged(lang.id);
-                      showToast(lang.label);
-                    }}
-                    className="app-row text-left hover:bg-[var(--app-hover)]"
-                  >
-                    <RadioMark checked={lang.id === locale} />
-                    <span className="min-w-0 flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                      {lang.label}
-                    </span>
-                  </button>
-                </div>
+              {LANGUAGE_OPTIONS.map((lang) => (
+                <button
+                  key={lang.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={lang.id === locale}
+                  onClick={() => {
+                    dispatch(setLocale(lang.id));
+                    notifyLocaleChanged(lang.id);
+                    showToast(lang.label);
+                  }}
+                  className="profile-nav-row theme-hover text-left"
+                >
+                  <RadioMark checked={lang.id === locale} />
+                  <span className="profile-nav-row__main">
+                    <span className="profile-nav-row__label">Язык</span>
+                    <span className="profile-nav-row__hint">{lang.label}</span>
+                  </span>
+                </button>
               ))}
             </SectionCard>
           </>
@@ -933,295 +1274,423 @@ export default function ProfilePage() {
 
         {view === "appearance" ? (
           <>
-            <BackBar onBack={() => setView("home")} />
+            <BackBar
+              onBack={() => {
+                if (appearanceSection === "menu") setView("home");
+                else setAppearanceSection("menu");
+              }}
+            />
 
-            <section className="mb-5">
-              <SectionTitle>Тема</SectionTitle>
-              <SectionCard>
-                {THEME_OPTIONS.map((option, index) => (
-                  <div key={option.id}>
-                    {index > 0 ? (
-                      <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                    ) : null}
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={theme === option.id}
-                      onClick={() => {
-                        setTheme(option.id);
-                        setEditPaletteMode(option.id);
-                      }}
-                      className="app-row text-left hover:bg-[var(--app-hover)]"
-                    >
-                      <RadioMark checked={theme === option.id} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                          {option.label}
-                        </span>
-                        <span className="mt-0.5 block text-[11px] text-zinc-400">
-                          {option.hint}
-                        </span>
-                      </span>
-                    </button>
-                  </div>
-                ))}
-              </SectionCard>
-            </section>
-
-            <section className="mb-5">
-              <SectionTitle>Цвета</SectionTitle>
-              <div
-                className="mb-2 flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-800 dark:bg-zinc-900/60"
-                role="tablist"
-                aria-label="Палитра темы"
-              >
-                {(
-                  [
-                    { id: "light" as const, label: "Светлая" },
-                    { id: "dark" as const, label: "Тёмная" },
-                  ] as const
-                ).map((tab) => {
-                  const active = editPaletteMode === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      onClick={() => setEditPaletteMode(tab.id)}
-                      className={[
-                        "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition",
-                        active
-                          ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
-                          : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
-                      ].join(" ")}
-                    >
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <SectionCard>
-                {(() => {
-                  const palette = palettes[editPaletteMode];
-                  return (
-                    <>
-                      <div
-                        className="m-3 overflow-hidden rounded-xl"
-                        style={{
-                          backgroundColor: palette.background,
-                          border: `1px solid ${palette.border}`,
-                        }}
-                      >
-                        <div
-                          className="m-2 space-y-2 rounded-lg p-3 transition"
-                          style={{
-                            backgroundColor: palette.block,
-                            border: `1px solid ${palette.border}`,
-                          }}
-                        >
-                          <p
-                            className="text-sm font-semibold"
-                            style={{ color: palette.text }}
-                          >
-                            Превью блока
-                          </p>
-                          <p
-                            className="text-xs"
-                            style={{ color: palette.description }}
-                          >
-                            Description · подпись вторичного текста
-                          </p>
-                          <div
-                            className="rounded-lg px-2.5 py-2 text-xs font-medium transition"
-                            style={{
-                              backgroundColor: palette.hover,
-                              color: palette.text,
-                              border: `1px solid ${palette.border}`,
-                            }}
-                          >
-                            Hover состояние строки
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              className="text-xs font-semibold"
-                              style={{
-                                backgroundColor: palette.button,
-                                color: palette.buttonText,
-                                borderRadius: "var(--app-button-radius)",
-                                padding:
-                                  "var(--app-button-pad-y) var(--app-button-pad-x)",
-                              }}
-                            >
-                              Button
-                            </button>
-                            <button
-                              type="button"
-                              className="text-xs font-semibold"
-                              style={{
-                                backgroundColor: palette.buttonHover,
-                                color: palette.buttonText,
-                                borderRadius: "var(--app-button-radius)",
-                                padding:
-                                  "var(--app-button-pad-y) var(--app-button-pad-x)",
-                              }}
-                            >
-                              Hover
-                            </button>
-                          </div>
-                          <div className="flex flex-wrap gap-2 pt-1 text-[10px]">
-                            <span style={{ color: palette.danger }}>danger</span>
-                            <span style={{ color: palette.success }}>success</span>
-                            <span style={{ color: palette.warning }}>warning</span>
-                            <span
-                              className="h-3 w-3 rounded-full"
-                              style={{ backgroundColor: palette.mapWash }}
-                              title="mapWash"
-                            />
-                            <span
-                              className="h-3 w-3 rounded-full"
-                              style={{ backgroundColor: palette.mapCharging }}
-                              title="mapCharging"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {PALETTE_FIELD_META.map((field, index) => (
-                        <div key={field.key}>
-                          {index > 0 ? (
-                            <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                          ) : null}
-                          <PaletteColorRow
-                            label={field.label}
-                            hint={field.hint}
-                            cssVars={field.cssVars}
-                            uses={field.uses}
-                            value={palette[field.key]}
-                            onChange={(hex) =>
-                              setField(editPaletteMode, field.key, hex)
-                            }
-                          />
-                        </div>
-                      ))}
-
-                      <div className="space-y-2 border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
-                        <p className="theme-description text-[11px]">
-                          Сохраняется в localStorage
-                        </p>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <button
-                            type="button"
-                            onClick={() => resetPalette(editPaletteMode)}
-                            className="theme-button-secondary flex-1 px-3 py-2 text-xs"
-                          >
-                            Сбросить эту тему
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              resetPalette();
-                              resetLayout();
-                              setTheme("light");
-                              setEditPaletteMode("light");
-                              showToast("Оформление сброшено к значениям по умолчанию");
-                            }}
-                            className="theme-button flex-1 px-3 py-2 text-xs"
-                          >
-                            Всё по умолчанию
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </SectionCard>
-            </section>
-
-            <section className="mb-5">
-              <SectionTitle>Отступы, радиусы, типографика</SectionTitle>
-              <SectionCard>
-                <div
-                  className="m-3 overflow-hidden"
+            {appearanceSection === "menu" ? (
+              <section className="mb-5">
+                <SectionTitle>Оформление</SectionTitle>
+                <p
+                  className="mb-2 px-0.5 leading-relaxed"
                   style={{
-                    backgroundColor: "var(--app-hover)",
-                    border: "1px solid var(--app-border)",
-                    borderRadius: "var(--app-section-radius)",
-                    padding: "var(--app-page-pad-top) var(--app-page-pad-x) var(--app-page-pad-bottom)",
+                    color: "var(--app-description)",
+                    fontSize: "var(--app-text-sm)",
                   }}
                 >
-                  <div
-                    style={{
-                      backgroundColor: "var(--app-block)",
-                      border: "1px solid var(--app-border)",
-                      borderRadius: "var(--app-section-radius-sm)",
-                    }}
-                  >
-                    <div
-                      className="text-xs font-medium"
-                      style={{
-                        color: "var(--app-text)",
-                        padding: "var(--app-row-pad-y) var(--app-row-pad-x)",
-                      }}
-                    >
-                      Превью page / row / radius
-                    </div>
-                    <div
-                      className="text-[11px]"
-                      style={{
-                        color: "var(--app-description)",
-                        borderTop: "1px solid var(--app-border)",
-                        padding: "var(--app-row-pad-y) var(--app-row-pad-x)",
-                      }}
-                    >
-                      Меняйте слайдеры — отступы на экране обновятся сразу
-                    </div>
-                  </div>
-                </div>
-
-                {LAYOUT_FIELD_META.map((field, index) => (
-                  <div key={field.key}>
-                    {index > 0 ? (
-                      <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                    ) : null}
-                    <LayoutSpacingRow
-                      label={field.label}
-                      hint={field.hint}
-                      cssVar={field.cssVar}
-                      uses={field.uses}
-                      value={layout[field.key]}
-                      unit={field.unit}
-                      min={field.min}
-                      max={field.max}
-                      step={field.step}
-                      onChange={(cssValue) => setLayoutField(field.key, cssValue)}
+                  Выберите раздел — как пункты в профиле: сверху название, снизу
+                  короткое значение.
+                </p>
+                <SectionCard>
+                  {APPEARANCE_MENU.map((item) => (
+                    <ProfileNavRow
+                      key={item.id}
+                      label={item.label}
+                      hint={item.hint}
+                      onClick={() => setAppearanceSection(item.id)}
                     />
-                  </div>
-                ))}
-
-                <div className="border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
+                  ))}
+                </SectionCard>
+                <div className="mt-3 px-0.5">
                   <button
                     type="button"
                     onClick={() => {
+                      resetPalette();
                       resetLayout();
-                      showToast("Отступы сброшены");
+                      setTheme("light");
+                      setEditPaletteMode("light");
+                      showToast("Оформление сброшено к значениям по умолчанию");
                     }}
-                    className="theme-button-secondary w-full px-3 py-2 text-xs"
+                    className="theme-button-secondary w-full"
                   >
-                    Сбросить отступы
+                    Всё по умолчанию
                   </button>
                 </div>
-              </SectionCard>
-            </section>
+              </section>
+            ) : null}
+
+            {appearanceSection === "theme" ? (
+              <>
+                <section className="mb-5">
+                  <SectionTitle>Тема</SectionTitle>
+                  <SectionCard>
+                    {THEME_OPTIONS.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={theme === option.id}
+                        onClick={() => {
+                          setTheme(option.id);
+                          setEditPaletteMode(option.id);
+                        }}
+                        className="profile-nav-row theme-hover text-left"
+                      >
+                        <RadioMark checked={theme === option.id} />
+                        <span className="profile-nav-row__main">
+                          <span className="profile-nav-row__label">
+                            {option.label}
+                          </span>
+                          <span className="profile-nav-row__hint">
+                            {option.hint}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </SectionCard>
+                </section>
+
+                <section className="mb-5">
+                  <SectionTitle>Цвета</SectionTitle>
+                  <div
+                    className="mb-2 flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-800 dark:bg-zinc-900/60"
+                    role="tablist"
+                    aria-label="Палитра темы"
+                  >
+                    {(
+                      [
+                        { id: "light" as const, label: "Светлая" },
+                        { id: "dark" as const, label: "Тёмная" },
+                      ] as const
+                    ).map((tab) => {
+                      const active = editPaletteMode === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setEditPaletteMode(tab.id)}
+                          className={[
+                            "flex-1 rounded-md px-2 py-1.5 app-text-xs font-medium transition",
+                            active
+                              ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
+                              : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
+                          ].join(" ")}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <SectionCard>
+                    {(() => {
+                      const palette = palettes[editPaletteMode];
+                      return (
+                        <>
+                          <div
+                            className="m-3 overflow-hidden rounded-xl"
+                            style={{
+                              backgroundColor: palette.background,
+                              border: `1px solid ${palette.border}`,
+                            }}
+                          >
+                            <div
+                              className="m-2 space-y-2 rounded-lg p-3 transition"
+                              style={{
+                                backgroundColor: palette.block,
+                                border: `1px solid ${palette.border}`,
+                              }}
+                            >
+                              <p
+                                className="app-text-md font-semibold"
+                                style={{ color: palette.text }}
+                              >
+                                Превью блока
+                              </p>
+                              <p
+                                className="app-text-xs"
+                                style={{ color: palette.description }}
+                              >
+                                Description · подпись вторичного текста
+                              </p>
+                              <div
+                                className="rounded-lg px-2.5 py-2 app-text-xs font-medium transition"
+                                style={{
+                                  backgroundColor: palette.hover,
+                                  color: palette.text,
+                                  border: `1px solid ${palette.border}`,
+                                }}
+                              >
+                                Hover состояние строки
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  className="app-text-xs font-semibold"
+                                  style={{
+                                    backgroundColor: palette.button,
+                                    color: palette.buttonText,
+                                    borderRadius: "var(--app-button-radius)",
+                                    padding:
+                                      "var(--app-button-pad-y) var(--app-button-pad-x)",
+                                  }}
+                                >
+                                  Button
+                                </button>
+                                <button
+                                  type="button"
+                                  className="app-text-xs font-semibold"
+                                  style={{
+                                    backgroundColor: palette.buttonHover,
+                                    color: palette.buttonText,
+                                    borderRadius: "var(--app-button-radius)",
+                                    padding:
+                                      "var(--app-button-pad-y) var(--app-button-pad-x)",
+                                  }}
+                                >
+                                  Hover
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {PALETTE_FIELD_META.map((field, index) => (
+                            <div key={field.key}>
+                              {index > 0 ? (
+                                <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                              ) : null}
+                              <PaletteColorRow
+                                label={field.label}
+                                hint={field.hint}
+                                cssVars={field.cssVars}
+                                uses={field.uses}
+                                value={palette[field.key]}
+                                onChange={(hex) =>
+                                  setField(editPaletteMode, field.key, hex)
+                                }
+                              />
+                            </div>
+                          ))}
+
+                          <div className="space-y-2 border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
+                            <p className="theme-description app-text-xs">
+                              Сохраняется в localStorage
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => resetPalette(editPaletteMode)}
+                              className="theme-button-secondary w-full"
+                            >
+                              Сбросить эту тему
+                            </button>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </SectionCard>
+                </section>
+              </>
+            ) : null}
+
+            {appearanceSection !== "menu" &&
+            appearanceSection !== "theme" ? (
+              <section className="mb-5">
+                <SectionTitle>
+                  {APPEARANCE_MENU.find((m) => m.id === appearanceSection)?.label}
+                </SectionTitle>
+                <p
+                  className="mb-2 px-0.5 leading-relaxed"
+                  style={{
+                    color: "var(--app-description)",
+                    fontSize: "var(--app-text-sm)",
+                  }}
+                >
+                  {
+                    APPEARANCE_MENU.find((m) => m.id === appearanceSection)
+                      ?.description
+                  }
+                  . У каждого слайдера — «Где применяется».
+                </p>
+                <SectionCard>
+                  {appearanceSection === "rows" ? (
+                    <div
+                      className="m-3 overflow-hidden"
+                      style={{
+                        backgroundColor: "var(--app-hover)",
+                        border: "var(--app-border-width) solid var(--app-border)",
+                        borderRadius: "var(--app-section-radius)",
+                        padding: "0.5rem",
+                      }}
+                    >
+                      <div
+                        className="profile-card"
+                        style={{ pointerEvents: "none" }}
+                      >
+                        <div className="profile-nav-row is-static">
+                          <span className="profile-nav-row__icon" aria-hidden>
+                            ◆
+                          </span>
+                          <span className="profile-nav-row__main">
+                            <span className="profile-nav-row__label">
+                              Превью пункта
+                            </span>
+                            <span className="profile-nav-row__hint">
+                              Как в меню профиля
+                            </span>
+                          </span>
+                          <span className="profile-nav-row__chevron" aria-hidden>
+                            ›
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {appearanceSection === "text" ? (
+                    <div
+                      className="m-3 space-y-1.5 rounded-xl px-3 py-3"
+                      style={{
+                        backgroundColor: "var(--app-hover)",
+                        border: "1px solid var(--app-border)",
+                      }}
+                    >
+                      <p className="app-text-xs" style={{ color: "var(--app-description)" }}>
+                        xs · подписи и бейджи
+                      </p>
+                      <p className="app-text-sm" style={{ color: "var(--app-description)" }}>
+                        sm · вторичный текст
+                      </p>
+                      <p className="app-text-md font-medium" style={{ color: "var(--app-text)" }}>
+                        md · основной текст (база rem)
+                      </p>
+                      <p className="app-text-lg font-semibold" style={{ color: "var(--app-text)" }}>
+                        lg · акценты и значения
+                      </p>
+                      <p className="app-text-xl font-bold" style={{ color: "var(--app-text)" }}>
+                        xl · заголовки sheet
+                      </p>
+                      <p className="app-text-2xl font-bold" style={{ color: "var(--app-text)" }}>
+                        2xl · крупные заголовки
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {appearanceSection === "page" ? (
+                    <div
+                      className="m-3 overflow-hidden"
+                      style={{
+                        backgroundColor: "var(--app-hover)",
+                        border: "1px solid var(--app-border)",
+                        borderRadius: "var(--app-section-radius)",
+                        padding:
+                          "var(--app-page-pad-top) var(--app-page-pad-x) var(--app-page-pad-bottom)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          backgroundColor: "var(--app-block)",
+                          border: "1px solid var(--app-border)",
+                          borderRadius: "var(--app-section-radius-sm)",
+                          padding: "var(--app-row-pad-y) var(--app-row-pad-x)",
+                        }}
+                      >
+                        <p className="app-text-sm font-medium">Превью полей страницы</p>
+                        <p
+                          className="app-text-xs mt-1"
+                          style={{ color: "var(--app-description)" }}
+                        >
+                          Меняйте слайдеры — отступы обновятся сразу
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {APPEARANCE_LAYOUT_GROUPS[appearanceSection].map((group) => {
+                    const fields = LAYOUT_FIELD_META.filter(
+                      (f) => f.group === group,
+                    );
+                    const multi =
+                      APPEARANCE_LAYOUT_GROUPS[appearanceSection].length > 1;
+                    return (
+                      <div key={group}>
+                        {multi ? (
+                          <div
+                            className="border-t border-zinc-100 px-3 pb-1 pt-3 dark:border-zinc-800"
+                            style={{
+                              background:
+                                "color-mix(in oklab, var(--app-hover) 70%, transparent)",
+                            }}
+                          >
+                            <p
+                              className="font-semibold uppercase tracking-wider"
+                              style={{
+                                color: "var(--app-button)",
+                                fontSize: "var(--app-text-xs)",
+                              }}
+                            >
+                              {LAYOUT_GROUP_LABELS[group]}
+                            </p>
+                            <p
+                              className="mt-0.5"
+                              style={{
+                                color: "var(--app-description)",
+                                fontSize: "var(--app-text-xs)",
+                              }}
+                            >
+                              {LAYOUT_GROUP_HINTS[group]}
+                            </p>
+                          </div>
+                        ) : null}
+                        {fields.map((field) => (
+                          <div key={field.key}>
+                            <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                            <LayoutSpacingRow
+                              label={field.label}
+                              hint={field.hint}
+                              cssVar={field.cssVar}
+                              uses={field.uses}
+                              value={layout[field.key]}
+                              unit={field.unit}
+                              min={field.min}
+                              max={field.max}
+                              step={field.step}
+                              onChange={(cssValue) =>
+                                setLayoutField(field.key, cssValue)
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+
+                  <div className="border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetLayout();
+                        showToast("Отступы сброшены");
+                      }}
+                      className="theme-button-secondary w-full"
+                    >
+                      Сбросить отступы
+                    </button>
+                  </div>
+                </SectionCard>
+              </section>
+            ) : null}
           </>
         ) : null}
 
         {view === "garage" ? (
           <>
             <BackBar onBack={() => setView("home")} />
-            <GaragePanel cars={cars} onChange={setCars} />
+            <GaragePanel />
           </>
         ) : null}
 
@@ -1230,53 +1699,152 @@ export default function ProfilePage() {
             <BackBar onBack={() => setView("home")} />
             <div className="space-y-4">
               <div>
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                <p className="mb-2 text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
                   {t("profile.promo", "Промокод")}
                 </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={promoCode}
-                    onChange={(e) => updatePromoCode(e.target.value)}
-                    placeholder="Введите код"
-                    className="theme-field min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                  />
-                  <button
-                    type="button"
-                    onClick={applyPromo}
-                    className="theme-button px-3 py-2 text-xs"
-                  >
-                    OK
-                  </button>
-                </div>
-                {promoMessage ? (
-                  <p className="theme-accent-text mt-2 text-xs">{promoMessage}</p>
+                {hasReferrer ? (
+                  <p className="theme-accent-text text-xs">
+                    {t("profile.promo_already", "Вы уже зашли через промокод")}
+                  </p>
                 ) : (
-                  <p className="mt-2 text-xs text-zinc-400">Дизайн без API — подтверждение локальное.</p>
+                  <>
+                    <div className="theme-input-row">
+                      <input
+                        type="text"
+                        value={promoCode}
+                        onChange={(e) => updatePromoCode(e.target.value)}
+                        placeholder={t("profile.promo_placeholder", "Введите код")}
+                        maxLength={8}
+                        disabled={promoBusy}
+                        className="theme-field min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm uppercase tracking-wide text-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void applyPromo()}
+                        disabled={promoBusy}
+                        className="theme-button disabled:opacity-50"
+                      >
+                        OK
+                      </button>
+                    </div>
+                    {promoMessage ? (
+                      <p
+                        className={`mt-2 text-xs ${promoError ? "text-red-500" : "theme-accent-text"}`}
+                      >
+                        {promoMessage}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-xs text-zinc-400">
+                        {t(
+                          "profile.promo_hint",
+                      "После вашей первой оплаты пригласившему зачислится 100 ₸ на баланс",
+                        )}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
               <SectionCard>
                 <div className="px-3 py-3">
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                  <p className="text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
                     {t("profile.referral", "Рефералка")}
                   </p>
                   <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    Поделитесь ссылкой — бонус после первой мойки друга
+                    {t(
+                      "profile.referral_hint",
+                      "Поделитесь кодом — после первой оплаты друга 100 ₸ упадут вам на баланс",
+                    )}
                   </p>
-                  <p className="mt-3 font-mono text-base font-semibold tracking-wide text-zinc-900 dark:text-zinc-50">
-                    {REFERRAL_CODE}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void handleCopyReferral()}
-                    className="theme-button mt-3 w-full px-3 py-2 text-xs"
-                  >
-                    {copied ? "Скопировано" : "Скопировать ссылку"}
-                  </button>
+
+                  <div className="mt-3 flex items-center gap-1">
+                    <p className="min-w-0 flex-1 font-mono text-base font-semibold tracking-wide text-zinc-900 dark:text-zinc-50">
+                      {myReferralCode}
+                    </p>
+                    <IconActionButton
+                      label={
+                        copied
+                          ? t("profile.copied", "Скопировано")
+                          : t("profile.copy_code", "Скопировать код")
+                      }
+                      disabled={!myReferralCode || myReferralCode === "—"}
+                      onClick={() => void handleCopyReferral()}
+                    >
+                      {copied ? <IconCheck /> : <IconCopy />}
+                    </IconActionButton>
+                  </div>
                 </div>
               </SectionCard>
+
+              <SectionCard>
+                <ProfileNavRow
+                  label={t("profile.my_clients", "Ваши клиенты")}
+                  hint={
+                    clientsCount === 0
+                      ? t("profile.my_clients_empty", "Пока никто не подключился")
+                      : `${clientsCount}`
+                  }
+                  onClick={() => setView("referral-clients")}
+                />
+              </SectionCard>
             </div>
+          </>
+        ) : null}
+
+        {view === "referral-clients" ? (
+          <>
+            <BackBar onBack={() => setView("promo")} />
+            <p className="mb-1 text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
+              {t("profile.my_clients", "Ваши клиенты")}
+            </p>
+            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+              {t(
+                "profile.my_clients_hint",
+                "Кто подключился по вашему коду",
+              )}
+            </p>
+            <SectionCard>
+              {clientsLoading ? (
+                <p className="px-3 py-3 text-center text-xs text-zinc-400">
+                  {t("common.loading", "Загрузка...")}
+                </p>
+              ) : referralClients.length === 0 ? (
+                <p className="px-3 py-3 text-center text-xs text-zinc-400">
+                  {t("profile.my_clients_empty", "Пока никто не подключился")}
+                </p>
+              ) : (
+                referralClients.map((client, index) => {
+                  const joined = formatReferredAt(client.referred_at);
+                  return (
+                    <div key={client.id}>
+                      {index > 0 ? (
+                        <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                      ) : null}
+                      <div className="app-row app-row--between">
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                            {t("profile.client_anonymous", "Клиент")} {index + 1}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-zinc-400">
+                            {[
+                              joined,
+                              client.bonus_paid
+                                ? t("profile.bonus_paid", "зачислено на баланс")
+                                : t(
+                                    "profile.client_waiting",
+                                    "ожидает первую оплату",
+                                  ),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </SectionCard>
           </>
         ) : null}
 
@@ -1367,7 +1935,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setLogoutConfirmOpen(false)}
-                  className="theme-button-secondary rounded-xl px-4 py-3 text-sm"
+                  className="theme-button-secondary"
                 >
                   {t("common.cancel", "Отмена")}
                 </button>
@@ -1376,7 +1944,7 @@ export default function ProfilePage() {
                   onClick={() => {
                     setLogoutConfirmOpen(false);
                     forceLogout({
-                      immediate: true,
+                      skipDebug: true,
                       reason: "Выход из профиля",
                       source: "ProfilePage",
                     });

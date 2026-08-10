@@ -201,7 +201,7 @@ export default function HistoryFilterDrawer({
         <div className="history-drawer__top">
           <button
             type="button"
-            className="history-drawer__close"
+            className="app-drawer-close"
             onClick={onClose}
             aria-label={t("common.close", "Закрыть")}
           >

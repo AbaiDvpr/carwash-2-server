@@ -173,7 +173,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
       >
         <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           <div className="border-b border-zinc-100 px-3 py-3 dark:border-zinc-800">
-            <p className="text-[11px] font-medium text-zinc-400">
+            <p className="text-[0.8125rem] font-medium text-zinc-400">
               {t("payment.title", "Оплата")}
             </p>
             <h1 className="mt-0.5 text-base font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
@@ -185,21 +185,21 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
           <div className="border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                <p className="text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
                   {t("home.balance", "Баланс")}
                 </p>
                 <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                   {balanceLoading && balance == null ? "…" : formatBalance(balanceValue)}
                 </p>
               </div>
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[0.8125rem] text-zinc-400">
                 {t("payment.from_balance", "Списание с баланса")}
               </p>
             </div>
           </div>
 
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
-            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+            <p className="mb-1 text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
               {station.kind === "charging"
                 ? t("payment.charge", "Оплата зарядки")
                 : t("payment.wash", "Оплата мойки")}
@@ -213,7 +213,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
           </div>
 
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+            <p className="mb-2 text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
               {t("payment.tariffs", "Тарифы")}
             </p>
             <div className="space-y-1.5">
@@ -247,7 +247,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                         {tariff.title}
                       </p>
                       {tariff.description ? (
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                        <p className="text-[0.8125rem] text-zinc-500 dark:text-zinc-400">
                           {tariff.description}
                         </p>
                       ) : null}
@@ -256,7 +256,7 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
                           {tariff.items.map((item) => (
                             <li
                               key={item}
-                              className="text-[11px] leading-snug text-zinc-500 dark:text-zinc-400"
+                              className="text-[0.8125rem] leading-snug text-zinc-500 dark:text-zinc-400"
                             >
                               · {item}
                             </li>

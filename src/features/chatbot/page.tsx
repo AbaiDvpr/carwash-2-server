@@ -136,7 +136,7 @@ function ChatRoom({ onBack }: { onBack: () => void }) {
             <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
               {t("chatbot.title", "Помощник CarWash")}
             </h1>
-            <p className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <p className="flex items-center gap-1.5 text-[0.8125rem] text-zinc-500 dark:text-zinc-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               {t("chatbot.online", "Онлайн")}
             </p>
@@ -158,7 +158,7 @@ function ChatRoom({ onBack }: { onBack: () => void }) {
                     ? t("chatbot.welcome", message.text)
                     : message.text}
                 </div>
-                <p className="mt-1 px-1 text-[10px] text-zinc-400">{message.time}</p>
+                <p className="mt-1 px-1 text-[0.75rem] text-zinc-400">{message.time}</p>
               </div>
             </div>
           ) : (
@@ -167,7 +167,7 @@ function ChatRoom({ onBack }: { onBack: () => void }) {
                 <div className="rounded-xl rounded-br-md bg-blue-600 px-3 py-2 text-xs leading-relaxed text-white">
                   {message.text}
                 </div>
-                <p className="mt-1 px-1 text-right text-[10px] text-zinc-400">{message.time}</p>
+                <p className="mt-1 px-1 text-right text-[0.75rem] text-zinc-400">{message.time}</p>
               </div>
             </div>
           ),
@@ -184,7 +184,7 @@ function ChatRoom({ onBack }: { onBack: () => void }) {
               type="button"
               onClick={() => sendMessage(item.question)}
               disabled={isTyping}
-              className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-[0.8125rem] font-medium text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
             >
               {item.question}
             </button>

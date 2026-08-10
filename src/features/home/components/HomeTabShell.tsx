@@ -24,7 +24,7 @@ export default function HomeTabShell({
   const header = (
     <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="theme-description text-[11px] font-medium uppercase tracking-wider">
+        <p className="theme-description text-[0.8125rem] font-medium uppercase tracking-wider">
           {eyebrow}
         </p>
         <h1

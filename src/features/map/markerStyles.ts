@@ -1,10 +1,26 @@
-/** Стили маркеров карты: фигура + цвета для мойки / ЭЗС, localStorage */
+/** Стили маркеров карты: фигура + цвета + конструктор содержимого, localStorage */
 
 export const MAP_MARKER_STYLES_KEY = "map_marker_styles";
 
 export const MARKER_SHAPE_COUNT = 30;
 
 export type MarkerKind = "wash" | "charging";
+
+/** Части внутри маркера (конструктор) */
+export type MarkerFacePart = "icon" | "free" | "divider" | "total";
+
+export type MarkerFaceLayout = {
+  /** Порядок блоков слева направо */
+  parts: MarkerFacePart[];
+  /** Расстояние между блоками, rem */
+  gap: number;
+  /** Толщина дивайдера, px */
+  dividerWidth: number;
+  /** Высота дивайдера, em (относительно цифр) */
+  dividerHeight: number;
+  /** Прозрачность дивайдера 0…1 */
+  dividerOpacity: number;
+};
 
 export type KindMarkerPrefs = {
   /** ID фигуры: 1…30 */
@@ -17,6 +33,13 @@ export type KindMarkerPrefs = {
   progressFree: string;
   /** Progress: занято */
   progressBusy: string;
+  /**
+   * Показывать всего (2/4 с дивайдером).
+   * false — только свободные, без «/» и без total.
+   */
+  showTotal: boolean;
+  /** Внутренняя раскладка: иконка / свободно / дивайдер / всего */
+  layout: MarkerFaceLayout;
 };
 
 export type MapMarkerStylePrefs = {
@@ -82,24 +105,47 @@ export const MARKER_COLOR_PRESETS = [
   "#64748b",
 ] as const;
 
+export const DEFAULT_MARKER_FACE_LAYOUT: MarkerFaceLayout = {
+  parts: ["icon", "free"],
+  gap: 0.14,
+  dividerWidth: 2.5,
+  dividerHeight: 0.95,
+  dividerOpacity: 0.9,
+};
+
+export const MARKER_FACE_PART_META: {
+  id: MarkerFacePart;
+  label: string;
+  once: boolean;
+}[] = [
+  { id: "icon", label: "Иконка", once: true },
+  { id: "free", label: "Свободно", once: true },
+];
+
 export const DEFAULT_MARKER_STYLE_PREFS: MapMarkerStylePrefs = {
   wash: {
     shapeId: 1,
     accent: "#38bdf8",
     ink: "#ffffff",
-    progressFree: "#22c55e",
-    progressBusy: "#f59e0b",
+    progressFree: "#ffffff",
+    progressBusy: "#ffffff",
+    /** На точке только свободные, без «/» и «всего» */
+    showTotal: false,
+    layout: structuredClone(DEFAULT_MARKER_FACE_LAYOUT),
   },
   charging: {
     shapeId: 1,
     accent: "#facc15",
     ink: "#1c1917",
-    progressFree: "#22c55e",
-    progressBusy: "#f59e0b",
+    progressFree: "#ffffff",
+    progressBusy: "#ffffff",
+    showTotal: false,
+    layout: structuredClone(DEFAULT_MARKER_FACE_LAYOUT),
   },
 };
 
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const PART_SET = new Set<MarkerFacePart>(["icon", "free"]);
 
 export function clampMarkerShapeId(id: unknown): number {
   const n = typeof id === "number" ? id : Number(id);
@@ -129,6 +175,50 @@ export function normalizeHexColor(
   return raw.toLowerCase();
 }
 
+function clampNum(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+export function normalizeMarkerFaceLayout(
+  raw: Partial<MarkerFaceLayout> | undefined,
+  fallback: MarkerFaceLayout = DEFAULT_MARKER_FACE_LAYOUT,
+): MarkerFaceLayout {
+  const partsRaw = Array.isArray(raw?.parts) ? raw.parts : fallback.parts;
+  const parts: MarkerFacePart[] = [];
+  const seenOnce = new Set<MarkerFacePart>();
+
+  for (const item of partsRaw) {
+    if (!PART_SET.has(item as MarkerFacePart)) continue;
+    const part = item as MarkerFacePart;
+    const meta = MARKER_FACE_PART_META.find((m) => m.id === part);
+    if (meta?.once) {
+      if (seenOnce.has(part)) continue;
+      seenOnce.add(part);
+    }
+    parts.push(part);
+  }
+
+  if (parts.length === 0) {
+    parts.push(...fallback.parts);
+  }
+
+  // На точке только свободные — без «/» и «всего»
+  const cleaned = parts.filter((part) => part !== "divider" && part !== "total");
+  if (!cleaned.includes("free")) {
+    cleaned.push("free");
+  }
+
+  return {
+    parts: cleaned,
+    gap: clampNum(raw?.gap, 0, 0.6, fallback.gap),
+    dividerWidth: clampNum(raw?.dividerWidth, 1, 8, fallback.dividerWidth),
+    dividerHeight: clampNum(raw?.dividerHeight, 0.5, 1.8, fallback.dividerHeight),
+    dividerOpacity: clampNum(raw?.dividerOpacity, 0.15, 1, fallback.dividerOpacity),
+  };
+}
+
 function normalizeKindPrefs(
   raw: Partial<KindMarkerPrefs> | undefined,
   fallback: KindMarkerPrefs,
@@ -137,9 +227,30 @@ function normalizeKindPrefs(
     shapeId: clampMarkerShapeId(raw?.shapeId ?? fallback.shapeId),
     accent: normalizeHexColor(raw?.accent, fallback.accent),
     ink: normalizeHexColor(raw?.ink, fallback.ink),
-    progressFree: normalizeHexColor(raw?.progressFree, fallback.progressFree),
-    progressBusy: normalizeHexColor(raw?.progressBusy, fallback.progressBusy),
+    progressFree: "#ffffff",
+    progressBusy: "#ffffff",
+    showTotal: false,
+    layout: normalizeMarkerFaceLayout(raw?.layout, fallback.layout),
   };
+}
+
+/** Части лица маркера: только иконка + свободные (без дивайдера и «всего»). */
+export function resolveMarkerFaceParts(
+  prefs: Pick<KindMarkerPrefs, "layout" | "showTotal">,
+): MarkerFacePart[] {
+  const layout = normalizeMarkerFaceLayout(prefs.layout);
+  const parts = layout.parts.filter(
+    (part) => part !== "divider" && part !== "total",
+  );
+  if (!parts.includes("free")) {
+    parts.push("free");
+  }
+  return parts;
+}
+
+/** Белая обводка маркера (без цветного progress). */
+export function buildMarkerSlotGradient(_free?: number, _total?: number): string {
+  return "#ffffff";
 }
 
 export function parseMapMarkerStylePrefs(
@@ -209,14 +320,59 @@ export function markerStyleClass(kind: MarkerKind, shapeId: number): string {
 export function markerColorStyle(
   prefs: KindMarkerPrefs,
 ): Record<string, string> {
+  const layout = normalizeMarkerFaceLayout(prefs.layout);
   return {
     "--marker-accent": prefs.accent,
     "--marker-ink": prefs.ink,
     "--map-marker-free-color": prefs.progressFree,
     "--map-marker-busy-color": prefs.progressBusy,
+    "--map-marker-gap": `${layout.gap}rem`,
+    "--map-marker-sep-w": `${layout.dividerWidth}px`,
+    "--map-marker-sep-h": `${layout.dividerHeight}em`,
+    "--map-marker-sep-opacity": String(layout.dividerOpacity),
   };
 }
 
 export function stylesForKind(_kind: MarkerKind): MarkerShapeMeta[] {
   return MARKER_SHAPES;
+}
+
+/** Добавить часть в раскладку (icon/free — по одному разу). */
+export function addMarkerFacePart(
+  layout: MarkerFaceLayout,
+  part: MarkerFacePart,
+): MarkerFaceLayout {
+  const next = normalizeMarkerFaceLayout(layout);
+  const meta = MARKER_FACE_PART_META.find((m) => m.id === part);
+  if (meta?.once && next.parts.includes(part)) return next;
+  return normalizeMarkerFaceLayout({
+    ...next,
+    parts: [...next.parts, part],
+  });
+}
+
+export function removeMarkerFacePartAt(
+  layout: MarkerFaceLayout,
+  index: number,
+): MarkerFaceLayout {
+  const next = normalizeMarkerFaceLayout(layout);
+  if (index < 0 || index >= next.parts.length) return next;
+  const parts = next.parts.filter((_, i) => i !== index);
+  return normalizeMarkerFaceLayout({ ...next, parts });
+}
+
+export function moveMarkerFacePart(
+  layout: MarkerFaceLayout,
+  index: number,
+  dir: -1 | 1,
+): MarkerFaceLayout {
+  const next = normalizeMarkerFaceLayout(layout);
+  const to = index + dir;
+  if (index < 0 || to < 0 || index >= next.parts.length || to >= next.parts.length) {
+    return next;
+  }
+  const parts = [...next.parts];
+  const [item] = parts.splice(index, 1);
+  parts.splice(to, 0, item);
+  return normalizeMarkerFaceLayout({ ...next, parts });
 }

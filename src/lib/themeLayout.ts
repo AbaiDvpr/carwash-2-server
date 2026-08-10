@@ -3,6 +3,14 @@ export const THEME_LAYOUT_CHANGE_EVENT = "carwash-theme-layout-change";
 
 export type LayoutUnit = "rem" | "px" | "";
 
+export type LayoutFieldGroup =
+  | "page"
+  | "row"
+  | "radius"
+  | "button"
+  | "border"
+  | "text";
+
 /** Отступы / радиусы / gap / типографика — общие для light и dark. */
 export type ThemeLayout = {
   pagePadX: string;
@@ -36,12 +44,32 @@ export const DEFAULT_LAYOUT: ThemeLayout = {
   buttonPadX: "0.75rem",
   buttonPadY: "0.5rem",
   borderWidth: "1px",
-  fontSize: "14px",
+  fontSize: "0.9375rem",
   lineHeight: "1.45",
+};
+
+export const LAYOUT_GROUP_LABELS: Record<LayoutFieldGroup, string> = {
+  page: "Страница",
+  row: "Боковые пункты",
+  radius: "Скругления",
+  button: "Кнопки",
+  border: "Рамки",
+  text: "Текст",
+};
+
+/** Кратко: зачем раздел в меню Оформления */
+export const LAYOUT_GROUP_HINTS: Record<LayoutFieldGroup, string> = {
+  page: "Поля экрана слева/справа/сверху/снизу",
+  row: "Отступы пунктов меню и строк в списках",
+  radius: "Скругление карточек и sheet",
+  button: "Форма и padding кнопок",
+  border: "Толщина линий у блоков",
+  text: "Базовый rem и межстрочный интервал",
 };
 
 export const LAYOUT_FIELD_META: {
   key: keyof ThemeLayout;
+  group: LayoutFieldGroup;
   label: string;
   hint: string;
   cssVar: string;
@@ -53,10 +81,11 @@ export const LAYOUT_FIELD_META: {
 }[] = [
   {
     key: "pagePadX",
-    label: "Page pad X",
-    hint: "Боковые отступы страницы",
+    group: "page",
+    label: "Отступ страницы слева/справа",
+    hint: "Горизонтальные поля контента",
     cssVar: "--app-page-pad-x",
-    uses: ".page-content, map sheets",
+    uses: "Профиль, история, чат, настройки; боковые поля у нижних sheet на карте",
     unit: "rem",
     min: 0,
     max: 2.5,
@@ -64,10 +93,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "pagePadTop",
-    label: "Page pad top",
-    hint: "Верхний отступ страницы",
+    group: "page",
+    label: "Отступ страницы сверху",
+    hint: "Верхнее поле контента",
     cssVar: "--app-page-pad-top",
-    uses: ".page-content",
+    uses: "Все страницы с .page-content (профиль, история, настройки…)",
     unit: "rem",
     min: 0,
     max: 2,
@@ -75,10 +105,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "pagePadBottom",
-    label: "Page pad bottom",
-    hint: "Нижний отступ страницы",
+    group: "page",
+    label: "Отступ страницы снизу",
+    hint: "Нижнее поле контента (над навбаром)",
     cssVar: "--app-page-pad-bottom",
-    uses: ".page-content",
+    uses: "Все страницы с .page-content; запас снизу у длинных экранов",
     unit: "rem",
     min: 0,
     max: 4,
@@ -86,10 +117,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "rowPadX",
-    label: "Row pad X",
-    hint: "Боковые отступы строк",
+    group: "row",
+    label: "Пункт: отступ слева/справа",
+    hint: "Внутри бокового пункта / строки меню",
     cssVar: "--app-row-pad-x",
-    uses: ".app-row, карточки, списки",
+    uses: "Пункты профиля (Оформление, Язык…), списки, .app-row",
     unit: "rem",
     min: 0,
     max: 2.5,
@@ -97,10 +129,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "rowPadY",
-    label: "Row pad Y",
-    hint: "Вертикальные отступы строк",
+    group: "row",
+    label: "Пункт: отступ сверху/снизу",
+    hint: "Высота «воздуха» в боковом пункте",
     cssVar: "--app-row-pad-y",
-    uses: ".app-row, внутренние блоки",
+    uses: "Пункты профиля, списки, .app-row",
     unit: "rem",
     min: 0,
     max: 2,
@@ -108,10 +141,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "rowGap",
-    label: "Row gap",
-    hint: "Зазор внутри строки (иконка ↔ текст)",
+    group: "row",
+    label: "Пункт: зазор иконка ↔ текст",
+    hint: "Расстояние между иконкой и подписью",
     cssVar: "--app-row-gap",
-    uses: ".app-row",
+    uses: ".app-row — все пункты меню и строки списков",
     unit: "rem",
     min: 0,
     max: 2,
@@ -119,10 +153,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "stackGap",
-    label: "Stack gap",
-    hint: "Зазор между секциями",
+    group: "row",
+    label: "Зазор между секциями",
+    hint: "Вертикальный промежуток блоков на экране",
     cssVar: "--app-stack-gap",
-    uses: ".app-stack",
+    uses: ".app-stack — секции профиля и главной",
     unit: "rem",
     min: 0,
     max: 2.5,
@@ -130,10 +165,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "sectionRadius",
-    label: "Section radius",
-    hint: "Скругление секций",
+    group: "radius",
+    label: "Скругление крупных блоков",
+    hint: "Радиус карточек и секций",
     cssVar: "--app-section-radius",
-    uses: ".app-section, drawers",
+    uses: "Карточки профиля, секции, верхние углы drawer/sheet на карте",
     unit: "rem",
     min: 0,
     max: 2,
@@ -141,10 +177,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "sectionRadiusSm",
-    label: "Section radius sm",
-    hint: "Малое скругление",
+    group: "radius",
+    label: "Скругление мелких блоков",
+    hint: "Радиус компактных элементов",
     cssVar: "--app-section-radius-sm",
-    uses: ".app-section--sm",
+    uses: "Малые карточки, внутренние панели, .app-section--sm",
     unit: "rem",
     min: 0,
     max: 1.5,
@@ -152,10 +189,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "buttonRadius",
-    label: "Button radius",
-    hint: "Скругление кнопок",
+    group: "button",
+    label: "Скругление кнопок",
+    hint: "Радиус основных и вторичных кнопок",
     cssVar: "--app-button-radius",
-    uses: ".theme-button",
+    uses: ".theme-button, .theme-button-secondary — везде в приложении",
     unit: "rem",
     min: 0,
     max: 2,
@@ -163,10 +201,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "buttonPadX",
-    label: "Button pad X",
-    hint: "Горизонтальный паддинг кнопки",
+    group: "button",
+    label: "Кнопка: отступ слева/справа",
+    hint: "Горизонтальный padding кнопки",
     cssVar: "--app-button-pad-x",
-    uses: ".theme-button",
+    uses: "Все .theme-button / .theme-button-secondary",
     unit: "rem",
     min: 0.25,
     max: 2,
@@ -174,10 +213,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "buttonPadY",
-    label: "Button pad Y",
-    hint: "Вертикальный паддинг кнопки",
+    group: "button",
+    label: "Кнопка: отступ сверху/снизу",
+    hint: "Вертикальный padding кнопки",
     cssVar: "--app-button-pad-y",
-    uses: ".theme-button",
+    uses: "Все .theme-button / .theme-button-secondary",
     unit: "rem",
     min: 0.25,
     max: 1.5,
@@ -185,10 +225,11 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "borderWidth",
-    label: "Border width",
-    hint: "Толщина рамок",
+    group: "border",
+    label: "Толщина рамок",
+    hint: "Линии границ блоков",
     cssVar: "--app-border-width",
-    uses: ".app-section, .app-row+",
+    uses: "Карточки, секции, вторичные кнопки, разделители строк",
     unit: "px",
     min: 0,
     max: 4,
@@ -196,21 +237,23 @@ export const LAYOUT_FIELD_META: {
   },
   {
     key: "fontSize",
-    label: "Font size",
-    hint: "Базовый размер шрифта",
+    group: "text",
+    label: "Базовый размер текста",
+    hint: "Главный rem. От него считаются мелкий / обычный / крупный текст по всему приложению",
     cssVar: "--app-font-size",
-    uses: "body",
-    unit: "px",
-    min: 12,
-    max: 18,
-    step: 1,
+    uses: "Весь текст UI: профиль, история, чат, кнопки, подписи, заголовки, sheet/drawer, главная. Не маркеры на карте (у них свой размер)",
+    unit: "rem",
+    min: 0.8,
+    max: 1.35,
+    step: 0.025,
   },
   {
     key: "lineHeight",
-    label: "Line height",
-    hint: "Межстрочный интервал",
+    group: "text",
+    label: "Межстрочный интервал",
+    hint: "Высота строки относительно размера шрифта",
     cssVar: "--app-line-height",
-    uses: "body",
+    uses: "body и весь наследуемый текст (абзацы, описания, списки)",
     unit: "",
     min: 1.2,
     max: 1.8,
@@ -259,6 +302,13 @@ function normalizeLayoutValue(
   }
   if (unit === "px" && /^(\d*\.?\d+)\s*px$/i.test(trimmed)) {
     return formatLayoutValue(parseLayoutNumber(trimmed), "px");
+  }
+  // Старый fontSize в px → rem (не ниже 0.8rem)
+  if (unit === "rem" && /^(\d*\.?\d+)\s*px$/i.test(trimmed)) {
+    return formatLayoutValue(
+      Math.max(0.8, parseLayoutNumber(trimmed) / 16),
+      "rem",
+    );
   }
   if (unit === "" && /^\d*\.?\d+$/.test(trimmed)) {
     return formatLayoutValue(parseLayoutNumber(trimmed), "");

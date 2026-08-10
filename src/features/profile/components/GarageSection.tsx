@@ -9,6 +9,13 @@ import {
   type Garage,
   updateGarage,
 } from "@/lib/api/garage";
+import "./profile.css";
+import IconActionButton, { IconEdit, IconTrash } from "./IconActionButton";
+
+/** Только латиница A–Z и цифры 0–9. */
+function normalizePlate(value: string): string {
+  return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 32);
+}
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {
@@ -69,12 +76,13 @@ export default function GarageSection() {
 
   async function handleAdd(event: FormEvent) {
     event.preventDefault();
-    if (!plate.trim()) return;
+    const next = normalizePlate(plate);
+    if (!next) return;
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      await createGarage({ car_plate: plate.trim() });
+      await createGarage({ car_plate: next });
       setPlate("");
       await loadGarages();
       setMessage("Авто добавлено");
@@ -86,12 +94,13 @@ export default function GarageSection() {
   }
 
   async function handleSaveEdit(id: number) {
-    if (!editPlate.trim()) return;
+    const next = normalizePlate(editPlate);
+    if (!next) return;
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      await updateGarage(id, { car_plate: editPlate.trim() });
+      await updateGarage(id, { car_plate: next });
       setEditingId(null);
       await loadGarages();
       setMessage("Авто обновлено");
@@ -134,20 +143,25 @@ export default function GarageSection() {
         <span className="text-xs text-zinc-400">{garages.length} авто</span>
       </div>
 
-      <form onSubmit={handleAdd} className="mb-4 flex gap-2">
+      <form onSubmit={handleAdd} className="theme-input-row mb-4">
         <input
           type="text"
+          inputMode="text"
+          pattern="[A-Za-z0-9]*"
           value={plate}
-          onChange={(e) => setPlate(e.target.value.toUpperCase())}
+          onChange={(e) => setPlate(normalizePlate(e.target.value))}
           placeholder="Госномер, напр. 777AAA01"
-          className="min-w-0 flex-1 rounded-xl bg-zinc-100 px-4 py-3.5 text-sm uppercase tracking-wide text-zinc-900 outline-none ring-blue-500 focus:bg-white focus:ring-2 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:bg-zinc-900"
+          className="theme-field min-w-0 flex-1 rounded-lg border border-zinc-200 bg-zinc-100 px-3 text-sm uppercase tracking-wide text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
           maxLength={32}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
           required
         />
         <button
           type="submit"
           disabled={busy}
-          className="theme-button shrink-0 rounded-xl px-5 py-3.5 text-sm"
+          className="theme-button px-4 text-sm"
         >
           Добавить
         </button>
@@ -170,10 +184,15 @@ export default function GarageSection() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
                       type="text"
+                      inputMode="text"
+                      pattern="[A-Za-z0-9]*"
                       value={editPlate}
-                      onChange={(e) => setEditPlate(e.target.value.toUpperCase())}
+                      onChange={(e) => setEditPlate(normalizePlate(e.target.value))}
                       className="min-w-0 flex-1 rounded-xl bg-white px-3 py-2.5 text-sm uppercase tracking-wide outline-none ring-blue-500 focus:ring-2 dark:bg-zinc-900 dark:text-zinc-50"
                       maxLength={32}
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
                     />
                     <div className="flex gap-2">
                       <button
@@ -201,25 +220,24 @@ export default function GarageSection() {
                       </p>
                       <p className="text-xs text-zinc-400">ID #{garage.id}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
+                    <div className="flex items-center gap-0.5">
+                      <IconActionButton
+                        label="Изменить"
                         onClick={() => {
                           setEditingId(garage.id);
                           setEditPlate(garage.car_plate);
                         }}
-                        className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
                       >
-                        Изменить
-                      </button>
-                      <button
-                        type="button"
+                        <IconEdit />
+                      </IconActionButton>
+                      <IconActionButton
+                        label="Удалить"
+                        danger
                         disabled={busy}
                         onClick={() => void handleDelete(garage.id)}
-                        className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 dark:bg-red-950/40 dark:text-red-400"
                       >
-                        Удалить
-                      </button>
+                        <IconTrash />
+                      </IconActionButton>
                     </div>
                   </div>
                 )}

@@ -20,12 +20,12 @@ export default function BalanceCard({
 
   return (
     <section>
-      <p className="theme-description mb-1.5 px-0.5 text-[11px] font-medium uppercase tracking-wider">
+      <p className="theme-description mb-1.5 px-0.5 text-[0.8125rem] font-medium uppercase tracking-wider">
         {t("home.balance", "Баланс")}
       </p>
       <div className="app-section">
         <div className="app-row" style={{ flexDirection: "column", alignItems: "flex-start" }}>
-          <p className="theme-description text-[11px]">
+          <p className="theme-description text-[0.8125rem]">
             {t("profile.available", "Доступно")}
           </p>
           <p
@@ -55,7 +55,7 @@ export default function BalanceCard({
             <span className="block text-sm font-medium" style={{ color: "var(--app-text)" }}>
               {t("profile.top_up", "Пополнить")}
             </span>
-            <span className="theme-description mt-0.5 block text-[11px]">Карта / Kaspi</span>
+            <span className="theme-description mt-0.5 block text-[0.8125rem]">Карта / Kaspi</span>
           </button>
           <button
             type="button"
@@ -70,7 +70,7 @@ export default function BalanceCard({
             <span className="block text-sm font-medium" style={{ color: "var(--app-text)" }}>
               {t("common.nav_history", "История")}
             </span>
-            <span className="theme-description mt-0.5 block text-[11px]">Мойки и оплаты</span>
+            <span className="theme-description mt-0.5 block text-[0.8125rem]">Мойки и оплаты</span>
           </button>
         </div>
       </div>

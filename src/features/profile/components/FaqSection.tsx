@@ -1,22 +1,43 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useT } from "@/hooks/useT";
-import { FAQ_ITEMS, FAQ_TABS, type FaqCategory } from "../faq";
+import { useEffect, useMemo, useState } from "react";
+import { useLocale, useT } from "@/hooks/useT";
+import { fetchFaqs, localizeFaqs } from "@/lib/api/faq";
+import { FAQ_ITEMS, FAQ_TABS, type FaqCategory, type FaqItem } from "../faq";
 
 export default function FaqSection() {
   const t = useT();
+  const locale = useLocale();
   const [activeTab, setActiveTab] = useState<FaqCategory>("wash");
   const [openFaqId, setOpenFaqId] = useState<string | null>(null);
+  const [items, setItems] = useState<FaqItem[]>(FAQ_ITEMS);
 
-  const items = useMemo(
-    () => FAQ_ITEMS.filter((item) => item.category === activeTab),
-    [activeTab],
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchFaqs()
+      .then((faqs) => {
+        if (cancelled) return;
+        const localized = localizeFaqs(faqs, locale);
+        setItems(localized.length > 0 ? localized : FAQ_ITEMS);
+      })
+      .catch(() => {
+        if (!cancelled) setItems(FAQ_ITEMS);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [locale]);
+
+  const visibleItems = useMemo(
+    () => items.filter((item) => item.category === activeTab),
+    [items, activeTab],
   );
 
   return (
     <div>
-      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+      <p className="mb-2 text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
         {t("profile.faq", "Частые вопросы")}
       </p>
 
@@ -44,19 +65,19 @@ export default function FaqSection() {
                   : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
               ].join(" ")}
             >
-              {tab.label}
+              {t(tab.labelKey, tab.fallback)}
             </button>
           );
         })}
       </div>
 
       <div className="app-section">
-        {items.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <p className="px-3 py-3 text-center text-xs text-zinc-400">
-            Пока нет вопросов
+            {t("profile.faq_empty", "Пока нет вопросов")}
           </p>
         ) : (
-          items.map((item, index) => {
+          visibleItems.map((item, index) => {
             const isOpen = openFaqId === item.id;
             return (
               <div key={item.id}>

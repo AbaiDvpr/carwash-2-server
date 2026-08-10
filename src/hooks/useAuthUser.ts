@@ -4,40 +4,50 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchUserInfo } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
 import { hasAccessToken } from "@/lib/authToken";
-import { formatUserDisplayName, getUserName } from "@/lib/userSession";
+import {
+  formatUserDisplayName,
+  getUserEmail,
+  getUserName,
+} from "@/lib/userSession";
 
 /**
- * Профиль: имя, телефон, фото.
+ * Профиль: имя, email, телефон, фото.
  * Нет токена — пустые поля (gate уже решает доступ).
  */
 export function useAuthUser() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   const sync = useCallback(async () => {
     if (!hasAccessToken()) {
       setName("");
+      setEmail("");
       setPhone("");
       setPhotoUrl(null);
       setLoading(false);
       return;
     }
 
-    const cached = getUserName();
-    if (cached) setName(cached);
+    const cachedName = getUserName();
+    const cachedEmail = getUserEmail();
+    if (cachedName) setName(cachedName);
+    if (cachedEmail) setEmail(cachedEmail);
 
     try {
       const user = await fetchUserInfo();
-      setName(formatUserDisplayName(user) || cached || "");
+      setName(formatUserDisplayName(user) || cachedName || "");
+      setEmail(user.email?.trim() || getUserEmail() || cachedEmail || "");
       setPhone(user.phone ?? "");
       setPhotoUrl(user.photo_url ?? null);
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : null;
       if (apiErr?.status === 401 || apiErr?.status === 403) {
         setName("");
+        setEmail("");
         setPhone("");
         setPhotoUrl(null);
       }
@@ -65,7 +75,7 @@ export function useAuthUser() {
     };
   }, [sync]);
 
-  return { name, phone, photoUrl, loading, mounted };
+  return { name, email, phone, photoUrl, loading, mounted };
 }
 
 /** +7 777 123 45 67 */

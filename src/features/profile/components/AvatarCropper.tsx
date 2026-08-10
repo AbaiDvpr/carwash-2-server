@@ -269,7 +269,7 @@ export default function AvatarCropper({
             )}
             <div className="min-w-0 text-left">
               <p className="text-xs font-medium text-zinc-800 dark:text-zinc-100">Превью аватара</p>
-              <p className="mt-0.5 text-[11px] text-zinc-400">
+              <p className="mt-0.5 text-[0.8125rem] text-zinc-400">
                 {approxKb != null ? `≈ ${approxKb} КБ · JPEG` : "Сжатие…"}
               </p>
             </div>
