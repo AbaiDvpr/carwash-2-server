@@ -216,7 +216,7 @@ html.fullscreen .app-header {
  */
 .page-content {
   width: 100%;
-  max-width: 64rem;
+  max-width: 500px  !important;
   margin-inline: auto;
   padding: var(--app-page-pad-top) var(--app-page-pad-x) var(--app-page-pad-bottom);
 }
@@ -286,6 +286,15 @@ html.fullscreen .app-header {
   font-weight: 600;
   line-height: var(--app-line-height);
   transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+/* Full-width CTA — выше и удобнее нажимать на всём приложении */
+.theme-button.w-full,
+.theme-button-secondary.w-full {
+  width: 100%;
+  min-height: 2.75rem;
+  padding-block: max(0.75rem, calc(var(--app-button-pad-y) * 1.5));
+  padding-inline: max(1rem, var(--app-button-pad-x));
 }
 
 /* Утилиты текста — тянутся от --app-font-size */

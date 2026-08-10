@@ -12,15 +12,20 @@ export default function TopUpPage() {
   const { balance, loading, refresh } = useUserBalance();
 
   return (
-    <PageLayout title={t("profile.top_up", "Пополнение баланса")}>
-      <div className="mb-3">
-        <BackButton iconOnly href="/profile" />
+    <PageLayout
+      title={t("profile.top_up", "Пополнение баланса")}
+      className="page--profile-edit"
+    >
+      <div className="profile-edit">
+        <div className="mb-3">
+          <BackButton iconOnly href="/profile" />
+        </div>
+        <BalanceTopUp
+          balance={balance}
+          loading={loading}
+          onSuccess={() => void refresh()}
+        />
       </div>
-      <BalanceTopUp
-        balance={balance}
-        loading={loading}
-        onSuccess={() => void refresh()}
-      />
     </PageLayout>
   );
 }

@@ -28,6 +28,12 @@
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 100%;
+  font-family: inherit;
+  font-size: var(--app-font-size);
+  line-height: var(--app-line-height);
+  letter-spacing: -0.01em;
+  color: var(--app-text);
+  -webkit-font-smoothing: antialiased;
 }
 
 .profile-edit__main {
@@ -38,6 +44,172 @@
   margin-top: auto;
   padding-top: 0.75rem;
   padding-bottom: 0;
+}
+
+/* Поля формы = те же title/value, что profile-nav-row на /profile */
+.profile-edit-fields {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-edit-row {
+  display: block;
+  margin: 0;
+  padding: var(--app-row-pad-y) var(--app-row-pad-x);
+  border: 0;
+  border-bottom: var(--app-border-width) solid
+    color-mix(in oklab, var(--app-border) 85%, transparent);
+}
+
+.profile-edit-row:last-child {
+  border-bottom: 0;
+}
+
+.profile-edit-row .profile-nav-row__label {
+  margin: 0;
+}
+
+.profile-edit-row .profile-nav-row__label .is-optional {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* Значение — шрифт как hint на /profile, но видимый input */
+.profile-edit-row__value {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0.35rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border: var(--app-border-width) solid var(--app-border);
+  border-radius: var(--app-button-radius);
+  background: var(--app-hover);
+  color: var(--app-text);
+  font-family: inherit;
+  font-size: var(--app-text-lg);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.profile-edit-row__value::placeholder {
+  color: var(--app-description);
+  font-weight: 600;
+}
+
+.profile-edit-row__value:focus {
+  border-color: var(--app-button);
+  background: var(--app-block);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-button) 22%, transparent);
+}
+
+.profile-edit-row__value:disabled {
+  opacity: 0.6;
+}
+
+/* Фото — обычная строка как Имя/Email */
+.profile-edit-photo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: var(--app-row-pad-y) var(--app-row-pad-x);
+  border-bottom: var(--app-border-width) solid
+    color-mix(in oklab, var(--app-border) 85%, transparent);
+}
+
+.profile-edit-photo__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-edit-photo__thumb {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--app-hover);
+}
+
+.profile-edit-photo__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-edit-photo__fallback {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-text);
+  color: var(--app-block);
+  font-size: var(--app-text-sm);
+  font-weight: 700;
+}
+
+.profile-edit-photo__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.profile-edit__feedback {
+  margin: 0;
+  text-align: center;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.profile-edit__feedback.is-ok {
+  color: var(--app-success);
+}
+
+.profile-edit__feedback.is-error {
+  color: var(--app-danger);
+}
+
+.profile-topup__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.profile-topup__preset {
+  margin: 0;
+  padding: 0.4rem 0.7rem;
+  border: var(--app-border-width) solid var(--app-border);
+  border-radius: var(--app-button-radius);
+  background: var(--app-hover);
+  color: var(--app-text);
+  font-family: inherit;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-topup__preset.is-active {
+  border-color: var(--app-button);
+  background: var(--app-button);
+  color: var(--app-button-text);
+}
+
+.profile-topup__preset:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .profile-hero {

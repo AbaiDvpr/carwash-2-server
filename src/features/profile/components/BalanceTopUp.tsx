@@ -8,9 +8,9 @@ import { formatBalance } from "../hooks/useUserBalance";
 
 const PRESETS = [1000, 2000, 5000, 10000];
 
-const METHODS: { id: TopUpMethod; label: string; hint: string }[] = [
-  { id: "kaspi", label: "Kaspi Bank", hint: "Через Kaspi" },
-  { id: "forte", label: "Forte Bank", hint: "Через Forte" },
+const METHODS: { id: TopUpMethod; label: string }[] = [
+  { id: "kaspi", label: "Kaspi Bank" },
+  { id: "forte", label: "Forte Bank" },
 ];
 
 type BalanceTopUpProps = {
@@ -36,9 +36,10 @@ function topUpErrorMessage(err: unknown): string {
 function RadioMark({ checked }: { checked: boolean }) {
   return (
     <span
-      className={`theme-radio inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2${
-        checked ? " is-on" : ""
-      }`}
+      className={[
+        "theme-radio relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition",
+        checked ? "is-on" : "",
+      ].join(" ")}
       aria-hidden
     >
       {checked ? (
@@ -62,8 +63,6 @@ export default function BalanceTopUp({
 
   const parsed = Number.parseInt(amount.replace(/\D/g, ""), 10);
   const canSubmit = Number.isFinite(parsed) && parsed >= 100 && !saving;
-  const methodLabel =
-    METHODS.find((item) => item.id === method)?.label ?? "банк";
 
   async function handleSubmit() {
     if (!Number.isFinite(parsed) || parsed < 100) {
@@ -79,7 +78,7 @@ export default function BalanceTopUp({
     try {
       const result = await topUpBalance(parsed, method);
       setMessage(
-        `Зачислено ${formatBalance(parsed)} через ${methodLabel}. Баланс: ${formatBalance(result.balance)}`,
+        `Зачислено ${formatBalance(parsed)}. Баланс: ${formatBalance(result.balance)}`,
       );
       onSuccess?.();
     } catch (err) {
@@ -90,12 +89,12 @@ export default function BalanceTopUp({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="profile-topup space-y-4">
       <section className="profile-card">
         <div className="profile-card__balance">
           <div className="profile-card__balance-item">
             <p className="profile-card__balance-label">
-              {t("payment.current_balance", "Текущий баланс")}
+              {t("home.balance", "Баланс")}
             </p>
             <p className="profile-card__balance-value">
               {loading && balance == null ? "…" : formatBalance(balance ?? 0)}
@@ -104,49 +103,37 @@ export default function BalanceTopUp({
         </div>
       </section>
 
-      <section className="profile-card">
-        <p className="px-4 pt-3 text-[0.8125rem] font-medium uppercase tracking-wider text-[var(--app-description)]">
-          {t("payment.method", "Способ оплаты")}
-        </p>
-        <div role="radiogroup" aria-label={t("payment.method", "Способ оплаты")}>
-          {METHODS.map((item, index) => {
-            const active = method === item.id;
-            return (
-              <div key={item.id}>
-                {index > 0 ? (
-                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                ) : null}
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  disabled={saving}
-                  onClick={() => {
-                    setMethod(item.id);
-                    setMessage(null);
-                    setError(null);
-                  }}
-                  className="profile-nav-row theme-hover disabled:opacity-60"
-                >
-                  <RadioMark checked={active} />
-                  <span className="profile-nav-row__main">
-                    <span className="profile-nav-row__label">{item.label}</span>
-                    <span className="profile-nav-row__hint theme-description">
-                      {item.hint}
-                    </span>
-                  </span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
+      <section className="profile-card" role="radiogroup" aria-label={t("payment.method", "Способ оплаты")}>
+        {METHODS.map((item) => {
+          const active = method === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              disabled={saving}
+              onClick={() => {
+                setMethod(item.id);
+                setMessage(null);
+                setError(null);
+              }}
+              className="profile-nav-row theme-hover text-left disabled:opacity-60"
+            >
+              <RadioMark checked={active} />
+              <span className="profile-nav-row__main">
+                <span className="profile-nav-row__hint">{item.label}</span>
+              </span>
+            </button>
+          );
+        })}
       </section>
 
       <section className="profile-card">
-        <div className="space-y-3 px-4 py-3">
-          <label className="block">
-            <span className="mb-1.5 block text-[0.8125rem] font-medium uppercase tracking-wider text-[var(--app-description)]">
-              {t("payment.amount", "Сумма пополнения")}
+        <div className="profile-edit-fields">
+          <label className="profile-edit-row">
+            <span className="profile-nav-row__label">
+              {t("payment.amount", "Сумма")}
             </span>
             <input
               type="text"
@@ -159,58 +146,47 @@ export default function BalanceTopUp({
                 setError(null);
               }}
               placeholder="2000"
-              className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+              className="profile-edit-row__value"
             />
+            <div className="profile-topup__presets">
+              {PRESETS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    setAmount(String(value));
+                    setMessage(null);
+                    setError(null);
+                  }}
+                  className={[
+                    "profile-topup__preset",
+                    parsed === value ? "is-active" : "",
+                  ].join(" ")}
+                >
+                  {formatBalance(value)}
+                </button>
+              ))}
+            </div>
           </label>
-
-          <div className="flex flex-wrap gap-1.5">
-            {PRESETS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                disabled={saving}
-                onClick={() => {
-                  setAmount(String(value));
-                  setMessage(null);
-                  setError(null);
-                }}
-                className={[
-                  "rounded-lg px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-60",
-                  parsed === value
-                    ? "theme-chip-active"
-                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
-                ].join(" ")}
-              >
-                {formatBalance(value)}
-              </button>
-            ))}
-          </div>
         </div>
       </section>
 
-      {error ? (
-        <p className="px-1 text-center text-xs text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      ) : null}
-      {message ? (
-        <p className="px-1 text-center text-xs text-emerald-600 dark:text-emerald-400">
-          {message}
-        </p>
-      ) : null}
+      {error ? <p className="profile-edit__feedback is-error">{error}</p> : null}
+      {message ? <p className="profile-edit__feedback is-ok">{message}</p> : null}
 
       <button
         type="button"
         onClick={() => void handleSubmit()}
         disabled={!canSubmit}
-        className="theme-button w-full rounded-xl px-4 py-3 text-sm"
+        className="theme-button w-full"
       >
         {saving
           ? t("payment.topping_up", "Пополняем…")
-          : `${t("profile.top_up", "Пополнить")} · ${methodLabel}`}
+          : t("profile.top_up", "Пополнить")}
       </button>
 
-      <p className="theme-description px-1 text-center text-[0.8125rem]">
+      <p className="theme-description text-center" style={{ fontSize: "var(--app-text-sm)" }}>
         {t("payment.min_note", "Минимум 100 ₸")}
       </p>
     </div>

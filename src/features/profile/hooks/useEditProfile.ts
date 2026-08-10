@@ -17,6 +17,11 @@ export function useEditProfile() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const clearFeedback = useCallback(() => {
+    setMessage(null);
+    setError(null);
+  }, []);
+
   const sync = useCallback(async () => {
     if (!hasAccessToken()) {
       setLoading(false);
@@ -30,7 +35,6 @@ export function useEditProfile() {
       const user = await fetchUserInfo();
       setFirstName(user.name ?? "");
       setLastName(user.last_name ?? "");
-      // Пустой email с API не затирает уже показанный/сохранённый
       const nextEmail = user.email?.trim() || getUserEmail() || "";
       setEmail(nextEmail);
       setError(null);
@@ -96,7 +100,10 @@ export function useEditProfile() {
       return true;
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : null;
-      const body = apiErr?.body as { message?: string; errors?: Record<string, string[]> } | null;
+      const body = apiErr?.body as {
+        message?: string;
+        errors?: Record<string, string[]>;
+      } | null;
       const emailErr = body?.errors?.email?.[0];
       if (emailErr) {
         setError(
@@ -124,6 +131,7 @@ export function useEditProfile() {
     saving,
     message,
     error,
+    clearFeedback,
     save,
     canSave:
       firstName.trim().length > 0 &&

@@ -4,17 +4,15 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PageLayout } from "@/components/layout";
 import { formatPhoneDisplay, useAuthUser } from "@/hooks/useAuthUser";
-import { forceLogout } from "@/lib/forceLogout";
 import { openBrowser } from "@/lib/browserController";
 import { copyText } from "@/lib/clipboardController";
 import { openTelegram, openWhatsApp } from "@/lib/messengerController";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setHeaderNav } from "@/store/slices/appSlice";
 import { setHeaderVisible } from "@/lib/userSession";
-import { setLocale } from "@/store/slices/i18nSlice";
 import { useLocale, useT } from "@/hooks/useT";
-import { notifyLocaleChanged } from "@/lib/localeController";
 import HistoryList from "@/features/history/components/HistoryList";
+import { LANGUAGE_OPTIONS } from "./SelectLanguagePage";
 import BackButton from "@/components/ui/BackButton";
 import Toast from "@/components/ui/Toast";
 import { useTheme } from "@/hooks/useTheme";
@@ -34,8 +32,7 @@ import {
   type LayoutUnit,
 } from "@/lib/themeLayout";
 import { useUserCity } from "@/hooks/useUserCity";
-import { fetchUserInfo, updateUserSettings, type AuthUser } from "@/lib/api/auth";
-import { formatCityName } from "@/lib/api/geos";
+import { fetchUserInfo, type AuthUser } from "@/lib/api/auth";
 import { useEditProfile } from "./hooks/useEditProfile";
 import { usePromoCode } from "./hooks/usePromoCode";
 import {
@@ -47,42 +44,30 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import { useUserBalance, formatBalance } from "./hooks/useUserBalance";
 import BalanceTopUp from "./components/BalanceTopUp";
 import AvatarCropper from "./components/AvatarCropper";
-import GaragePanel from "./components/GaragePanel";
 import IconActionButton, {
   IconCheck,
   IconCopy,
-  IconTrash,
 } from "./components/IconActionButton";
 import ProfileNavRow from "./components/ProfileNavRow";
 import FaqSection from "./components/FaqSection";
-import { deleteUserPhoto, resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
+import { resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
 import { pickImage } from "@/lib/pickImage";
 import "./components/profile.css";
 
 type ProfileView =
   | "home"
-  | "edit"
   | "balance"
   | "history"
-  | "garage"
   | "promo"
   | "referral-clients"
   | "support"
   | "documents"
-  | "language"
-  | "city"
   | "appearance";
 
 const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
   { id: "light", label: "Тема", hint: "Светлая" },
   { id: "dark", label: "Тема", hint: "Тёмная" },
 ];
-
-const LANGUAGE_OPTIONS = [
-  { id: "ru", label: "Русский" },
-  { id: "kz", label: "Қазақша" },
-  { id: "en", label: "English" },
-] as const;
 
 function SectionCard({ children }: { children: ReactNode }) {
   return <section className="profile-card">{children}</section>;
@@ -248,13 +233,6 @@ function IconDocs() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7 3.5h7.5L19 8v12.5H7V3.5Z" />
       <path strokeLinecap="round" d="M14.5 3.5V8H19M9.5 12h5M9.5 15.5h5" />
-    </svg>
-  );
-}
-function IconLogout() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" d="M10 4.5H7A2.5 2.5 0 0 0 4.5 7v10A2.5 2.5 0 0 0 7 19.5h3M14 8l4 4-4 4M10 12h8" />
     </svg>
   );
 }
@@ -578,18 +556,10 @@ export default function ProfilePage() {
   const [appearanceSection, setAppearanceSection] =
     useState<AppearanceSection>("menu");
   const { message: toastMessage, showToast } = useToast();
-  const {
-    geoId,
-    cityName,
-    cities,
-    loading: citiesLoading,
-    refresh: refreshCity,
-  } = useUserCity();
-  const [citySavingId, setCitySavingId] = useState<number | null>(null);
+  const { cityName } = useUserCity();
 
   const [view, setView] = useState<ProfileView>("home");
   const [copied, setCopied] = useState(false);
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [avatarReady, setAvatarReady] = useState(false);
@@ -618,17 +588,6 @@ export default function ProfilePage() {
       active = false;
     };
   }, [avatarSrc]);
-
-  useEffect(() => {
-    if (!logoutConfirmOpen) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setLogoutConfirmOpen(false);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [logoutConfirmOpen]);
 
   useEffect(() => {
     if (!hasAccessToken()) return;
@@ -720,52 +679,6 @@ export default function ProfilePage() {
     }
   }
 
-  async function handleDeletePhoto() {
-    if (!photoUrl) return;
-    setPhotoBusy(true);
-    try {
-      await deleteUserPhoto();
-      showToast("Фото удалено");
-    } catch {
-      showToast("Не удалось удалить фото");
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
-  function AvatarBubble({ size = "md" }: { size?: "md" | "lg" }) {
-    const box =
-      size === "lg"
-        ? "h-20 w-20 text-xl"
-        : "h-12 w-12 text-sm";
-    if (avatarSrc) {
-      return (
-        <span className={`relative shrink-0 overflow-hidden rounded-full ${box}`}>
-          {!avatarReady ? (
-            <span className="profile-avatar-shimmer absolute inset-0" aria-hidden />
-          ) : null}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={avatarSrc}
-            alt=""
-            onLoad={() => setAvatarReady(true)}
-            onError={() => setAvatarReady(true)}
-            className={`h-full w-full rounded-full object-cover transition-opacity duration-200 ${
-              avatarReady ? "opacity-100" : "opacity-0"
-            }`}
-          />
-        </span>
-      );
-    }
-    return (
-      <span
-        className={`flex shrink-0 items-center justify-center rounded-full bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900 ${box}`}
-      >
-        {initials}
-      </span>
-    );
-  }
-
   async function handleCopyReferral() {
     const text = myReferralCode && myReferralCode !== "—" ? myReferralCode : "";
     if (!text) return;
@@ -791,11 +704,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <PageLayout
-      title="Profile"
-      description="Профиль пользователя CarWash"
-      className={view === "edit" ? "page--profile-edit" : undefined}
-    >
+    <PageLayout title="Profile" description="Профиль пользователя CarWash">
       <>
         {view === "home" && bootLoading ? (
           <div className="profile-boot" role="status" aria-live="polite">
@@ -901,16 +810,16 @@ export default function ProfilePage() {
                   </Link>
                 </div>
                 <div className="profile-card__balance-item">
-                  <button
-                    type="button"
+                  <Link
+                    href="/profile/edit"
                     className="profile-card__phone-btn"
-                    onClick={() => setView("edit")}
+                    aria-label={t("profile.edit", "Редактирование профиля")}
                   >
                     <p className="profile-card__balance-label">
                       {t("profile.phone", "Телефон")}
                     </p>
                     <p className="profile-card__balance-value">{displayPhone}</p>
-                  </button>
+                  </Link>
                 </div>
               </div>
             </section>
@@ -930,13 +839,13 @@ export default function ProfilePage() {
                 icon={<IconPin />}
                 label={t("profile.city", "Ваш город")}
                 hint={cityName ?? t("profile.not_selected", "Не выбран")}
-                onClick={() => setView("city")}
+                href="/profile/city"
               />
               <ProfileNavRow
                 icon={<IconLang />}
                 label={t("profile.language", "Язык")}
                 hint={languageHint}
-                onClick={() => setView("language")}
+                href="/profile/language"
               />
               <ProfileNavRow
                 icon={<IconPalette />}
@@ -1009,7 +918,7 @@ export default function ProfilePage() {
                 icon={<IconCar />}
                 label={t("profile.garage", "Гараж")}
                 hint={t("garage.plate", "Госномер")}
-                onClick={() => setView("garage")}
+                href="/profile/garage"
               />
               <ProfileNavRow
                 icon={<IconTag />}
@@ -1052,223 +961,6 @@ export default function ProfilePage() {
           <>
             <BackBar onBack={() => setView("home")} />
             <HistoryList />
-          </>
-        ) : null}
-
-        {view === "edit" ? (
-          <div className="profile-edit">
-            <BackBar onBack={() => setView("home")} />
-            <div className="profile-edit__main space-y-4">
-              <SectionCard>
-                <div className="flex flex-col items-center gap-3 px-3 py-4">
-                  <AvatarBubble size="lg" />
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      disabled={photoBusy}
-                      onClick={() => void handlePickPhoto()}
-                      className="theme-button"
-                    >
-                      {photoUrl ? "Изменить фото" : "Добавить фото"}
-                    </button>
-                    {photoUrl ? (
-                      <IconActionButton
-                        label={t("common.delete", "Удалить")}
-                        danger
-                        disabled={photoBusy}
-                        onClick={() => void handleDeletePhoto()}
-                      >
-                        <IconTrash />
-                      </IconActionButton>
-                    ) : null}
-                  </div>
-                </div>
-              </SectionCard>
-
-              <SectionCard>
-                <div className="space-y-3 px-3 py-3">
-                  <label className="block">
-                    <span className="mb-1.5 block text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
-                      Имя *
-                    </span>
-                    <input
-                      type="text"
-                      value={profileEdit.firstName}
-                      onChange={(e) => profileEdit.setFirstName(e.target.value)}
-                      disabled={profileEdit.loading || profileEdit.saving}
-                      placeholder="Имя"
-                      autoComplete="given-name"
-                      className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
-                      Фамилия{" "}
-                      <span className="normal-case tracking-normal text-zinc-400/80">
-                        (необязательно)
-                      </span>
-                    </span>
-                    <input
-                      type="text"
-                      value={profileEdit.lastName}
-                      onChange={(e) => profileEdit.setLastName(e.target.value)}
-                      disabled={profileEdit.loading || profileEdit.saving}
-                      placeholder="Фамилия (необязательно)"
-                      autoComplete="family-name"
-                      className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
-                      Email *
-                    </span>
-                    <input
-                      type="email"
-                      value={profileEdit.email}
-                      onChange={(e) => profileEdit.setEmail(e.target.value)}
-                      disabled={profileEdit.loading || profileEdit.saving}
-                      placeholder="example@mail.com"
-                      autoComplete="email"
-                      inputMode="email"
-                      className="theme-field w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                    />
-                  </label>
-                </div>
-              </SectionCard>
-
-              <button
-                type="button"
-                disabled={!profileEdit.canSave}
-                onClick={() => {
-                  void profileEdit.save().then((ok) => {
-                    if (ok) {
-                      window.setTimeout(() => setView("home"), 450);
-                    }
-                  });
-                }}
-                className="theme-button w-full"
-              >
-                {profileEdit.saving
-                  ? t("common.saving", "Сохранение…")
-                  : t("common.save", "Сохранить")}
-              </button>
-
-              {profileEdit.message ? (
-                <p className="text-center text-xs text-emerald-600 dark:text-emerald-400">
-                  {profileEdit.message}
-                </p>
-              ) : null}
-              {profileEdit.error ? (
-                <p className="text-center text-xs text-red-600 dark:text-red-400">
-                  {profileEdit.error}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="profile-edit__logout">
-              <SectionCard>
-                <ProfileNavRow
-                  icon={<IconLogout />}
-                  label={t("profile.logout", "Выйти")}
-                  danger
-                  onClick={() => setLogoutConfirmOpen(true)}
-                />
-              </SectionCard>
-            </div>
-          </div>
-        ) : null}
-
-        {view === "city" ? (
-          <>
-            <BackBar onBack={() => setView("home")} />
-            <p
-              className="mb-3 px-0.5"
-              style={{
-                color: "var(--app-description)",
-                fontSize: "var(--app-text-sm)",
-              }}
-            >
-              Мойки и ЭЗС показываются только в выбранном городе.
-            </p>
-            {citiesLoading ? (
-              <div
-                className="h-28 animate-pulse"
-                style={{
-                  borderRadius: "var(--app-section-radius)",
-                  border: "var(--app-border-width) solid var(--app-border)",
-                  background: "var(--app-hover)",
-                }}
-              />
-            ) : (
-              <SectionCard>
-                {cities.map((city) => {
-                  const selected = geoId === city.id;
-                  const busy = citySavingId === city.id;
-                  return (
-                    <button
-                      key={city.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      disabled={citySavingId != null}
-                      onClick={() => {
-                        void (async () => {
-                          if (selected) return;
-                          setCitySavingId(city.id);
-                          try {
-                            await updateUserSettings({ geo_id: city.id });
-                            refreshCity();
-                            showToast(`Город: ${formatCityName(city, locale)}`);
-                            setView("home");
-                          } catch {
-                            showToast("Не удалось сохранить город");
-                          } finally {
-                            setCitySavingId(null);
-                          }
-                        })();
-                      }}
-                      className="profile-nav-row theme-hover text-left disabled:opacity-60"
-                    >
-                      <RadioMark checked={selected} busy={busy} />
-                      <span className="profile-nav-row__main">
-                        <span className="profile-nav-row__label">Город</span>
-                        <span className="profile-nav-row__hint">
-                          {formatCityName(city, locale)}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </SectionCard>
-            )}
-          </>
-        ) : null}
-
-        {view === "language" ? (
-          <>
-            <BackBar onBack={() => setView("home")} />
-            <SectionCard>
-              {LANGUAGE_OPTIONS.map((lang) => (
-                <button
-                  key={lang.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={lang.id === locale}
-                  onClick={() => {
-                    dispatch(setLocale(lang.id));
-                    notifyLocaleChanged(lang.id);
-                    showToast(lang.label);
-                  }}
-                  className="profile-nav-row theme-hover text-left"
-                >
-                  <RadioMark checked={lang.id === locale} />
-                  <span className="profile-nav-row__main">
-                    <span className="profile-nav-row__label">Язык</span>
-                    <span className="profile-nav-row__hint">{lang.label}</span>
-                  </span>
-                </button>
-              ))}
-            </SectionCard>
           </>
         ) : null}
 
@@ -1687,13 +1379,6 @@ export default function ProfilePage() {
           </>
         ) : null}
 
-        {view === "garage" ? (
-          <>
-            <BackBar onBack={() => setView("home")} />
-            <GaragePanel />
-          </>
-        ) : null}
-
         {view === "promo" ? (
           <>
             <BackBar onBack={() => setView("home")} />
@@ -1906,57 +1591,6 @@ export default function ProfilePage() {
           />
         ) : null}
 
-        {logoutConfirmOpen ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            role="presentation"
-            onClick={() => setLogoutConfirmOpen(false)}
-          >
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="logout-modal-title"
-              className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-                <p
-                  id="logout-modal-title"
-                  className="text-center text-lg font-bold text-zinc-900 dark:text-zinc-50"
-                >
-                  {t("profile.logout_title", "Выйти из аккаунта?")}
-                </p>
-                <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                  {t("profile.logout_confirm", "Вы уверены, что хотите выйти?")}
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 p-4">
-                <button
-                  type="button"
-                  onClick={() => setLogoutConfirmOpen(false)}
-                  className="theme-button-secondary"
-                >
-                  {t("common.cancel", "Отмена")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLogoutConfirmOpen(false);
-                    forceLogout({
-                      skipDebug: true,
-                      reason: "Выход из профиля",
-                      source: "ProfilePage",
-                    });
-                  }}
-                  className="rounded-xl bg-[var(--app-danger)] px-4 py-3 text-sm font-semibold text-white"
-                >
-                  {t("profile.logout_yes", "Да, выйти")}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
       </>
     </PageLayout>
   );
