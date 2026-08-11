@@ -1988,7 +1988,7 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
 
 .map-top-actions {
   position: absolute;
-  top: 12px;
+  top: 52px;
   right: 12px;
   z-index: 25;
   display: flex;
