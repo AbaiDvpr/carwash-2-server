@@ -13,6 +13,12 @@ const METHODS: { id: TopUpMethod; label: string }[] = [
   { id: "forte", label: "Forte Bank" },
 ];
 
+/** 1000 → «1 000», 100 → «100» */
+function formatAmountDigits(digits: string): string {
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
 type BalanceTopUpProps = {
   balance: number | null;
   loading: boolean;
@@ -55,13 +61,14 @@ export default function BalanceTopUp({
   onSuccess,
 }: BalanceTopUpProps) {
   const t = useT();
-  const [amount, setAmount] = useState("2000");
+  const [amount, setAmount] = useState(() => formatAmountDigits("2000"));
   const [method, setMethod] = useState<TopUpMethod>("kaspi");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const parsed = Number.parseInt(amount.replace(/\D/g, ""), 10);
+  const amountDigits = amount.replace(/\D/g, "");
+  const parsed = Number.parseInt(amountDigits, 10);
   const canSubmit = Number.isFinite(parsed) && parsed >= 100 && !saving;
 
   async function handleSubmit() {
@@ -141,11 +148,12 @@ export default function BalanceTopUp({
               value={amount}
               disabled={saving}
               onChange={(e) => {
-                setAmount(e.target.value.replace(/[^\d]/g, ""));
+                const digits = e.target.value.replace(/\D/g, "");
+                setAmount(formatAmountDigits(digits));
                 setMessage(null);
                 setError(null);
               }}
-              placeholder="2000"
+              placeholder="2 000"
               className="profile-edit-row__value"
             />
             <div className="profile-topup__presets">
@@ -155,7 +163,7 @@ export default function BalanceTopUp({
                   type="button"
                   disabled={saving}
                   onClick={() => {
-                    setAmount(String(value));
+                    setAmount(formatAmountDigits(String(value)));
                     setMessage(null);
                     setError(null);
                   }}

@@ -79,9 +79,20 @@ function SheetBackButton({
 
 function QrScanIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-      <path strokeLinecap="round" d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 8h3v3H8V8Zm5 0h3v3h-3V8ZM8 13h3v3H8v-3Zm5 2h1v1h-1v-1Zm2-2h1v3h-3v-1h2v-2Z" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M8 3H3v5" />
+      <path d="M16 3h5v5" />
+      <path d="M3 16v5h5" />
+      <path d="M21 16v5h-5" />
+      <path d="M4 12h16" />
     </svg>
   );
 }
@@ -156,7 +167,7 @@ function ScanQrButton() {
   return (
     <button
       type="button"
-      className="map-station-sheet__btn map-station-sheet__btn--pay map-station-sheet__btn--icon"
+      className="map-station-sheet__btn map-station-sheet__btn--route map-station-sheet__btn--icon"
       onClick={() => navigateNavbar("qr")}
       aria-label={label}
       title={label}

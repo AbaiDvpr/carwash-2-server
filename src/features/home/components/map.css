@@ -4670,7 +4670,7 @@ html[data-theme="dark"] .map-stand-pick__live {
   height: 2.75rem;
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 16px;
   background: color-mix(in oklab, var(--app-hover) 90%, var(--app-block));
 }
 
@@ -4830,7 +4830,11 @@ button.map-conn-card {
 }
 
 .map-station-sheet__toolbar-actions .map-station-sheet__btn--route {
-  background: var(--app-hover);
+  background: transparent;
+}
+
+.map-station-sheet__toolbar-actions .map-station-sheet__btn--route.is-active {
+  background: transparent;
 }
 
 .map-station-sheet__btn--route {

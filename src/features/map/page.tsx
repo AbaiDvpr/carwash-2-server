@@ -1230,25 +1230,28 @@ function MapPageInner() {
             <span>{t("map.filter", "Фильтр")}</span>
             <FilterCountBadge count={filterCount} />
           </button>
-          <button
-            type="button"
-            className="map-style-btn"
-            onClick={() => {
-              setListOpen(false);
-              setFilterOpen(false);
-              setStyleOpen(true);
-            }}
-            aria-label={t("map.marker_styles", "Вид маркеров")}
-            title={t("map.marker_styles", "Вид маркеров")}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-              <circle cx="12" cy="12" r="3" />
-              <path
-                strokeLinecap="round"
-                d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77"
-              />
-            </svg>
-          </button>
+          {/* Пока скрыто: кнопка «Вид маркеров» */}
+          {false ? (
+            <button
+              type="button"
+              className="map-style-btn"
+              onClick={() => {
+                setListOpen(false);
+                setFilterOpen(false);
+                setStyleOpen(true);
+              }}
+              aria-label={t("map.marker_styles", "Вид маркеров")}
+              title={t("map.marker_styles", "Вид маркеров")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  strokeLinecap="round"
+                  d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77"
+                />
+              </svg>
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -1282,7 +1285,8 @@ function MapPageInner() {
         />
       ) : null}
 
-      {styleOpen ? (
+      {/* Пока скрыто: drawer стилей маркеров */}
+      {false && styleOpen ? (
         <MapMarkerStyleDrawer
           prefs={markerPrefs}
           onApply={setMarkerPrefs}

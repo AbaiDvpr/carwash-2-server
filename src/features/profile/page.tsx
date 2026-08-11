@@ -189,6 +189,17 @@ function IconPalette() {
     </svg>
   );
 }
+function IconTheme() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5A6.5 6.5 0 0 1 12 3.5Z"
+      />
+    </svg>
+  );
+}
 function IconBell() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
@@ -541,7 +552,7 @@ export default function ProfilePage() {
     loading: balanceLoading,
     refresh: refreshBalance,
   } = useUserBalance();
-  const { theme, isDark, setTheme, mounted: themeMounted } = useTheme();
+  const { theme, isDark, setTheme, toggleTheme, mounted: themeMounted } = useTheme();
   const { palettes, setField, reset: resetPalette } = useThemePalette();
   const {
     layout,
@@ -850,17 +861,39 @@ export default function ProfilePage() {
               <ProfileNavRow
                 icon={<IconPalette />}
                 label={t("profile.appearance", "Оформление")}
-                hint={
-                  themeMounted
-                    ? `${isDark ? "Тёмная" : "Светлая"} · фон / кнопки / текст`
-                    : "Тема и цвета"
-                }
+                hint="фон / кнопки / текст"
                 onClick={() => {
                   setEditPaletteMode(theme);
                   setAppearanceSection("menu");
                   setView("appearance");
                 }}
               />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!themeMounted) return;
+                  toggleTheme();
+                }}
+                className="profile-nav-row theme-hover"
+              >
+                <span className="profile-nav-row__icon" aria-hidden>
+                  <IconTheme />
+                </span>
+                <span className="profile-nav-row__main">
+                  <span className="profile-nav-row__label">
+                    {t("profile.theme", "Тема")}
+                  </span>
+                  <span className="profile-nav-row__hint">
+                    {themeMounted ? (isDark ? "Тёмная" : "Светлая") : "…"}
+                  </span>
+                </span>
+                <span
+                  className={`profile-switch${themeMounted && isDark ? " is-on" : ""}`}
+                  aria-hidden
+                >
+                  <span className="profile-switch__knob" />
+                </span>
+              </button>
             </section>
 
             <section className="profile-card">
@@ -919,6 +952,12 @@ export default function ProfilePage() {
                 label={t("profile.garage", "Гараж")}
                 hint={t("garage.plate", "Госномер")}
                 href="/profile/garage"
+              />
+              <ProfileNavRow
+                icon={<IconCar />}
+                label={t("profile.garage2", "Гараж 2")}
+                hint={t("garage2.power_hint", "Топливо / Электро")}
+                href="/profile/garage-2"
               />
               <ProfileNavRow
                 icon={<IconTag />}

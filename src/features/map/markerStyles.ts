@@ -124,7 +124,7 @@ export const MARKER_FACE_PART_META: {
 
 export const DEFAULT_MARKER_STYLE_PREFS: MapMarkerStylePrefs = {
   wash: {
-    shapeId: 1,
+    shapeId: 4,
     accent: "#38bdf8",
     ink: "#ffffff",
     progressFree: "#ffffff",
@@ -134,15 +134,20 @@ export const DEFAULT_MARKER_STYLE_PREFS: MapMarkerStylePrefs = {
     layout: structuredClone(DEFAULT_MARKER_FACE_LAYOUT),
   },
   charging: {
-    shapeId: 1,
+    shapeId: 4,
     accent: "#facc15",
-    ink: "#1c1917",
+    ink: "#ffffff",
     progressFree: "#ffffff",
     progressBusy: "#ffffff",
     showTotal: false,
     layout: structuredClone(DEFAULT_MARKER_FACE_LAYOUT),
   },
 };
+
+/** Пока UI смены стиля скрыт: у мойки и ЭЗС только пилюля + белый текст. */
+const FORCE_MARKER_PILL = true;
+const FORCE_MARKER_INK = "#ffffff";
+const FORCE_MARKER_SHAPE_ID = 4;
 
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const PART_SET = new Set<MarkerFacePart>(["icon", "free"]);
@@ -224,9 +229,13 @@ function normalizeKindPrefs(
   fallback: KindMarkerPrefs,
 ): KindMarkerPrefs {
   return {
-    shapeId: clampMarkerShapeId(raw?.shapeId ?? fallback.shapeId),
+    shapeId: FORCE_MARKER_PILL
+      ? FORCE_MARKER_SHAPE_ID
+      : clampMarkerShapeId(raw?.shapeId ?? fallback.shapeId),
     accent: normalizeHexColor(raw?.accent, fallback.accent),
-    ink: normalizeHexColor(raw?.ink, fallback.ink),
+    ink: FORCE_MARKER_PILL
+      ? FORCE_MARKER_INK
+      : normalizeHexColor(raw?.ink, fallback.ink),
     progressFree: "#ffffff",
     progressBusy: "#ffffff",
     showTotal: false,

@@ -45,16 +45,6 @@ export default function SelectCityPage() {
           <BackButton iconOnly href="/profile" />
         </div>
 
-        <p
-          className="mb-3 px-0.5"
-          style={{
-            color: "var(--app-description)",
-            fontSize: "var(--app-text-sm)",
-          }}
-        >
-          Мойки и ЭЗС показываются только в выбранном городе.
-        </p>
-
         {loading ? (
           <div
             className="h-28 animate-pulse"

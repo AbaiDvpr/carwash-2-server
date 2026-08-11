@@ -239,7 +239,7 @@ function StationDot({
 }: StationDotProps) {
   const isCharging = station.kind === "charging";
   const prefs = isCharging ? chargingPrefs : washPrefs;
-  const shapeId = clampMarkerShapeId(prefs?.shapeId ?? 1);
+  const shapeId = clampMarkerShapeId(prefs?.shapeId ?? 4);
   const count = Math.max(
     1,
     station.stationsCount ??

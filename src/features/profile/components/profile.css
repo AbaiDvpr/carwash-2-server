@@ -212,6 +212,209 @@
   cursor: not-allowed;
 }
 
+.profile-garage-empty {
+  margin: 0;
+  padding: 1.25rem var(--app-row-pad-x);
+  text-align: center;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  color: var(--app-description);
+}
+
+/* Гараж 2 — UI по мотивам второго экрана (номер + тип питания) */
+.garage2 {
+  gap: 0;
+}
+
+.garage2__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.1rem;
+  text-align: center;
+}
+
+.garage2__car {
+  display: flex;
+  width: 100%;
+  max-width: 17rem;
+  height: 6.5rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+}
+
+.garage2__car svg {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 8px 18px color-mix(in oklab, currentColor 28%, transparent));
+}
+
+.garage2__plate {
+  display: flex;
+  width: 100%;
+  max-width: 20rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.75rem;
+  border: var(--app-border-width) solid
+    color-mix(in oklab, var(--app-border) 85%, transparent);
+  border-radius: var(--app-section-radius-sm);
+  background: var(--app-block);
+}
+
+.garage2__flag {
+  flex-shrink: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.garage2__plate-input {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  padding: 0.15rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-text);
+  font-family: inherit;
+  font-size: var(--app-text-lg);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  outline: none;
+}
+
+.garage2__plate-input::placeholder {
+  color: var(--app-description);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.garage2__hint {
+  margin: 0.65rem 0 0;
+  max-width: 18rem;
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--app-description);
+}
+
+.garage2__colors {
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.garage2__color-label {
+  margin: 0 0 0.55rem;
+  font-size: var(--app-text-md);
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.garage2__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.garage2__swatch {
+  width: 1.85rem;
+  height: 1.85rem;
+  margin: 0;
+  padding: 0;
+  border: 2px solid color-mix(in oklab, var(--app-border) 80%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.garage2__swatch.is-active {
+  border-color: var(--app-button);
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--app-button) 35%, transparent),
+    inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+
+.garage2__card {
+  margin-bottom: 0.75rem;
+}
+
+.garage2__section-label {
+  margin: 0;
+  padding: 0.75rem var(--app-row-pad-x) 0.15rem;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  color: var(--app-description);
+}
+
+.garage2__power {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  padding: 0.65rem var(--app-row-pad-x) 0.85rem;
+}
+
+.garage2__power-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.85rem 0.8rem;
+  border: var(--app-border-width) solid var(--app-border);
+  border-radius: var(--app-section-radius-sm);
+  background: var(--app-hover);
+  color: var(--app-text);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.garage2__power-btn.is-active {
+  border-color: var(--app-button);
+  background: color-mix(in oklab, var(--app-button) 12%, var(--app-block));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--app-button) 35%, transparent);
+}
+
+.garage2__power-icon {
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  color: var(--app-button);
+}
+
+.garage2__power-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.garage2__power-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.garage2__power-title {
+  font-size: var(--app-text-md);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.garage2__power-hint {
+  font-size: var(--app-text-xs);
+  font-weight: 500;
+  color: var(--app-description);
+}
+
+.garage2 .theme-button.w-full {
+  margin-top: 0.35rem;
+}
+
 .profile-hero {
   position: relative;
   display: flex;

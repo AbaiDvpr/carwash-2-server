@@ -1,6 +1,13 @@
-export default function BotAvatar() {
+type BotAvatarProps = {
+  size?: "sm" | "lg";
+};
+
+export default function BotAvatar({ size = "sm" }: BotAvatarProps) {
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[0.75rem] font-bold text-white">
+    <div
+      className={`chat-bot-avatar${size === "lg" ? " chat-bot-avatar--lg" : ""}`}
+      aria-hidden
+    >
       CW
     </div>
   );
