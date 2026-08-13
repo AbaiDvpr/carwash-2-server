@@ -202,26 +202,6 @@ function postTone(status: string | null | undefined): StatusTone {
   return "offline";
 }
 
-function StatusLegend() {
-  const t = useT();
-  return (
-    <div className="map-status-legend" aria-hidden>
-      <span className="map-status-legend__item">
-        <span className="map-status-legend__dot is-free" />
-        {t("map.status_free", "Свободен")}
-      </span>
-      <span className="map-status-legend__item">
-        <span className="map-status-legend__dot is-busy" />
-        {t("map.status_busy", "Занят")}
-      </span>
-      <span className="map-status-legend__item">
-        <span className="map-status-legend__dot is-offline" />
-        {t("map.status_offline", "Не в сети")}
-      </span>
-    </div>
-  );
-}
-
 function WashPostsGrid({
   washers,
 }: {
@@ -231,7 +211,6 @@ function WashPostsGrid({
 
   return (
     <div className="map-status-block map-status-block--compact">
-      <StatusLegend />
       <div className="map-status-grid map-status-grid--soft">
         {washers.map((washer, index) => {
           const tone = postTone(washer.status);
@@ -302,6 +281,7 @@ function MetaIcons({
 }
 
 function ConnectorInfoCard({ port }: { port: StationConnectorPort }) {
+  const t = useT();
   const isCharging = port.status === "charging" || port.status === "busy";
   const isFree = port.status === "free";
   const percent =
@@ -327,7 +307,7 @@ function ConnectorInfoCard({ port }: { port: StationConnectorPort }) {
           </span>
         ) : isFree ? (
           <span className="map-conn-card__free">
-            {port.statusLabel || "Свободен"}
+            {t("map.free", "свободно")}
           </span>
         ) : (
           <span className="map-conn-card__offline">
@@ -669,16 +649,14 @@ export default function StationMapDrawer({
     };
 
     apply();
-    const ro = new ResizeObserver(apply);
-    if (sheetNodeRef.current) ro.observe(sheetNodeRef.current);
+    // Высота sheet фиксирована — следим только за resize окна, не за сменой панели
     window.addEventListener("resize", apply);
     return () => {
-      ro.disconnect();
       window.removeEventListener("resize", apply);
       document.documentElement.classList.remove("map-sheet-photo-on");
       document.documentElement.style.removeProperty("--map-sheet-h");
     };
-  }, [initialStation.id, routeOpen, hoursOpen, selectedStandId, hasStationPhoto]);
+  }, [initialStation.id, hasStationPhoto]);
 
   return (
     <>
@@ -727,12 +705,35 @@ export default function StationMapDrawer({
           </div>
         )}
         <div className="map-station-photo-layer__title-bar">
-          <h2
-            id="map-station-photo-title"
-            className="map-station-photo-layer__title"
-          >
-            {station.address || station.name}
-          </h2>
+          <div className="map-station-photo-layer__title-main">
+            <h2
+              id="map-station-photo-title"
+              className="map-station-photo-layer__title"
+            >
+              {station.address || station.name}
+            </h2>
+            <div className="map-station-photo-layer__meta">
+              <span
+                className="map-station-photo-layer__meta-item"
+                title={station.hoursLabel}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <circle cx="12" cy="12" r="9" />
+                  <path strokeLinecap="round" d="M12 7v5l3 2" />
+                </svg>
+                <span>{hoursText}</span>
+              </span>
+              {km != null ? (
+                <span className="map-station-photo-layer__meta-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" />
+                    <circle cx="12" cy="10" r="2.5" />
+                  </svg>
+                  {formatDistanceLabel(km)}
+                </span>
+              ) : null}
+            </div>
+          </div>
           <StationSheetMarker station={station} />
         </div>
       </div>
@@ -824,7 +825,7 @@ export default function StationMapDrawer({
         {bootLoading ? (
           <DrawerLoading label={t("map.loading_station", "Загружаем данные…")} />
         ) : stationError && !freshStation ? (
-          <div className="map-station-sheet__loading-panel">
+          <div className="map-station-sheet__body map-station-sheet__loading-panel">
             <p>{stationError}</p>
             <button
               type="button"
@@ -868,32 +869,6 @@ export default function StationMapDrawer({
           </div>
         ) : (
           <div className="map-station-sheet__body map-station-sheet__body--compact" {...scrollProps}>
-            <div className="map-station-sheet__top">
-              <div className="map-station-sheet__main">
-                <div className="map-station-sheet__meta map-station-sheet__meta--compact">
-                  <span
-                    className="map-station-sheet__meta-item map-station-sheet__meta-item--hours"
-                    title={station.hoursLabel}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                      <circle cx="12" cy="12" r="9" />
-                      <path strokeLinecap="round" d="M12 7v5l3 2" />
-                    </svg>
-                    <span>{hoursText}</span>
-                  </span>
-                  {km != null ? (
-                    <span className="map-station-sheet__meta-item map-station-sheet__meta-item--distance">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" />
-                        <circle cx="12" cy="10" r="2.5" />
-                      </svg>
-                      {formatDistanceLabel(km)}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
             {!isCharging ? (
               <WashPostsGrid washers={station.washers} />
             ) : null}

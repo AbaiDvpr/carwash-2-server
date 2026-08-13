@@ -283,14 +283,14 @@ export default function HistoryFilterDrawer({
         <div className="history-drawer__footer">
           <button
             type="button"
-            className="history-drawer__reset"
+            className="theme-button-secondary"
             onClick={() => setDraft(DEFAULT_HISTORY_FILTERS)}
           >
             {t("history.filter_reset", "Сбросить")}
           </button>
           <button
             type="button"
-            className="history-drawer__apply"
+            className="theme-button"
             onClick={() => {
               onApply(draft);
               onClose();

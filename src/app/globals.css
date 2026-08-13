@@ -638,6 +638,119 @@ html.fullscreen .app-header {
   border-radius: 0.85rem;
 }
 
+/* Кроппер аватара: фиксированная высота — drawer не прыгает */
+.app-bottom-sheet--avatar-crop {
+  height: min(78dvh, 640px);
+  max-height: min(78dvh, 640px);
+}
+
+.app-bottom-sheet--avatar-crop .app-bottom-sheet__footer {
+  border-top: 0;
+}
+
+.avatar-crop__stage {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatar-crop__viewport {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #111;
+  touch-action: none;
+}
+
+.avatar-crop__img {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.avatar-crop__loading {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--app-text-xs);
+  color: #a1a1aa;
+}
+
+.avatar-crop__ring {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.9);
+}
+
+.avatar-crop__preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.avatar-crop__preview {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 2px solid var(--app-border);
+}
+
+.avatar-crop__preview--empty {
+  background: var(--app-hover);
+}
+
+.avatar-crop__preview-title {
+  margin: 0;
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.avatar-crop__zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.avatar-crop__zoom-btn {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: var(--app-border-width) solid var(--app-border);
+  border-radius: var(--app-button-radius);
+  background: var(--app-block);
+  color: var(--app-text);
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.avatar-crop__zoom-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.avatar-crop__range {
+  min-width: 0;
+  flex: 1;
+  accent-color: var(--app-button);
+}
+
 /* Чат: скролл только в ленте сообщений */
 body:has(.page--chat) .app-shell {
   overflow: hidden;

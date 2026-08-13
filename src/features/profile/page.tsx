@@ -35,10 +35,6 @@ import { useUserCity } from "@/hooks/useUserCity";
 import { fetchUserInfo, type AuthUser } from "@/lib/api/auth";
 import { useEditProfile } from "./hooks/useEditProfile";
 import { usePromoCode } from "./hooks/usePromoCode";
-import {
-  fetchReferralClients,
-  type ReferralClient,
-} from "@/lib/api/referral";
 import { hasAccessToken } from "@/lib/authToken";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { useUserBalance, formatBalance } from "./hooks/useUserBalance";
@@ -59,7 +55,6 @@ type ProfileView =
   | "balance"
   | "history"
   | "promo"
-  | "referral-clients"
   | "support"
   | "documents"
   | "appearance";
@@ -247,11 +242,15 @@ function IconDocs() {
     </svg>
   );
 }
-function IconCamera() {
+function IconPencil() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" d="M4.5 8.5h2.2l1.1-2h8.4l1.1 2H19.5a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18v-8a1.5 1.5 0 0 1 1.5-1.5Z" />
-      <circle cx="12" cy="13.5" r="3" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"
+      />
+      <path strokeLinecap="round" d="m13.5 6.5 3 3" />
     </svg>
   );
 }
@@ -517,8 +516,6 @@ export default function ProfilePage() {
   const support = useAppSelector((state) => state.variables.support);
   const documents = useAppSelector((state) => state.variables.documents);
   const [referralUser, setReferralUser] = useState<AuthUser | null>(null);
-  const [referralClients, setReferralClients] = useState<ReferralClient[]>([]);
-  const [clientsLoading, setClientsLoading] = useState(false);
 
   const hasReferrer = Boolean(referralUser?.has_referrer);
   const myReferralCode = referralUser?.referral_code ?? "—";
@@ -615,31 +612,6 @@ export default function ProfilePage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (view !== "referral-clients" || !hasAccessToken()) return;
-    let cancelled = false;
-    setClientsLoading(true);
-    void fetchReferralClients()
-      .then((data) => {
-        if (cancelled) return;
-        setReferralClients(data.clients);
-        setReferralUser((prev) =>
-          prev
-            ? { ...prev, referral_clients_count: data.total }
-            : prev,
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setReferralClients([]);
-      })
-      .finally(() => {
-        if (!cancelled) setClientsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [view]);
-
   const displayName = mounted ? name || "…" : "…";
   const resolvedEmail =
     profileEdit.email.trim() ||
@@ -701,17 +673,6 @@ export default function ProfilePage() {
     setCopied(true);
     showToast(t("profile.copied", "Скопировано"));
     window.setTimeout(() => setCopied(false), 2000);
-  }
-
-  function formatReferredAt(value: string | null): string {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
   }
 
   return (
@@ -777,7 +738,7 @@ export default function ProfilePage() {
                   {photoBusy || heroPhotoLoading ? (
                     <span className="profile-boot__spinner profile-boot__spinner--sm" />
                   ) : (
-                    <IconCamera />
+                    <IconPencil />
                   )}
                 </button>
               </div>
@@ -1421,18 +1382,18 @@ export default function ProfilePage() {
         {view === "promo" ? (
           <>
             <BackBar onBack={() => setView("home")} />
-            <div className="space-y-4">
-              <div>
-                <p className="mb-2 text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
-                  {t("profile.promo", "Промокод")}
-                </p>
-                {hasReferrer ? (
-                  <p className="theme-accent-text text-xs">
-                    {t("profile.promo_already", "Вы уже зашли через промокод")}
-                  </p>
-                ) : (
-                  <>
-                    <div className="theme-input-row">
+            <div className="profile-edit__main space-y-4">
+              <div className="profile-edit-fields">
+                <div className="profile-edit-row">
+                  <span className="profile-edit-row__label">
+                    {t("profile.promo", "Промокод")}
+                  </span>
+                  {hasReferrer ? (
+                    <p className="profile-edit__feedback is-ok" style={{ textAlign: "left" }}>
+                      {t("profile.promo_already", "Вы уже зашли через промокод")}
+                    </p>
+                  ) : (
+                    <>
                       <input
                         type="text"
                         value={promoCode}
@@ -1440,49 +1401,37 @@ export default function ProfilePage() {
                         placeholder={t("profile.promo_placeholder", "Введите код")}
                         maxLength={8}
                         disabled={promoBusy}
-                        className="theme-field min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm uppercase tracking-wide text-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                        className="profile-edit-row__value profile-promo__input"
+                        autoCapitalize="characters"
+                        autoCorrect="off"
+                        spellCheck={false}
                       />
+                      {promoMessage ? (
+                        <p
+                          className={`profile-edit__feedback ${promoError ? "is-error" : "is-ok"}`}
+                          style={{ textAlign: "left", marginTop: "0.35rem" }}
+                        >
+                          {promoMessage}
+                        </p>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => void applyPromo()}
-                        disabled={promoBusy}
-                        className="theme-button disabled:opacity-50"
+                        disabled={promoBusy || !promoCode.trim()}
+                        className="theme-button w-full profile-promo__ok"
                       >
-                        OK
+                        {promoBusy ? t("common.saving", "Сохранение…") : "OK"}
                       </button>
-                    </div>
-                    {promoMessage ? (
-                      <p
-                        className={`mt-2 text-xs ${promoError ? "text-red-500" : "theme-accent-text"}`}
-                      >
-                        {promoMessage}
-                      </p>
-                    ) : (
-                      <p className="mt-2 text-xs text-zinc-400">
-                        {t(
-                          "profile.promo_hint",
-                      "После вашей первой оплаты пригласившему зачислится 100 ₸ на баланс",
-                        )}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
+                    </>
+                  )}
+                </div>
 
-              <SectionCard>
-                <div className="px-3 py-3">
-                  <p className="text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
+                <div className="profile-edit-row">
+                  <span className="profile-edit-row__label">
                     {t("profile.referral", "Рефералка")}
-                  </p>
-                  <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    {t(
-                      "profile.referral_hint",
-                      "Поделитесь кодом — после первой оплаты друга 100 ₸ упадут вам на баланс",
-                    )}
-                  </p>
-
-                  <div className="mt-3 flex items-center gap-1">
-                    <p className="min-w-0 flex-1 font-mono text-base font-semibold tracking-wide text-zinc-900 dark:text-zinc-50">
+                  </span>
+                  <div className="profile-promo__code-wrap">
+                    <p className="profile-edit-row__value profile-promo__code">
                       {myReferralCode}
                     </p>
                     <IconActionButton
@@ -1498,97 +1447,85 @@ export default function ProfilePage() {
                     </IconActionButton>
                   </div>
                 </div>
-              </SectionCard>
 
-              <SectionCard>
-                <ProfileNavRow
-                  label={t("profile.my_clients", "Ваши клиенты")}
-                  hint={
-                    clientsCount === 0
-                      ? t("profile.my_clients_empty", "Пока никто не подключился")
-                      : `${clientsCount}`
-                  }
-                  onClick={() => setView("referral-clients")}
-                />
-              </SectionCard>
+                <div className="profile-edit-row">
+                  <span className="profile-edit-row__label">
+                    {t("profile.my_clients", "Ваши клиенты")}
+                  </span>
+                  <p className="profile-edit-row__value profile-promo__count">
+                    {clientsCount}
+                  </p>
+                </div>
+              </div>
             </div>
-          </>
-        ) : null}
-
-        {view === "referral-clients" ? (
-          <>
-            <BackBar onBack={() => setView("promo")} />
-            <p className="mb-1 text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">
-              {t("profile.my_clients", "Ваши клиенты")}
-            </p>
-            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
-              {t(
-                "profile.my_clients_hint",
-                "Кто подключился по вашему коду",
-              )}
-            </p>
-            <SectionCard>
-              {clientsLoading ? (
-                <p className="px-3 py-3 text-center text-xs text-zinc-400">
-                  {t("common.loading", "Загрузка...")}
-                </p>
-              ) : referralClients.length === 0 ? (
-                <p className="px-3 py-3 text-center text-xs text-zinc-400">
-                  {t("profile.my_clients_empty", "Пока никто не подключился")}
-                </p>
-              ) : (
-                referralClients.map((client, index) => {
-                  const joined = formatReferredAt(client.referred_at);
-                  return (
-                    <div key={client.id}>
-                      {index > 0 ? (
-                        <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                      ) : null}
-                      <div className="app-row app-row--between">
-                        <span className="min-w-0">
-                          <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                            {t("profile.client_anonymous", "Клиент")} {index + 1}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-zinc-400">
-                            {[
-                              joined,
-                              client.bonus_paid
-                                ? t("profile.bonus_paid", "зачислено на баланс")
-                                : t(
-                                    "profile.client_waiting",
-                                    "ожидает первую оплату",
-                                  ),
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </SectionCard>
           </>
         ) : null}
 
         {view === "support" ? (
           <>
             <BackBar onBack={() => setView("home")} />
-            <div className="space-y-4">
-              <SectionCard>
-                <ProfileNavRow
-                  label={support.telegram.title}
-                  hint={support.telegram.hint}
-                  onClick={() => openTelegram(support.telegram.url)}
-                />
-                <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                <ProfileNavRow
-                  label={support.whatsapp.title}
-                  hint={support.whatsapp.hint}
-                  onClick={() => openWhatsApp(support.whatsapp.url)}
-                />
-              </SectionCard>
+            <div className="profile-edit__main space-y-4">
+              <div className="profile-edit-fields">
+                <div className="profile-edit-row">
+                  <span className="profile-edit-row__label">
+                    {t("profile.support", "Поддержка")}
+                  </span>
+                  <div className="profile-support__list">
+                    <button
+                      type="button"
+                      className="profile-doc-row"
+                      onClick={() => openTelegram(support.telegram.url)}
+                    >
+                      <span className="profile-doc-row__main">
+                        <span className="profile-doc-row__label">
+                          {support.telegram.title}
+                        </span>
+                        {support.telegram.hint ? (
+                          <span className="profile-doc-row__hint">
+                            {support.telegram.hint}
+                          </span>
+                        ) : null}
+                      </span>
+                      <svg
+                        className="profile-doc-row__chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        aria-hidden
+                      >
+                        <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="profile-doc-row"
+                      onClick={() => openWhatsApp(support.whatsapp.url)}
+                    >
+                      <span className="profile-doc-row__main">
+                        <span className="profile-doc-row__label">
+                          {support.whatsapp.title}
+                        </span>
+                        {support.whatsapp.hint ? (
+                          <span className="profile-doc-row__hint">
+                            {support.whatsapp.hint}
+                          </span>
+                        ) : null}
+                      </span>
+                      <svg
+                        className="profile-doc-row__chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        aria-hidden
+                      >
+                        <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               <FaqSection />
             </div>
@@ -1598,22 +1535,40 @@ export default function ProfilePage() {
         {view === "documents" ? (
           <>
             <BackBar onBack={() => setView("home")} />
-            <SectionCard>
-              {documents.map((doc, index) => (
-                <div key={doc.id}>
-                  {index > 0 ? (
-                    <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                  ) : null}
-                  <ProfileNavRow
-                    icon={<IconDocs />}
-                    label={doc.title}
-                    onClick={
-                      doc.url ? () => openBrowser(doc.url) : undefined
-                    }
-                  />
-                </div>
-              ))}
-            </SectionCard>
+            <div className="profile-edit__main space-y-4">
+              <div className="profile-edit-fields">
+                {documents.length === 0 ? (
+                  <p className="profile-promo__hint" style={{ marginTop: 0 }}>
+                    {t("profile.documents_empty", "Документов пока нет")}
+                  </p>
+                ) : (
+                  documents.map((doc) => (
+                    <div key={doc.id} className="profile-edit-row">
+                      <button
+                        type="button"
+                        className="profile-doc-row"
+                        disabled={!doc.url}
+                        onClick={() => {
+                          if (doc.url) openBrowser(doc.url);
+                        }}
+                      >
+                        <span className="profile-doc-row__label">{doc.title}</span>
+                        <svg
+                          className="profile-doc-row__chevron"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          aria-hidden
+                        >
+                          <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </>
         ) : null}
 

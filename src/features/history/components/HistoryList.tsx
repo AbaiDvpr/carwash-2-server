@@ -33,19 +33,20 @@ function formatDateTime(value: string | null): string {
   });
 }
 
-function statusTone(status: string | null) {
+function statusClass(status: string | null): string {
   switch (status) {
     case "completed":
-      return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400";
+      return "is-completed";
     case "in_progress":
-      return "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400";
+      return "is-in_progress";
     case "pending":
-      return "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400";
+      return "is-pending";
     case "cancelled":
+      return "is-cancelled";
     case "error":
-      return "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400";
+      return "is-error";
     default:
-      return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
+      return "";
   }
 }
 
@@ -143,91 +144,83 @@ export default function HistoryList({ title }: HistoryListProps) {
     })();
   }, [filters, filtersReady, t]);
 
-  const toolbar = (
-    <div className="history-toolbar">
-      <div className="history-toolbar__row">
-        {title ? (
-          <h1 className="history-toolbar__title">{title}</h1>
-        ) : (
-          <span className="history-toolbar__spacer" />
-        )}
-        <div className="history-toolbar__actions">
-          {filtersActive ? (
+  return (
+    <div className="history-page">
+      <div className="history-toolbar">
+        <div className="history-toolbar__row">
+          {title ? (
+            <h1 className="history-toolbar__title">{title}</h1>
+          ) : (
+            <span className="history-toolbar__spacer" />
+          )}
+          <div className="history-toolbar__actions">
+            {filtersActive ? (
+              <button
+                type="button"
+                className="history-filters__reset"
+                onClick={() => setFilters(DEFAULT_HISTORY_FILTERS)}
+              >
+                {t("history.filter_reset", "Сбросить")}
+              </button>
+            ) : null}
             <button
               type="button"
-              className="history-filters__reset"
-              onClick={() => setFilters(DEFAULT_HISTORY_FILTERS)}
+              className={`history-filter-btn${filtersActive ? " is-on" : ""}`}
+              onClick={() => setDrawerOpen(true)}
+              aria-label={t("history.filter", "Фильтр")}
             >
-              {t("history.filter_reset", "Сбросить")}
+              <FilterSlidersIcon className="history-filter-btn__icon" />
+              {filterCount > 0 ? (
+                <span className="history-filter-badge">{filterCount}</span>
+              ) : null}
             </button>
-          ) : null}
-          <button
-            type="button"
-            className={`history-filter-btn${filtersActive ? " is-on" : ""}`}
-            onClick={() => setDrawerOpen(true)}
-            aria-label={t("history.filter", "Фильтр")}
-          >
-            <FilterSlidersIcon className="history-filter-btn__icon" />
-            {filterCount > 0 ? (
-              <span className="history-filter-badge">{filterCount}</span>
-            ) : null}
-          </button>
+          </div>
         </div>
+
+        {filtersActive && summary ? (
+          <p className="history-summary__text">
+            <button type="button" onClick={() => setDrawerOpen(true)}>
+              <strong>{summary}</strong>
+            </button>
+          </p>
+        ) : null}
       </div>
 
-      {filtersActive && summary ? (
-        <p className="history-summary__text">
-          <button type="button" onClick={() => setDrawerOpen(true)}>
-            <strong>{summary}</strong>
-          </button>
-        </p>
-      ) : null}
-    </div>
-  );
-
-  return (
-    <div className="app-stack" style={{ gap: "0.75rem" }}>
-      {toolbar}
-
       {initialLoading ? (
-        <div className="space-y-2">
+        <div className="history-skeleton" aria-hidden>
           {[1, 2, 3].map((key) => (
-            <div
-              key={key}
-              className="h-20 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
-            />
+            <div key={key} className="history-skeleton__card" />
           ))}
         </div>
       ) : error && !filtersActive && sessions.length === 0 ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-4 text-center text-xs text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
-          {error}
-        </p>
+        <div className="history-card">
+          <p className="history-card__error">{error}</p>
+        </div>
       ) : (
         <>
           <div className="history-filters__meta">
-            <p className="theme-description text-xs">
-              {t("history.total", "Всего")}:{" "}
-              <span className="font-medium" style={{ color: "var(--app-text)" }}>
-                {total}
-              </span>
-              {refreshing ? <span className="ml-2 opacity-70">…</span> : null}
+            <p className="history-filters__meta-text">
+              {t("history.total", "Всего")}: <strong>{total}</strong>
+              {refreshing ? <span> …</span> : null}
             </p>
           </div>
 
           {error ? (
-            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-center text-xs text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
-              {error}
-            </p>
+            <div className="history-card">
+              <p className="history-card__error">{error}</p>
+            </div>
           ) : null}
 
           {sessions.length === 0 ? (
-            <p className="app-section theme-description px-[var(--app-row-pad-x)] py-6 text-center text-xs">
-              {filtersActive
-                ? t("history.empty_filtered", "Ничего не найдено по фильтрам")
-                : t("history.empty", "Пока нет моек и зарядок")}
-            </p>
+            <div className="history-card">
+              <p className="history-card__empty">
+                {filtersActive
+                  ? t("history.empty_filtered", "Ничего не найдено по фильтрам")
+                  : t("history.empty", "Пока нет моек и зарядок")}
+              </p>
+            </div>
           ) : (
-            <div className={`app-section${refreshing ? " opacity-60" : ""}`}>
+            <div className={`history-card${refreshing ? " is-dim" : ""}`}>
               {sessions.map((session) => {
                 const isCharging = session.kind === "charging";
                 const kindLabel = isCharging
@@ -239,58 +232,51 @@ export default function HistoryList({ title }: HistoryListProps) {
                     : `${session.duration_minutes} ${t("history.min", "мин")}`;
 
                 return (
-                  <article
-                    key={sessionKey(session)}
-                    className="app-row"
-                    style={{ alignItems: "flex-start", flexDirection: "column" }}
-                  >
-                    <div className="flex w-full items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="theme-description text-[0.75rem] font-medium uppercase tracking-wider">
-                          {kindLabel}
-                        </p>
-                        <p
-                          className="truncate text-sm font-medium"
-                          style={{ color: "var(--app-text)" }}
-                        >
+                  <article key={sessionKey(session)} className="history-session">
+                    <div className="history-session__top">
+                      <div className="history-session__main">
+                        <span className="history-session__label">{kindLabel}</span>
+                        <span className="history-session__title">
                           {session.address ?? `${kindLabel} #${session.location_id}`}
-                        </p>
-                        <p className="theme-description mt-0.5 font-mono text-[0.8125rem] tracking-wide">
+                        </span>
+                        <span className="history-session__meta">
                           {session.car_plate ?? "—"}
                           {session.payment_amount != null
                             ? ` · ${new Intl.NumberFormat("ru-RU").format(Number(session.payment_amount))} ₸`
                             : ""}
-                        </p>
+                        </span>
                       </div>
                       <span
-                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[0.75rem] font-medium uppercase tracking-wide ${statusTone(session.status)}`}
+                        className={`history-session__status ${statusClass(session.status)}`}
                       >
                         {session.status_ru ?? session.status ?? "—"}
                       </span>
                     </div>
 
-                    <div className="mt-2 grid w-full grid-cols-3 gap-1.5 text-[0.8125rem]">
+                    <div className="history-session__times">
                       <div>
-                        <p className="theme-description">{t("history.start", "Начало")}</p>
-                        <p className="mt-0.5 font-medium" style={{ color: "var(--app-text)" }}>
+                        <p className="history-session__time-label">
+                          {t("history.start", "Начало")}
+                        </p>
+                        <p className="history-session__time-value">
                           {formatDateTime(session.entered_at ?? session.start_at)}
                         </p>
                       </div>
                       <div>
-                        <p className="theme-description">{t("history.end", "Конец")}</p>
-                        <p className="mt-0.5 font-medium" style={{ color: "var(--app-text)" }}>
+                        <p className="history-session__time-label">
+                          {t("history.end", "Конец")}
+                        </p>
+                        <p className="history-session__time-value">
                           {formatDateTime(session.exited_at ?? session.end_at)}
                         </p>
                       </div>
                       <div>
-                        <p className="theme-description">
+                        <p className="history-session__time-label">
                           {isCharging
                             ? t("history.session", "Сессия")
                             : t("history.washed", "Мыли")}
                         </p>
-                        <p className="mt-0.5 font-medium" style={{ color: "var(--app-text)" }}>
-                          {duration}
-                        </p>
+                        <p className="history-session__time-value">{duration}</p>
                       </div>
                     </div>
                   </article>

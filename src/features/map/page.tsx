@@ -44,7 +44,7 @@ const LIST_MAX_KM = 100;
 
 type StationWithDistance = Station & { distanceKm: number | null };
 
-type FilterOptionKey = "openOnly" | "freeOnly";
+type FilterOptionKey = "freeOnly";
 
 const FILTER_SECTIONS: {
   kind: StationKind;
@@ -62,11 +62,6 @@ const FILTER_SECTIONS: {
     titleFallback: "Мойка",
     options: [
       {
-        key: "openOnly",
-        labelKey: "map.filter_open_only",
-        labelFallback: "Только открытые",
-      },
-      {
         key: "freeOnly",
         labelKey: "map.filter_free_wash",
         labelFallback: "Есть свободные посты",
@@ -78,11 +73,6 @@ const FILTER_SECTIONS: {
     titleKey: "common.charging",
     titleFallback: "ЭЗС",
     options: [
-      {
-        key: "openOnly",
-        labelKey: "map.filter_open_only",
-        labelFallback: "Только открытые",
-      },
       {
         key: "freeOnly",
         labelKey: "map.filter_free_charge",
@@ -571,7 +561,6 @@ function MapFilterDrawer({
             <AvailabilityRows
               options={activeSection.options}
               values={{
-                openOnly: sectionDraft.openOnly,
                 freeOnly: sectionDraft.freeOnly,
               }}
               onToggle={(key) =>
@@ -723,7 +712,8 @@ function ChargingListCard({
     station.hasDc ||
     (station.maxPowerKw != null && station.maxPowerKw >= 50);
   const free = Math.max(0, station.freeSlots);
-  const portsTotal = connectors.length;
+  // Всего = число пистолетов, не уникальных типов коннекторов в ряду
+  const total = Math.max(station.washersTotal || 0, free, 1);
   const title = listCardTitle(station);
   const hoursLabel =
     station.hoursLabel || t("station.hours_unknown", "Часы уточняйте");
@@ -736,30 +726,33 @@ function ChargingListCard({
         className="map-ev-card theme-block theme-hover"
       >
         <div className="map-ev-card__head-row">
-          <span className="map-ev-card__free-chip">
-            {portsTotal > 0 ? `${free}/${portsTotal}` : free}{" "}
-            {t("map.free", "свободно")}
-          </span>
-          <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
-            {isOpen
-              ? t("map.status_working", "в работе")
-              : t("station.closed_short", "Закрыто")}
-          </span>
+          <div className="map-ev-card__head-left">
+            <span className="map-ev-card__free-chip">
+              {total > 0 ? `${free}/${total}` : free}{" "}
+              {t("map.free", "свободно")}
+            </span>
+            <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
+              {isOpen
+                ? t("map.status_open", "Открыто")
+                : t("station.closed_short", "Закрыто")}
+            </span>
+            <span
+              className="map-ev-card__kind map-ev-card__kind--ev"
+              title={t("common.charging", "ЭЗС")}
+              aria-label={t("common.charging", "ЭЗС")}
+            >
+              <ListEvIcon className="map-ev-card__kind-icon" />
+              <span className="map-ev-card__kind-text">
+                {t("common.charging", "ЭЗС")}
+              </span>
+            </span>
+          </div>
         </div>
 
         <div className="map-ev-card__top">
           <ListStationPhoto src={station.photoUrl} />
           <div className="map-ev-card__main">
-            <div className="map-ev-card__title-row">
-              <div className="map-ev-card__title">{title}</div>
-              <span
-                className="map-ev-card__kind map-ev-card__kind--ev"
-                title={t("common.charging", "ЭЗС")}
-                aria-label={t("common.charging", "ЭЗС")}
-              >
-                <ListEvIcon className="map-ev-card__kind-icon" />
-              </span>
-            </div>
+            <div className="map-ev-card__title">{title}</div>
             <ListHoursRow hoursLabel={hoursLabel} />
           </div>
         </div>
@@ -844,29 +837,32 @@ function WashListCard({
         className="map-ev-card map-ev-card--wash theme-block theme-hover"
       >
         <div className="map-ev-card__head-row">
-          <span className="map-ev-card__free-chip">
-            {free}/{total} {t("map.free", "свободно")}
-          </span>
-          <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
-            {isOpen
-              ? t("map.status_working", "в работе")
-              : t("station.closed_short", "Закрыто")}
-          </span>
+          <div className="map-ev-card__head-left">
+            <span className="map-ev-card__free-chip">
+              {free}/{total} {t("map.free", "свободно")}
+            </span>
+            <span className={`map-ev-card__status${isOpen ? " is-open" : ""}`}>
+              {isOpen
+                ? t("map.status_open", "Открыто")
+                : t("station.closed_short", "Закрыто")}
+            </span>
+            <span
+              className="map-ev-card__kind map-ev-card__kind--wash"
+              title={t("common.wash", "Мойка")}
+              aria-label={t("common.wash", "Мойка")}
+            >
+              <ListWashIcon className="map-ev-card__kind-icon" />
+              <span className="map-ev-card__kind-text">
+                {t("common.wash", "Мойка")}
+              </span>
+            </span>
+          </div>
         </div>
 
         <div className="map-ev-card__top">
           <ListStationPhoto src={station.photoUrl} />
           <div className="map-ev-card__main">
-            <div className="map-ev-card__title-row">
-              <div className="map-ev-card__title">{title}</div>
-              <span
-                className="map-ev-card__kind map-ev-card__kind--wash"
-                title={t("common.wash", "Мойка")}
-                aria-label={t("common.wash", "Мойка")}
-              >
-                <ListWashIcon className="map-ev-card__kind-icon" />
-              </span>
-            </div>
+            <div className="map-ev-card__title">{title}</div>
             <ListHoursRow hoursLabel={hoursLabel} />
           </div>
         </div>

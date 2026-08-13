@@ -2363,13 +2363,14 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
 .map-ev-card__head-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.5rem;
 }
 
 .map-ev-card__head-left {
   display: inline-flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
 }
@@ -2441,9 +2442,9 @@ html[data-theme="dark"] .map-ev-card__hours.is-closed .map-ev-card__hours-value 
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.45rem;
-  height: 1.45rem;
-  padding: 0;
+  gap: 0.3rem;
+  min-height: 1.45rem;
+  padding: 0.15rem 0.45rem 0.15rem 0.3rem;
   border-radius: 999px;
   flex-shrink: 0;
 }
@@ -2452,6 +2453,15 @@ html[data-theme="dark"] .map-ev-card__hours.is-closed .map-ev-card__hours-value 
   width: 0.85rem;
   height: 0.85rem;
   display: block;
+  flex-shrink: 0;
+}
+
+.map-ev-card__kind-text {
+  font-size: var(--app-text-xs);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .map-ev-card__kind--ev {
@@ -2557,18 +2567,6 @@ html[data-theme="dark"] .map-ev-card__hours.is-closed .map-ev-card__hours-value 
   flex: 1;
 }
 
-.map-ev-card__title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.45rem;
-}
-
-.map-ev-card__title-row .map-ev-card__kind {
-  flex-shrink: 0;
-  margin-top: 0.05rem;
-}
-
 .map-ev-card__status {
   display: inline-flex;
   align-items: center;
@@ -2580,7 +2578,6 @@ html[data-theme="dark"] .map-ev-card__hours.is-closed .map-ev-card__hours-value 
   font-size: var(--app-text-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
-  text-transform: lowercase;
 }
 
 .map-ev-card__status.is-open {
@@ -3305,8 +3302,7 @@ html[data-theme="dark"] .map-filter-sheet__tab--charging.is-active {
   transition:
     opacity 0.38s cubic-bezier(0.32, 0.72, 0, 1),
     visibility 0.38s cubic-bezier(0.32, 0.72, 0, 1),
-    transform 0.38s cubic-bezier(0.32, 0.72, 0, 1),
-    bottom 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+    transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .map-station-photo-layer.is-visible,
@@ -3432,7 +3428,7 @@ html.map-sheet-photo-on .map-station-photo-layer {
   letter-spacing: 0.01em;
 }
 
-/* Title + маркер поверх фото: тёмный blur сверху */
+/* Title + время/км + маркер поверх фото: тёмный blur сверху */
 .map-station-photo-layer__title-bar {
   position: absolute;
   top: 0;
@@ -3443,31 +3439,40 @@ html.map-sheet-photo-on .map-station-photo-layer {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.65rem;
-  /* Без лишнего +0.7rem к safe-area — иначе сверху огромный отступ */
+  /* Нижний padding больше — blur закрывает title + meta */
   padding:
     max(0.35rem, env(safe-area-inset-top, 0px))
     var(--app-page-pad-x)
-    1.35rem;
+    3.6rem;
   background: linear-gradient(
     to bottom,
-    rgb(8 12 20 / 0.82) 0%,
-    rgb(8 12 20 / 0.55) 48%,
+    rgb(8 12 20 / 0.88) 0%,
+    rgb(8 12 20 / 0.66) 38%,
+    rgb(8 12 20 / 0.34) 68%,
     rgb(8 12 20 / 0) 100%
   );
   backdrop-filter: blur(16px) saturate(1.05);
   -webkit-backdrop-filter: blur(16px) saturate(1.05);
-  mask-image: linear-gradient(to bottom, #000 58%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 58%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 48%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 48%, transparent 100%);
 }
 
 /* Нативное приложение: Flutter уже даёт SafeArea — не дублируем inset */
 html.is-mobile-app .map-station-photo-layer__title-bar {
-  padding-top: 0.45rem;
+  /* padding-top: 0.45rem; */
+  padding-top: 52px;
+}
+
+.map-station-photo-layer__title-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .map-station-photo-layer__title {
   margin: 0;
-  flex: 1;
   min-width: 0;
   padding-top: 0.2rem;
   color: #fff;
@@ -3476,6 +3481,32 @@ html.is-mobile-app .map-station-photo-layer__title-bar {
   line-height: 1.3;
   letter-spacing: -0.01em;
   text-shadow: 0 1px 12px rgb(0 0 0 / 0.45);
+}
+
+.map-station-photo-layer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+}
+
+.map-station-photo-layer__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  color: rgb(255 255 255 / 0.92);
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  line-height: 1.25;
+  text-shadow: 0 1px 10px rgb(0 0 0 / 0.4);
+}
+
+.map-station-photo-layer__meta-item svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+  opacity: 0.92;
 }
 
 .map-station-photo-layer__title-bar .map-station-sheet__marker {
@@ -3493,8 +3524,9 @@ html.is-mobile-app .map-station-photo-layer__title-bar {
   right: 0;
   bottom: 0;
   z-index: 50;
-  height: auto;
-  max-height: min(92dvh, 100%);
+  /* Фиксированная высота — не прыгает при время / маршрут / стойке */
+  height: min(58dvh, 100%);
+  max-height: min(58dvh, 100%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -3503,7 +3535,7 @@ html.is-mobile-app .map-station-photo-layer__title-bar {
   border-radius: var(--app-section-radius) var(--app-section-radius) 0 0;
   box-shadow: 0 -8px 32px rgb(0 0 0 / 0.16);
   animation: map-drawer-slide-up 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-  will-change: transform, height;
+  will-change: transform;
 }
 
 .map-station-sheet__toolbar {
@@ -3512,7 +3544,7 @@ html.is-mobile-app .map-station-photo-layer__title-bar {
   justify-content: space-between;
   gap: 0.35rem;
   flex-shrink: 0;
-  padding: 0.35rem var(--app-page-pad-x) 0;
+  padding: 0.35rem var(--app-page-pad-x) 2px;
 }
 
 .map-station-sheet__toolbar-actions {
@@ -3543,22 +3575,22 @@ html.is-mobile-app .map-station-photo-layer__title-bar {
   overscroll-behavior: none;
 }
 
-/* Без фото — высота по контенту */
+/* Без фото — та же фиксированная высота */
 .map-station-sheet.is-compact-only {
-  height: auto;
-  max-height: min(72dvh, 100%);
+  height: min(58dvh, 100%);
+  max-height: min(58dvh, 100%);
 }
 
-/* С фото — панель по контенту, сверху место под картинку */
+/* С фото — панель фиксирована, сверху место под картинку */
 .map-station-sheet.has-photo-static {
-  height: auto;
-  /* Чуть выше 52dvh — иначе при крупном rem низ жестоко прижимается */
+  height: min(58dvh, 100%);
   max-height: min(58dvh, 100%);
 }
 
 .map-station-sheet.is-compact-only .map-station-sheet__body,
 .map-station-sheet.has-photo-static .map-station-sheet__body {
   flex: 1 1 auto;
+  min-height: 0;
 }
 
 .map-station-sheet__photo {
@@ -4412,8 +4444,9 @@ html[data-theme="dark"] .map-port-card__status.is-busy {
 }
 
 .map-status-cell--soft.map-status-cell--busy {
-  border-color: color-mix(in oklab, #f59e0b 28%, transparent);
-  background: color-mix(in oklab, #f59e0b 9%, var(--app-block));
+  border-color: color-mix(in oklab, #dc2626 55%, transparent);
+  background: color-mix(in oklab, #dc2626 22%, var(--app-block));
+  color: #991b1b;
 }
 
 .map-status-cell--soft.map-status-cell--offline {
@@ -4488,9 +4521,9 @@ html[data-theme="dark"] .map-port-card__status.is-busy {
 }
 
 .map-status-cell--busy {
-  border-color: color-mix(in oklab, #f59e0b 45%, transparent);
-  background: color-mix(in oklab, #f59e0b 12%, var(--app-block));
-  color: #b45309;
+  border-color: color-mix(in oklab, #dc2626 65%, transparent);
+  background: color-mix(in oklab, #dc2626 28%, var(--app-block));
+  color: #991b1b;
 }
 
 .map-status-cell--charging {
@@ -4510,7 +4543,15 @@ html[data-theme="dark"] .map-status-cell--free {
 }
 
 html[data-theme="dark"] .map-status-cell--busy {
-  color: #fcd34d;
+  border-color: color-mix(in oklab, #ef4444 70%, transparent);
+  background: color-mix(in oklab, #ef4444 32%, var(--app-block));
+  color: #fecaca;
+}
+
+html[data-theme="dark"] .map-status-cell--soft.map-status-cell--busy {
+  border-color: color-mix(in oklab, #ef4444 70%, transparent);
+  background: color-mix(in oklab, #ef4444 32%, var(--app-block));
+  color: #fecaca;
 }
 
 html[data-theme="dark"] .map-status-cell--charging {
@@ -4579,19 +4620,22 @@ html[data-theme="dark"] .map-status-cell--offline {
 .map-stand-pick__live {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.5rem;
+  min-height: 1.7rem;
+  padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: color-mix(in oklab, #14b8a6 22%, transparent);
-  color: #0f766e;
+  background: #16a34a;
+  color: #fff;
   font-size: var(--app-text-xs);
   font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 html[data-theme="dark"] .map-stand-pick__live {
-  background: color-mix(in oklab, #2dd4bf 28%, transparent);
-  color: #5eead4;
+  background: #16a34a;
+  color: #fff;
 }
 
 .map-stand-pick__chevron {
@@ -5109,7 +5153,8 @@ button.map-conn-card {
 
 .map-station-sheet__loading-panel {
   display: flex;
-  min-height: 12rem;
+  flex: 1 1 auto;
+  min-height: 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;

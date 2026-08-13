@@ -8,7 +8,7 @@ export default function HistoryPage() {
   const t = useT();
 
   return (
-    <PageLayout title={t("history.title", "История")}>
+    <PageLayout title={t("history.title", "История")} className="page--profile-edit">
       <HistoryList title={t("history.title", "История")} />
     </PageLayout>
   );

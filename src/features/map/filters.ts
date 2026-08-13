@@ -44,14 +44,14 @@ export type MapFilters = {
 
 export const DEFAULT_WASH_FILTERS: WashFilters = {
   enabled: true,
-  openOnly: false,
+  openOnly: true,
   freeOnly: false,
   price: "all",
 };
 
 export const DEFAULT_CHARGING_FILTERS: ChargingFilters = {
   enabled: true,
-  openOnly: false,
+  openOnly: true,
   freeOnly: false,
   connectors: [],
   cost: "all",
@@ -124,17 +124,18 @@ function matchesChargingExtras(
 }
 
 export function matchesFilters(station: Station, filters: MapFilters): boolean {
+  // На карте только открытые мойки / ЭЗС
+  if (station.status !== "Открыто") return false;
+
   if (station.kind === "wash") {
     const options = filters.wash;
     if (!options.enabled) return false;
-    if (options.openOnly && station.status !== "Открыто") return false;
     if (options.freeOnly && station.freeSlots <= 0) return false;
     return matchesWashPrice(station, options.price);
   }
 
   const options = filters.charging;
   if (!options.enabled) return false;
-  if (options.openOnly && station.status !== "Открыто") return false;
   if (options.freeOnly && station.freeSlots <= 0) return false;
   return matchesChargingExtras(station, options);
 }
@@ -146,10 +147,8 @@ export function countActiveFilters(filters: MapFilters): number {
 
   if (filters.wash.enabled !== defaults.wash.enabled) count += 1;
   if (filters.charging.enabled !== defaults.charging.enabled) count += 1;
-  if (filters.wash.openOnly) count += 1;
   if (filters.wash.freeOnly) count += 1;
   if (filters.wash.price !== "all") count += 1;
-  if (filters.charging.openOnly) count += 1;
   if (filters.charging.freeOnly) count += 1;
   if (filters.charging.connectors.length > 0) count += 1;
   if (filters.charging.cost !== "all") count += 1;

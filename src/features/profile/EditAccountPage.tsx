@@ -4,22 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
-import { useAuthUser } from "@/hooks/useAuthUser";
 import { useT } from "@/hooks/useT";
 import { useToast } from "@/hooks/useToast";
-import {
-  deleteUserPhoto,
-  resolveMediaUrl,
-  uploadUserPhoto,
-} from "@/lib/api/photo";
 import { forceLogout } from "@/lib/forceLogout";
-import { pickImage } from "@/lib/pickImage";
 import { useEditProfile } from "./hooks/useEditProfile";
-import AvatarCropper from "./components/AvatarCropper";
-import IconActionButton, {
-  IconEdit,
-  IconTrash,
-} from "./components/IconActionButton";
 import ProfileNavRow from "./components/ProfileNavRow";
 import "./components/profile.css";
 
@@ -35,21 +23,8 @@ export default function EditAccountPage() {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
-  const { name, photoUrl } = useAuthUser();
   const profileEdit = useEditProfile();
   const [logoutOpen, setLogoutOpen] = useState(false);
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const [avatarReady, setAvatarReady] = useState(false);
-
-  const avatarSrc = resolveMediaUrl(photoUrl);
-  const initials =
-    name
-      ?.split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("") || "?";
 
   useEffect(() => {
     if (!logoutOpen) return;
@@ -60,68 +35,6 @@ export default function EditAccountPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [logoutOpen]);
 
-  useEffect(() => {
-    if (!avatarSrc) {
-      setAvatarReady(true);
-      return;
-    }
-    setAvatarReady(false);
-    const img = new window.Image();
-    let active = true;
-    img.onload = () => {
-      if (active) setAvatarReady(true);
-    };
-    img.onerror = () => {
-      if (active) setAvatarReady(true);
-    };
-    img.src = avatarSrc;
-    if (img.complete) setAvatarReady(true);
-    return () => {
-      active = false;
-    };
-  }, [avatarSrc]);
-
-  async function handlePickPhoto() {
-    try {
-      const dataUrl = await pickImage();
-      setCropSrc(dataUrl);
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        (err.message === "cancelled" || err.message === "timeout")
-      ) {
-        return;
-      }
-      showToast("Не удалось выбрать фото");
-    }
-  }
-
-  async function handleCroppedPhoto(blob: Blob) {
-    setPhotoBusy(true);
-    try {
-      await uploadUserPhoto(blob, "avatar.jpg");
-      setCropSrc(null);
-      showToast("Фото сохранено");
-    } catch {
-      showToast("Не удалось загрузить фото");
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
-  async function handleDeletePhoto() {
-    if (!photoUrl) return;
-    setPhotoBusy(true);
-    try {
-      await deleteUserPhoto();
-      showToast("Фото удалено");
-    } catch {
-      showToast("Не удалось удалить фото");
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
   return (
     <PageLayout title={t("profile.edit", "Редактирование")} className="page--profile-edit">
       <div className="profile-edit">
@@ -130,116 +43,58 @@ export default function EditAccountPage() {
         </div>
 
         <div className="profile-edit__main space-y-4">
-          <section className="profile-card">
-            <div className="profile-edit-fields">
-              <div className="profile-edit-photo">
-                <div className="profile-edit-photo__main">
-                  <span className="profile-nav-row__label">
-                    {t("profile.photo", "Фото")}
-                  </span>
-                </div>
-
-                <span className="profile-edit-photo__thumb" aria-hidden>
-                  {avatarSrc ? (
-                    <>
-                      {!avatarReady ? (
-                        <span className="profile-avatar-shimmer absolute inset-0" />
-                      ) : null}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={avatarSrc}
-                        alt=""
-                        onLoad={() => setAvatarReady(true)}
-                        onError={() => setAvatarReady(true)}
-                        className={avatarReady ? "opacity-100" : "opacity-0"}
-                      />
-                    </>
-                  ) : (
-                    <span className="profile-edit-photo__fallback">{initials}</span>
-                  )}
-                </span>
-
-                <div className="profile-edit-photo__actions">
-                  <IconActionButton
-                    label={
-                      photoUrl
-                        ? t("profile.change_photo", "Изменить фото")
-                        : t("profile.add_photo", "Добавить фото")
-                    }
-                    disabled={photoBusy}
-                    onClick={() => void handlePickPhoto()}
-                  >
-                    {photoBusy ? (
-                      <span className="profile-boot__spinner profile-boot__spinner--sm" />
-                    ) : (
-                      <IconEdit />
-                    )}
-                  </IconActionButton>
-                  {photoUrl ? (
-                    <IconActionButton
-                      label={t("common.delete", "Удалить")}
-                      danger
-                      disabled={photoBusy}
-                      onClick={() => void handleDeletePhoto()}
-                    >
-                      <IconTrash />
-                    </IconActionButton>
-                  ) : null}
-                </div>
-              </div>
-
-              <label className="profile-edit-row">
-                <span className="profile-nav-row__label">
-                  {t("profile.first_name", "Имя")}
-                </span>
-                <input
-                  type="text"
-                  value={profileEdit.firstName}
-                  onChange={(e) => {
-                    profileEdit.clearFeedback();
-                    profileEdit.setFirstName(e.target.value);
-                  }}
-                  disabled={profileEdit.loading || profileEdit.saving}
-                  placeholder={t("profile.first_name", "Имя")}
-                  autoComplete="given-name"
-                  className="profile-edit-row__value"
-                />
-              </label>
-              <label className="profile-edit-row">
-                <span className="profile-nav-row__label">
-                  {t("profile.last_name", "Фамилия")}
-                </span>
-                <input
-                  type="text"
-                  value={profileEdit.lastName}
-                  onChange={(e) => {
-                    profileEdit.clearFeedback();
-                    profileEdit.setLastName(e.target.value);
-                  }}
-                  disabled={profileEdit.loading || profileEdit.saving}
-                  placeholder={t("profile.last_name", "Фамилия")}
-                  autoComplete="family-name"
-                  className="profile-edit-row__value"
-                />
-              </label>
-              <label className="profile-edit-row">
-                <span className="profile-nav-row__label">Email</span>
-                <input
-                  type="email"
-                  value={profileEdit.email}
-                  onChange={(e) => {
-                    profileEdit.clearFeedback();
-                    profileEdit.setEmail(e.target.value);
-                  }}
-                  disabled={profileEdit.loading || profileEdit.saving}
-                  placeholder="example@mail.com"
-                  autoComplete="email"
-                  inputMode="email"
-                  className="profile-edit-row__value"
-                />
-              </label>
-            </div>
-          </section>
+          <div className="profile-edit-fields">
+            <label className="profile-edit-row">
+              <span className="profile-edit-row__label">
+                {t("profile.first_name", "Имя")}
+              </span>
+              <input
+                type="text"
+                value={profileEdit.firstName}
+                onChange={(e) => {
+                  profileEdit.clearFeedback();
+                  profileEdit.setFirstName(e.target.value);
+                }}
+                disabled={profileEdit.loading || profileEdit.saving}
+                placeholder={t("profile.first_name", "Имя")}
+                autoComplete="given-name"
+                className="profile-edit-row__value"
+              />
+            </label>
+            <label className="profile-edit-row">
+              <span className="profile-edit-row__label">
+                {t("profile.last_name", "Фамилия")}
+              </span>
+              <input
+                type="text"
+                value={profileEdit.lastName}
+                onChange={(e) => {
+                  profileEdit.clearFeedback();
+                  profileEdit.setLastName(e.target.value);
+                }}
+                disabled={profileEdit.loading || profileEdit.saving}
+                placeholder={t("profile.last_name", "Фамилия")}
+                autoComplete="family-name"
+                className="profile-edit-row__value"
+              />
+            </label>
+            <label className="profile-edit-row">
+              <span className="profile-edit-row__label">Email</span>
+              <input
+                type="email"
+                value={profileEdit.email}
+                onChange={(e) => {
+                  profileEdit.clearFeedback();
+                  profileEdit.setEmail(e.target.value);
+                }}
+                disabled={profileEdit.loading || profileEdit.saving}
+                placeholder="example@mail.com"
+                autoComplete="email"
+                inputMode="email"
+                className="profile-edit-row__value"
+              />
+            </label>
+          </div>
 
           <button
             type="button"
@@ -267,27 +122,14 @@ export default function EditAccountPage() {
         </div>
 
         <div className="profile-edit__logout">
-          <section className="profile-card">
-            <ProfileNavRow
-              icon={<IconLogout />}
-              label={t("profile.logout", "Выйти")}
-              danger
-              onClick={() => setLogoutOpen(true)}
-            />
-          </section>
+          <ProfileNavRow
+            icon={<IconLogout />}
+            label={t("profile.logout", "Выйти")}
+            danger
+            onClick={() => setLogoutOpen(true)}
+          />
         </div>
       </div>
-
-      {cropSrc ? (
-        <AvatarCropper
-          imageSrc={cropSrc}
-          busy={photoBusy}
-          onCancel={() => {
-            if (!photoBusy) setCropSrc(null);
-          }}
-          onCropped={(blob) => void handleCroppedPhoto(blob)}
-        />
-      ) : null}
 
       {logoutOpen ? (
         <div

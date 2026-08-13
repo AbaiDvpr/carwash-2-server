@@ -35,6 +35,7 @@ const FALLBACK_COUNTRIES: CountryOption[] = [
   { code: "ru", label: "Россия", flag: "🇷🇺", plateTypeId: 3 },
   { code: "kg", label: "Кыргызстан", flag: "🇰🇬", plateTypeId: 8 },
   { code: "tj", label: "Таджикистан", flag: "🇹🇯", plateTypeId: 9 },
+  { code: "uz", label: "Узбекистан", flag: "🇺🇿", plateTypeId: 10 },
   { code: "am", label: "Армения", flag: "🇦🇲", plateTypeId: 4 },
   { code: "ge", label: "Грузия", flag: "🇬🇪", plateTypeId: 5 },
   { code: "cn", label: "Китай", flag: "🇨🇳", plateTypeId: 6 },

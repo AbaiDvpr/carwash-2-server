@@ -17,8 +17,11 @@ export function IconEdit() {
 
 export function IconTrash() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" d="M5 7h14M10 7V5h4v2M8.5 7l.7 12h5.6l.7-12" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6A1.2 1.2 0 0 1 14.5 5.2V7" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 7l1 12.2A1.8 1.8 0 0 0 9.3 21h5.4a1.8 1.8 0 0 0 1.8-1.8L17.5 7" />
+      <path strokeLinecap="round" d="M10 11v6M14 11v6" />
     </svg>
   );
 }

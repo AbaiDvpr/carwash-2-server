@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type AvatarCropperProps = {
   imageSrc: string;
@@ -10,7 +11,7 @@ type AvatarCropperProps = {
 };
 
 /** Итоговый аватар маленький: 256×256 JPEG ≈ 20–60 КБ */
-const VIEWPORT = 280;
+const VIEWPORT = 260;
 const OUTPUT_SIZE = 256;
 const JPEG_QUALITY = 0.72;
 const MAX_BYTES = 80 * 1024;
@@ -35,8 +36,8 @@ async function compressJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
 }
 
 /**
- * Круглый кроппер: двигать / масштаб / смотреть превью.
- * На выходе лёгкий JPEG, не тяжёлая картинка.
+ * Круглый кроппер в общем app-bottom-sheet.
+ * На выходе лёгкий JPEG.
  */
 export default function AvatarCropper({
   imageSrc,
@@ -52,7 +53,11 @@ export default function AvatarCropper({
   const dragStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const [ready, setReady] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [approxKb, setApproxKb] = useState<number | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     const img = new Image();
@@ -78,7 +83,6 @@ export default function AvatarCropper({
     return () => window.removeEventListener("keydown", onKey);
   }, [busy, onCancel]);
 
-  // Живое превью круга + оценка размера
   useEffect(() => {
     if (!ready || !imgRef.current) return;
 
@@ -105,22 +109,6 @@ export default function AvatarCropper({
 
     const url = canvas.toDataURL("image/jpeg", 0.7);
     setPreviewUrl(url);
-
-    // Оценка финального веса на маленьком canvas-прокси
-    const full = document.createElement("canvas");
-    full.width = OUTPUT_SIZE;
-    full.height = OUTPUT_SIZE;
-    const fctx = full.getContext("2d");
-    if (fctx) {
-      fctx.fillStyle = "#fff";
-      fctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-      fctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-      full.toBlob(
-        (b) => setApproxKb(b ? Math.round(b.size / 1024) : null),
-        "image/jpeg",
-        JPEG_QUALITY,
-      );
-    }
   }, [ready, scale, offset, imageSrc]);
 
   function onPointerDown(event: React.PointerEvent) {
@@ -194,35 +182,48 @@ export default function AvatarCropper({
   const drawW = img ? img.naturalWidth * scale : 0;
   const drawH = img ? img.naturalHeight * scale : 0;
 
-  return (
-    <div
-      className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center p-0 sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="avatar-crop-title"
-    >
-      <div className="absolute inset-0 bg-black/65" onClick={() => !busy && onCancel()} />
-      <div className="relative w-full max-w-sm overflow-hidden rounded-t-2xl border border-zinc-200 bg-white shadow-xl sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <p
-            id="avatar-crop-title"
-            className="text-center text-base font-bold text-zinc-900 dark:text-zinc-50"
+  if (!portalReady) return null;
+
+  return createPortal(
+    <>
+      <button
+        type="button"
+        className="app-bottom-sheet-backdrop"
+        onClick={() => {
+          if (!busy) onCancel();
+        }}
+        aria-label="Закрыть"
+      />
+
+      <div
+        className="app-bottom-sheet app-bottom-sheet--avatar-crop"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Фото профиля"
+      >
+        <div className="app-bottom-sheet__toolbar">
+          <button
+            type="button"
+            className="app-drawer-close"
+            disabled={busy}
+            onClick={() => {
+              if (!busy) onCancel();
+            }}
+            aria-label="Закрыть"
           >
-            Обрезать фото
-          </p>
-          <p className="mt-1 text-center text-xs text-zinc-500">
-            Двигай пальцем · масштаб · смотри превью
-          </p>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
         </div>
 
-        <div className="px-4 py-4">
-          <div className="flex items-start justify-center gap-4">
+        <div className="app-bottom-sheet__body">
+          <div className="avatar-crop__stage">
             <div
-              className="relative shrink-0 overflow-hidden bg-zinc-900 touch-none"
+              className="avatar-crop__viewport"
               style={{
                 width: VIEWPORT,
                 height: VIEWPORT,
-                borderRadius: "50%",
                 cursor: dragging ? "grabbing" : "grab",
               }}
               onPointerDown={onPointerDown}
@@ -236,7 +237,7 @@ export default function AvatarCropper({
                   src={imageSrc}
                   alt=""
                   draggable={false}
-                  className="pointer-events-none absolute max-w-none select-none"
+                  className="avatar-crop__img"
                   style={{
                     width: drawW,
                     height: drawH,
@@ -245,42 +246,28 @@ export default function AvatarCropper({
                   }}
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-xs text-zinc-400">
-                  Загрузка…
-                </div>
+                <div className="avatar-crop__loading">Загрузка…</div>
               )}
-              <div
-                className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-white/90"
-                aria-hidden
-              />
+              <div className="avatar-crop__ring" aria-hidden />
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-center gap-3">
+          <div className="avatar-crop__preview-row">
             {previewUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={previewUrl}
-                alt="Превью"
-                className="h-14 w-14 rounded-full border-2 border-zinc-200 object-cover dark:border-zinc-700"
-              />
+              <img src={previewUrl} alt="Превью" className="avatar-crop__preview" />
             ) : (
-              <div className="h-14 w-14 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+              <div className="avatar-crop__preview avatar-crop__preview--empty" />
             )}
-            <div className="min-w-0 text-left">
-              <p className="text-xs font-medium text-zinc-800 dark:text-zinc-100">Превью аватара</p>
-              <p className="mt-0.5 text-[0.8125rem] text-zinc-400">
-                {approxKb != null ? `≈ ${approxKb} КБ · JPEG` : "Сжатие…"}
-              </p>
-            </div>
+            <p className="avatar-crop__preview-title">Превью аватара</p>
           </div>
 
-          <div className="mt-4 flex items-center gap-2">
+          <div className="avatar-crop__zoom">
             <button
               type="button"
               disabled={!ready || busy}
               onClick={() => setScale((s) => Math.max(minScale, s - 0.08))}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200 text-lg font-semibold text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
+              className="avatar-crop__zoom-btn"
               aria-label="Уменьшить"
             >
               −
@@ -293,13 +280,15 @@ export default function AvatarCropper({
               value={scale}
               disabled={!ready || busy}
               onChange={(e) => setScale(Number(e.target.value))}
-              className="min-w-0 flex-1 accent-[var(--app-button)]"
+              className="avatar-crop__range"
             />
             <button
               type="button"
               disabled={!ready || busy}
-              onClick={() => setScale((s) => Math.min(Math.max(minScale * 4, 2.5), s + 0.08))}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200 text-lg font-semibold text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
+              onClick={() =>
+                setScale((s) => Math.min(Math.max(minScale * 4, 2.5), s + 0.08))
+              }
+              className="avatar-crop__zoom-btn"
               aria-label="Увеличить"
             >
               +
@@ -307,25 +296,18 @@ export default function AvatarCropper({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 p-4 dark:border-zinc-800">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onCancel}
-            className="theme-button-secondary rounded-xl px-4 py-3 text-sm"
-          >
-            Отмена
-          </button>
+        <div className="app-bottom-sheet__footer">
           <button
             type="button"
             disabled={!ready || busy}
             onClick={() => void handleConfirm()}
-            className="theme-button rounded-xl px-4 py-3 text-sm"
+            className="theme-button"
           >
-            {busy ? "Сохранение…" : "Готово"}
+            {busy ? "Сохранение…" : "Сохранить"}
           </button>
         </div>
       </div>
-    </div>
+    </>,
+    document.body,
   );
 }
