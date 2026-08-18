@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "@/hooks/useT";
+import AppBackButton from "@/components/ui/AppBackButton";
 import { ApiError } from "@/lib/api";
 import { fetchAllSessions, type HistorySession } from "@/lib/api/sessions";
 import HistoryFilterDrawer, {
   countHistoryFilters,
   DEFAULT_HISTORY_FILTERS,
-  historyKindLabel,
-  historyPeriodLabel,
-  historyStatusLabel,
   readHistoryFilters,
   writeHistoryFilters,
   type HistoryFiltersState,
@@ -18,6 +16,7 @@ import "./history.css";
 
 type HistoryListProps = {
   title?: string;
+  onBack?: () => void;
 };
 
 function formatDateTime(value: string | null): string {
@@ -37,6 +36,7 @@ function statusClass(status: string | null): string {
   switch (status) {
     case "completed":
       return "is-completed";
+    case "charging":
     case "in_progress":
       return "is-in_progress";
     case "pending":
@@ -65,14 +65,13 @@ function FilterSlidersIcon({ className }: { className?: string }) {
   );
 }
 
-export default function HistoryList({ title }: HistoryListProps) {
+export default function HistoryList({ title, onBack }: HistoryListProps) {
   const t = useT();
   const requestId = useRef(0);
   const booted = useRef(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sessions, setSessions] = useState<HistorySession[]>([]);
-  const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<HistoryFiltersState>(DEFAULT_HISTORY_FILTERS);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -91,16 +90,6 @@ export default function HistoryList({ title }: HistoryListProps) {
   const filterCount = countHistoryFilters(filters);
   const filtersActive = filterCount > 0;
 
-  const summary = useMemo(() => {
-    const parts: string[] = [];
-    if (filters.kind !== "all") parts.push(historyKindLabel(filters.kind, t));
-    if (filters.period !== "all") parts.push(historyPeriodLabel(filters.period, t));
-    if (filters.statuses.length > 0) {
-      parts.push(filters.statuses.map((status) => historyStatusLabel(status, t)).join(", "));
-    }
-    return parts.join(" · ");
-  }, [filters, t]);
-
   useEffect(() => {
     if (!filtersReady) return;
 
@@ -111,13 +100,17 @@ export default function HistoryList({ title }: HistoryListProps) {
     void (async () => {
       try {
         const data = await fetchAllSessions({
-          kind: filters.kind,
-          period: filters.period,
-          status: filters.statuses,
+          wash: {
+            period: filters.wash.period,
+            status: filters.wash.statuses,
+          },
+          charging: {
+            period: filters.charging.period,
+            status: filters.charging.statuses,
+          },
         });
         if (id !== requestId.current) return;
         setSessions(data.sessions);
-        setTotal(data.total);
         setError(null);
       } catch (err) {
         if (id !== requestId.current) return;
@@ -125,7 +118,6 @@ export default function HistoryList({ title }: HistoryListProps) {
           return;
         }
         setSessions([]);
-        setTotal(0);
         let message = t("history.load_error", "Не удалось загрузить историю");
         if (err instanceof ApiError) {
           const body = err.body as { message?: string } | null;
@@ -146,26 +138,19 @@ export default function HistoryList({ title }: HistoryListProps) {
 
   return (
     <div className="history-page">
-      <div className="history-toolbar">
+      <div className="app-back-bar app-back-bar--stack history-toolbar">
         <div className="history-toolbar__row">
-          {title ? (
+          {onBack ? (
+            <AppBackButton title={title} onClick={onBack} />
+          ) : title ? (
             <h1 className="history-toolbar__title">{title}</h1>
           ) : (
             <span className="history-toolbar__spacer" />
           )}
           <div className="history-toolbar__actions">
-            {filtersActive ? (
-              <button
-                type="button"
-                className="history-filters__reset"
-                onClick={() => setFilters(DEFAULT_HISTORY_FILTERS)}
-              >
-                {t("history.filter_reset", "Сбросить")}
-              </button>
-            ) : null}
             <button
               type="button"
-              className={`history-filter-btn${filtersActive ? " is-on" : ""}`}
+              className={`app-drawer-close history-filter-btn${filtersActive ? " is-on" : ""}`}
               onClick={() => setDrawerOpen(true)}
               aria-label={t("history.filter", "Фильтр")}
             >
@@ -176,14 +161,6 @@ export default function HistoryList({ title }: HistoryListProps) {
             </button>
           </div>
         </div>
-
-        {filtersActive && summary ? (
-          <p className="history-summary__text">
-            <button type="button" onClick={() => setDrawerOpen(true)}>
-              <strong>{summary}</strong>
-            </button>
-          </p>
-        ) : null}
       </div>
 
       {initialLoading ? (
@@ -198,13 +175,6 @@ export default function HistoryList({ title }: HistoryListProps) {
         </div>
       ) : (
         <>
-          <div className="history-filters__meta">
-            <p className="history-filters__meta-text">
-              {t("history.total", "Всего")}: <strong>{total}</strong>
-              {refreshing ? <span> …</span> : null}
-            </p>
-          </div>
-
           {error ? (
             <div className="history-card">
               <p className="history-card__error">{error}</p>
@@ -220,7 +190,7 @@ export default function HistoryList({ title }: HistoryListProps) {
               </p>
             </div>
           ) : (
-            <div className={`history-card${refreshing ? " is-dim" : ""}`}>
+            <div className={`history-list${refreshing ? " is-dim" : ""}`}>
               {sessions.map((session) => {
                 const isCharging = session.kind === "charging";
                 const kindLabel = isCharging
@@ -233,50 +203,46 @@ export default function HistoryList({ title }: HistoryListProps) {
 
                 return (
                   <article key={sessionKey(session)} className="history-session">
-                    <div className="history-session__top">
-                      <div className="history-session__main">
-                        <span className="history-session__label">{kindLabel}</span>
-                        <span className="history-session__title">
-                          {session.address ?? `${kindLabel} #${session.location_id}`}
-                        </span>
-                        <span className="history-session__meta">
-                          {session.car_plate ?? "—"}
-                          {session.payment_amount != null
-                            ? ` · ${new Intl.NumberFormat("ru-RU").format(Number(session.payment_amount))} ₸`
-                            : ""}
+                    <div className="history-session__body">
+                      <div className="history-session__top">
+                        <div className="history-session__main">
+                          <span className="history-session__label">{kindLabel}</span>
+                          <span className="history-session__title">
+                            {session.address ?? `${kindLabel} #${session.location_id}`}
+                          </span>
+                        </div>
+                        <span
+                          className={`history-session__status ${statusClass(session.status)}`}
+                        >
+                          {session.status_ru ?? session.status ?? "—"}
                         </span>
                       </div>
-                      <span
-                        className={`history-session__status ${statusClass(session.status)}`}
-                      >
-                        {session.status_ru ?? session.status ?? "—"}
-                      </span>
-                    </div>
 
-                    <div className="history-session__times">
-                      <div>
-                        <p className="history-session__time-label">
-                          {t("history.start", "Начало")}
-                        </p>
-                        <p className="history-session__time-value">
-                          {formatDateTime(session.entered_at ?? session.start_at)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="history-session__time-label">
-                          {t("history.end", "Конец")}
-                        </p>
-                        <p className="history-session__time-value">
-                          {formatDateTime(session.exited_at ?? session.end_at)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="history-session__time-label">
-                          {isCharging
-                            ? t("history.session", "Сессия")
-                            : t("history.washed", "Мыли")}
-                        </p>
-                        <p className="history-session__time-value">{duration}</p>
+                      <div className="history-session__times">
+                        <div className="history-session__time">
+                          <p className="history-session__time-label">
+                            {t("history.start", "Начало")}
+                          </p>
+                          <p className="history-session__time-value">
+                            {formatDateTime(session.entered_at ?? session.start_at)}
+                          </p>
+                        </div>
+                        <div className="history-session__time">
+                          <p className="history-session__time-label">
+                            {t("history.end", "Конец")}
+                          </p>
+                          <p className="history-session__time-value">
+                            {formatDateTime(session.exited_at ?? session.end_at)}
+                          </p>
+                        </div>
+                        <div className="history-session__time">
+                          <p className="history-session__time-label">
+                            {isCharging
+                              ? t("history.session", "Сессия")
+                              : t("history.washed", "Мыли")}
+                          </p>
+                          <p className="history-session__time-value">{duration}</p>
+                        </div>
                       </div>
                     </div>
                   </article>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
-import BackButton from "@/components/ui/BackButton";
+import AppBackButton from "@/components/ui/AppBackButton";
 import { useLocale, useT } from "@/hooks/useT";
 import { useToast } from "@/hooks/useToast";
 import { useUserCity } from "@/hooks/useUserCity";
@@ -30,7 +30,15 @@ function RadioMark({ checked, busy = false }: { checked: boolean; busy?: boolean
   );
 }
 
-export default function SelectCityPage() {
+type SelectCityPageProps = {
+  embedded?: boolean;
+  onBack?: () => void;
+};
+
+export default function SelectCityPage({
+  embedded = false,
+  onBack,
+}: SelectCityPageProps) {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
@@ -38,64 +46,75 @@ export default function SelectCityPage() {
   const { geoId, cities, loading, refresh } = useUserCity();
   const [savingId, setSavingId] = useState<number | null>(null);
 
+  function goBack() {
+    if (onBack) onBack();
+    else router.push("/profile");
+  }
+
+  const content = (
+    <div className="profile-edit">
+      <div className="app-back-bar">
+        <AppBackButton title={t("profile.city", "Ваш город")} onClick={goBack} />
+      </div>
+
+      {loading ? (
+        <div
+          className="h-28 animate-pulse"
+          style={{
+            borderRadius: "var(--app-section-radius)",
+            border: "var(--app-border-width) solid var(--app-border)",
+            background: "var(--app-hover)",
+          }}
+        />
+      ) : (
+        <section className="profile-card">
+          {cities.map((city) => {
+            const selected = geoId === city.id;
+            const busy = savingId === city.id;
+            return (
+              <button
+                key={city.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                disabled={savingId != null}
+                onClick={() => {
+                  void (async () => {
+                    if (selected) return;
+                    setSavingId(city.id);
+                    try {
+                      await updateUserSettings({ geo_id: city.id });
+                      refresh();
+                      showToast(formatCityName(city, locale));
+                      goBack();
+                    } catch {
+                      showToast("Не удалось сохранить город");
+                    } finally {
+                      setSavingId(null);
+                    }
+                  })();
+                }}
+                className="profile-nav-row theme-hover text-left disabled:opacity-60"
+              >
+                <RadioMark checked={selected} busy={busy} />
+                <span className="profile-nav-row__main">
+                  <span className="profile-nav-row__hint">
+                    {formatCityName(city, locale)}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </section>
+      )}
+    </div>
+  );
+
+  if (embedded) return content;
+
   return (
     <PageLayout title={t("profile.city", "Ваш город")} className="page--profile-edit">
-      <div className="profile-edit">
-        <div className="mb-3">
-          <BackButton iconOnly href="/profile" />
-        </div>
-
-        {loading ? (
-          <div
-            className="h-28 animate-pulse"
-            style={{
-              borderRadius: "var(--app-section-radius)",
-              border: "var(--app-border-width) solid var(--app-border)",
-              background: "var(--app-hover)",
-            }}
-          />
-        ) : (
-          <section className="profile-card">
-            {cities.map((city) => {
-              const selected = geoId === city.id;
-              const busy = savingId === city.id;
-              return (
-                <button
-                  key={city.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  disabled={savingId != null}
-                  onClick={() => {
-                    void (async () => {
-                      if (selected) return;
-                      setSavingId(city.id);
-                      try {
-                        await updateUserSettings({ geo_id: city.id });
-                        refresh();
-                        showToast(formatCityName(city, locale));
-                        router.push("/profile");
-                      } catch {
-                        showToast("Не удалось сохранить город");
-                      } finally {
-                        setSavingId(null);
-                      }
-                    })();
-                  }}
-                  className="profile-nav-row theme-hover text-left disabled:opacity-60"
-                >
-                  <RadioMark checked={selected} busy={busy} />
-                  <span className="profile-nav-row__main">
-                    <span className="profile-nav-row__hint">
-                      {formatCityName(city, locale)}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </section>
-        )}
-      </div>
+      {content}
     </PageLayout>
   );
 }

@@ -7,13 +7,18 @@ import { formatPhoneDisplay, useAuthUser } from "@/hooks/useAuthUser";
 import { openBrowser } from "@/lib/browserController";
 import { copyText } from "@/lib/clipboardController";
 import { openTelegram, openWhatsApp } from "@/lib/messengerController";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { setHeaderNav } from "@/store/slices/appSlice";
-import { setHeaderVisible } from "@/lib/userSession";
+import { useAppSelector } from "@/store/hooks";
 import { useLocale, useT } from "@/hooks/useT";
-import HistoryList from "@/features/history/components/HistoryList";
-import { LANGUAGE_OPTIONS } from "./SelectLanguagePage";
-import BackButton from "@/components/ui/BackButton";
+import EditAccountPage from "./EditAccountPage";
+import Garage2Page from "./Garage2Page";
+import SelectCityPage from "./SelectCityPage";
+import SelectLanguagePage, { LANGUAGE_OPTIONS } from "./SelectLanguagePage";
+import AppBackButton from "@/components/ui/AppBackButton";
+import { useBackButtonStyle } from "@/hooks/useBackButtonStyle";
+import {
+  BACK_BUTTON_STYLE_OPTIONS,
+  type BackButtonStyle,
+} from "@/lib/backButtonStyle";
 import Toast from "@/components/ui/Toast";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemePalette } from "@/hooks/useThemePalette";
@@ -32,6 +37,7 @@ import {
   type LayoutUnit,
 } from "@/lib/themeLayout";
 import { useUserCity } from "@/hooks/useUserCity";
+import { fetchGaragesV2 } from "@/lib/api/garageV2";
 import { fetchUserInfo, type AuthUser } from "@/lib/api/auth";
 import { useEditProfile } from "./hooks/useEditProfile";
 import { usePromoCode } from "./hooks/usePromoCode";
@@ -49,14 +55,17 @@ import FaqSection from "./components/FaqSection";
 import { resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
 import { pickImage } from "@/lib/pickImage";
 import "./components/profile.css";
+import "@/features/history/components/history.css";
 
 type ProfileView =
   | "home"
   | "balance"
-  | "history"
+  | "edit"
+  | "city"
+  | "language"
+  | "garage2"
   | "promo"
   | "support"
-  | "documents"
   | "appearance";
 
 const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
@@ -76,7 +85,8 @@ type AppearanceSection =
   | "rows"
   | "page"
   | "buttons"
-  | "shape";
+  | "shape"
+  | "back";
 
 const APPEARANCE_MENU: {
   id: Exclude<AppearanceSection, "menu">;
@@ -121,10 +131,16 @@ const APPEARANCE_MENU: {
     hint: "Карточки",
     description: "Радиус карточек и толщина границ",
   },
+  {
+    id: "back",
+    label: "Кнопка назад",
+    hint: "3 варианта",
+    description: "Как показывать «Назад» в профиле и разделах",
+  },
 ];
 
 const APPEARANCE_LAYOUT_GROUPS: Record<
-  Exclude<AppearanceSection, "menu" | "theme">,
+  Exclude<AppearanceSection, "menu" | "theme" | "back">,
   LayoutFieldGroup[]
 > = {
   text: ["text"],
@@ -147,14 +163,6 @@ function IconUser() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
       <circle cx="12" cy="8" r="3.25" />
       <path strokeLinecap="round" d="M5.5 19.5c1.6-3.2 4-4.75 6.5-4.75s4.9 1.55 6.5 4.75" />
-    </svg>
-  );
-}
-function IconMail() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
-      <path strokeLinecap="round" d="m5 8 7 5 7-5" />
     </svg>
   );
 }
@@ -202,13 +210,6 @@ function IconBell() {
     </svg>
   );
 }
-function IconNav() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" d="M4.5 7h15M4.5 12h15M4.5 17h15" />
-    </svg>
-  );
-}
 function IconCar() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
@@ -216,6 +217,15 @@ function IconCar() {
       <path strokeLinecap="round" d="M6.5 15.5v2M17.5 15.5v2M7.5 10l1-3h7l1 3" />
       <circle cx="7.5" cy="17.5" r="1.25" />
       <circle cx="16.5" cy="17.5" r="1.25" />
+    </svg>
+  );
+}
+function IconHistory() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.6 12a7.4 7.4 0 1 0 2.2-5.3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.6 4.8v3.6H8.2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.2V12l2.6 1.6" />
     </svg>
   );
 }
@@ -234,23 +244,12 @@ function IconChat() {
     </svg>
   );
 }
-function IconDocs() {
+function IconMoreDots() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7 3.5h7.5L19 8v12.5H7V3.5Z" />
-      <path strokeLinecap="round" d="M14.5 3.5V8H19M9.5 12h5M9.5 15.5h5" />
-    </svg>
-  );
-}
-function IconPencil() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"
-      />
-      <path strokeLinecap="round" d="m13.5 6.5 3 3" />
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="12" cy="5.5" r="1.7" />
+      <circle cx="12" cy="12" r="1.7" />
+      <circle cx="12" cy="18.5" r="1.7" />
     </svg>
   );
 }
@@ -275,10 +274,16 @@ function RadioMark({ checked, busy = false }: { checked: boolean; busy?: boolean
   );
 }
 
-function BackBar({ onBack }: { onBack: () => void }) {
+function BackBar({
+  onBack,
+  title,
+}: {
+  onBack: () => void;
+  title?: string;
+}) {
   return (
-    <div className="mb-3">
-      <BackButton iconOnly onClick={onBack} />
+    <div className="app-back-bar">
+      <AppBackButton onClick={onBack} title={title} />
     </div>
   );
 }
@@ -505,14 +510,11 @@ function LayoutSpacingRow({
 export default function ProfilePage() {
   const {
     name,
-    email: authEmail,
     phone,
     photoUrl,
     loading: profileLoading,
     mounted,
   } = useAuthUser();
-  const dispatch = useAppDispatch();
-  const showHeaderNav = useAppSelector((state) => state.app.showHeaderNav);
   const support = useAppSelector((state) => state.variables.support);
   const documents = useAppSelector((state) => state.variables.documents);
   const [referralUser, setReferralUser] = useState<AuthUser | null>(null);
@@ -556,6 +558,7 @@ export default function ProfilePage() {
     setField: setLayoutField,
     reset: resetLayout,
   } = useThemeLayout();
+  const { style: backStyle, setStyle: setBackStyle } = useBackButtonStyle();
   const locale = useLocale();
   const t = useT();
   const languageHint =
@@ -571,10 +574,33 @@ export default function ProfilePage() {
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [avatarReady, setAvatarReady] = useState(false);
+  const [garageCount, setGarageCount] = useState<number | null>(null);
 
   const avatarSrc = resolveMediaUrl(photoUrl);
   const bootLoading = !mounted || profileLoading;
   const heroPhotoLoading = Boolean(avatarSrc) && !avatarReady;
+
+  const garageHint =
+    garageCount == null
+      ? "…"
+      : garageCount === 0
+        ? t("garage2.empty_short", "Нет авто")
+        : t("garage2.count", "{{n}} авто").replace("{{n}}", String(garageCount));
+
+  useEffect(() => {
+    if (view !== "home" || !hasAccessToken()) return;
+    let cancelled = false;
+    void fetchGaragesV2()
+      .then((list) => {
+        if (!cancelled) setGarageCount(list.length);
+      })
+      .catch(() => {
+        if (!cancelled) setGarageCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
 
   useEffect(() => {
     if (!avatarSrc) {
@@ -613,14 +639,6 @@ export default function ProfilePage() {
   }, []);
 
   const displayName = mounted ? name || "…" : "…";
-  const resolvedEmail =
-    profileEdit.email.trim() ||
-    authEmail.trim() ||
-    referralUser?.email?.trim() ||
-    "";
-  const displayEmail = !mounted || (profileLoading && !resolvedEmail)
-    ? "…"
-    : resolvedEmail || "Не указан";
   const displayPhone = mounted
     ? phone
       ? formatPhoneDisplay(phone)
@@ -676,7 +694,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <PageLayout title="Profile" description="Профиль пользователя CarWash">
+    <PageLayout
+      title="Profile"
+      description="Профиль пользователя CarWash"
+      className={view === "edit" ? "page--profile-edit" : undefined}
+    >
       <>
         {view === "home" && bootLoading ? (
           <div className="profile-boot" role="status" aria-live="polite">
@@ -700,8 +722,6 @@ export default function ProfilePage() {
         {view === "home" && !bootLoading ? (
           <div className="profile-home">
             <header className="profile-hero">
-              <p className="profile-hero__email">{displayEmail}</p>
-
               <div className="profile-hero__avatar-wrap">
                 {avatarSrc ? (
                   <span className="profile-hero__avatar-frame">
@@ -738,7 +758,7 @@ export default function ProfilePage() {
                   {photoBusy || heroPhotoLoading ? (
                     <span className="profile-boot__spinner profile-boot__spinner--sm" />
                   ) : (
-                    <IconPencil />
+                    <IconMoreDots />
                   )}
                 </button>
               </div>
@@ -768,56 +788,54 @@ export default function ProfilePage() {
                     </span>
                     <span className="profile-card__balance-action">
                       {t("profile.top_up_short", "Пополнить")}
-                      <svg
-                        className="profile-card__balance-chevron"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        aria-hidden
-                      >
-                        <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-                      </svg>
                     </span>
                   </Link>
                 </div>
                 <div className="profile-card__balance-item">
-                  <Link
-                    href="/profile/edit"
-                    className="profile-card__phone-btn"
+                  <button
+                    type="button"
+                    className="profile-card__balance-link"
                     aria-label={t("profile.edit", "Редактирование профиля")}
+                    onClick={() => setView("edit")}
                   >
-                    <p className="profile-card__balance-label">
-                      {t("profile.phone", "Телефон")}
-                    </p>
-                    <p className="profile-card__balance-value">{displayPhone}</p>
-                  </Link>
+                    <span className="min-w-0 flex-1">
+                      <p className="profile-card__balance-label">
+                        {t("profile.phone", "Телефон")}
+                      </p>
+                      <p className="profile-card__balance-value">{displayPhone}</p>
+                    </span>
+                    <span className="profile-card__balance-action">
+                      {t("profile.edit_short", "Редактировать")}
+                    </span>
+                  </button>
                 </div>
               </div>
             </section>
 
             <section className="profile-card">
               <ProfileNavRow
-                icon={<IconUser />}
-                label={t("profile.full_name", "Имя и фамилия")}
-                hint={displayName}
-              />
-              <ProfileNavRow
-                icon={<IconMail />}
-                label="Email"
-                hint={displayEmail}
-              />
-              <ProfileNavRow
                 icon={<IconPin />}
                 label={t("profile.city", "Ваш город")}
                 hint={cityName ?? t("profile.not_selected", "Не выбран")}
-                href="/profile/city"
+                onClick={() => setView("city")}
+              />
+              <ProfileNavRow
+                icon={<IconCar />}
+                label={t("profile.garage2", "Гараж")}
+                hint={garageHint}
+                onClick={() => setView("garage2")}
+              />
+              <ProfileNavRow
+                icon={<IconHistory />}
+                label={t("profile.history", "История")}
+                hint={t("profile.history_hint", "Мойки и зарядки")}
+                href="/profile/history"
               />
               <ProfileNavRow
                 icon={<IconLang />}
                 label={t("profile.language", "Язык")}
                 hint={languageHint}
-                href="/profile/language"
+                onClick={() => setView("language")}
               />
               <ProfileNavRow
                 icon={<IconPalette />}
@@ -829,6 +847,31 @@ export default function ProfilePage() {
                   setView("appearance");
                 }}
               />
+            </section>
+
+            <section className="profile-card">
+              <button
+                type="button"
+                onClick={() => void togglePush()}
+                disabled={pushLoading || pushSaving}
+                className="profile-nav-row theme-hover disabled:opacity-60"
+              >
+                <span className="profile-nav-row__icon" aria-hidden>
+                  <IconBell />
+                </span>
+                <span className="profile-nav-row__main">
+                  <span className="profile-nav-row__label">
+                    {t("profile.notifications", "Уведомления")}
+                  </span>
+                  <span className="profile-nav-row__hint">{pushHint}</span>
+                </span>
+                <span
+                  className={`profile-switch${!pushLoading && pushEnabled ? " is-on" : ""}`}
+                  aria-hidden
+                >
+                  <span className="profile-switch__knob" />
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -858,68 +901,6 @@ export default function ProfilePage() {
             </section>
 
             <section className="profile-card">
-              <button
-                type="button"
-                onClick={() => void togglePush()}
-                disabled={pushLoading || pushSaving}
-                className="profile-nav-row theme-hover disabled:opacity-60"
-              >
-                <span className="profile-nav-row__icon" aria-hidden>
-                  <IconBell />
-                </span>
-                <span className="profile-nav-row__main">
-                  <span className="profile-nav-row__label">
-                    {t("profile.notifications", "Уведомления")}
-                  </span>
-                  <span className="profile-nav-row__hint">{pushHint}</span>
-                </span>
-                <span
-                  className={`profile-switch${!pushLoading && pushEnabled ? " is-on" : ""}`}
-                  aria-hidden
-                >
-                  <span className="profile-switch__knob" />
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !showHeaderNav;
-                  dispatch(setHeaderNav(next));
-                  setHeaderVisible(next);
-                }}
-                className="profile-nav-row theme-hover"
-              >
-                <span className="profile-nav-row__icon" aria-hidden>
-                  <IconNav />
-                </span>
-                <span className="profile-nav-row__main">
-                  <span className="profile-nav-row__label">Header</span>
-                  <span className="profile-nav-row__hint">
-                    {showHeaderNav ? "Показан" : "Скрыт"}
-                  </span>
-                </span>
-                <span
-                  className={`profile-switch${showHeaderNav ? " is-on" : ""}`}
-                  aria-hidden
-                >
-                  <span className="profile-switch__knob" />
-                </span>
-              </button>
-            </section>
-
-            <section className="profile-card">
-              <ProfileNavRow
-                icon={<IconCar />}
-                label={t("profile.garage", "Гараж")}
-                hint={t("garage.plate", "Госномер")}
-                href="/profile/garage"
-              />
-              <ProfileNavRow
-                icon={<IconCar />}
-                label={t("profile.garage2", "Гараж 2")}
-                hint={t("garage2.power_hint", "Топливо / Электро")}
-                href="/profile/garage-2"
-              />
               <ProfileNavRow
                 icon={<IconTag />}
                 label={t("profile.promo", "Промокод")}
@@ -933,22 +914,35 @@ export default function ProfilePage() {
               <ProfileNavRow
                 icon={<IconChat />}
                 label={t("profile.support", "Поддержка")}
-                hint={t("profile.faq", "Частые вопросы")}
-                onClick={() => setView("support")}
-              />
-              <ProfileNavRow
-                icon={<IconDocs />}
-                label={t("profile.documents", "Документы")}
                 hint={t("profile.documents_hint", "Политика и оферта")}
-                onClick={() => setView("documents")}
+                onClick={() => setView("support")}
               />
             </section>
           </div>
         ) : null}
 
+        {view === "edit" ? (
+          <EditAccountPage embedded onBack={() => setView("home")} />
+        ) : null}
+
+        {view === "city" ? (
+          <SelectCityPage embedded onBack={() => setView("home")} />
+        ) : null}
+
+        {view === "language" ? (
+          <SelectLanguagePage embedded onBack={() => setView("home")} />
+        ) : null}
+
+        {view === "garage2" ? (
+          <Garage2Page embedded onBack={() => setView("home")} />
+        ) : null}
+
         {view === "balance" ? (
           <>
-            <BackBar onBack={() => setView("home")} />
+            <BackBar
+              title={t("profile.top_up", "Пополнить баланс")}
+              onBack={() => setView("home")}
+            />
             <BalanceTopUp
               balance={balance}
               loading={balanceLoading}
@@ -957,16 +951,15 @@ export default function ProfilePage() {
           </>
         ) : null}
 
-        {view === "history" ? (
-          <>
-            <BackBar onBack={() => setView("home")} />
-            <HistoryList />
-          </>
-        ) : null}
-
         {view === "appearance" ? (
           <>
             <BackBar
+              title={
+                appearanceSection === "menu"
+                  ? t("profile.appearance", "Оформление")
+                  : APPEARANCE_MENU.find((m) => m.id === appearanceSection)
+                      ?.label ?? t("profile.appearance", "Оформление")
+              }
               onBack={() => {
                 if (appearanceSection === "menu") setView("home");
                 else setAppearanceSection("menu");
@@ -1048,7 +1041,7 @@ export default function ProfilePage() {
                 <section className="mb-5">
                   <SectionTitle>Цвета</SectionTitle>
                   <div
-                    className="mb-2 flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-800 dark:bg-zinc-900/60"
+                    className="history-kind profile-theme-tabs"
                     role="tablist"
                     aria-label="Палитра темы"
                   >
@@ -1066,12 +1059,7 @@ export default function ProfilePage() {
                           role="tab"
                           aria-selected={active}
                           onClick={() => setEditPaletteMode(tab.id)}
-                          className={[
-                            "flex-1 rounded-md px-2 py-1.5 app-text-xs font-medium transition",
-                            active
-                              ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
-                              : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
-                          ].join(" ")}
+                          className={`history-kind__btn${active ? " is-on" : ""}`}
                         >
                           {tab.label}
                         </button>
@@ -1189,8 +1177,67 @@ export default function ProfilePage() {
               </>
             ) : null}
 
+            {appearanceSection === "back" ? (
+              <section className="mb-5">
+                <SectionTitle>Кнопка назад</SectionTitle>
+                <p
+                  className="mb-2 px-0.5 leading-relaxed"
+                  style={{
+                    color: "var(--app-description)",
+                    fontSize: "var(--app-text-sm)",
+                  }}
+                >
+                  Выберите вариант — сверху сразу видно, как будет выглядеть
+                  кнопка. Сохраняется для всего профиля.
+                </p>
+                <SectionCard>
+                  {BACK_BUTTON_STYLE_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={backStyle === option.id}
+                      onClick={() => setBackStyle(option.id as BackButtonStyle)}
+                      className="profile-nav-row theme-hover text-left"
+                    >
+                      <RadioMark checked={backStyle === option.id} />
+                      <span className="profile-nav-row__main">
+                        <span className="profile-nav-row__label">
+                          {option.label}
+                        </span>
+                        <span className="profile-nav-row__hint">
+                          {option.hint} · {option.example}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </SectionCard>
+                <div className="mt-3 px-0.5">
+                  <p
+                    className="mb-2"
+                    style={{
+                      color: "var(--app-description)",
+                      fontSize: "var(--app-text-xs)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Превью
+                  </p>
+                  <div
+                    className="rounded-[var(--app-section-radius)] border border-[var(--app-border)] bg-[var(--app-block)] px-3 py-3"
+                  >
+                    <AppBackButton
+                      title="Оформление"
+                      onClick={() => undefined}
+                    />
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
             {appearanceSection !== "menu" &&
-            appearanceSection !== "theme" ? (
+            appearanceSection !== "theme" &&
+            appearanceSection !== "back" ? (
               <section className="mb-5">
                 <SectionTitle>
                   {APPEARANCE_MENU.find((m) => m.id === appearanceSection)?.label}
@@ -1302,12 +1349,22 @@ export default function ProfilePage() {
                     </div>
                   ) : null}
 
-                  {APPEARANCE_LAYOUT_GROUPS[appearanceSection].map((group) => {
+                  {APPEARANCE_LAYOUT_GROUPS[
+                    appearanceSection as Exclude<
+                      AppearanceSection,
+                      "menu" | "theme" | "back"
+                    >
+                  ].map((group) => {
                     const fields = LAYOUT_FIELD_META.filter(
                       (f) => f.group === group,
                     );
                     const multi =
-                      APPEARANCE_LAYOUT_GROUPS[appearanceSection].length > 1;
+                      APPEARANCE_LAYOUT_GROUPS[
+                        appearanceSection as Exclude<
+                          AppearanceSection,
+                          "menu" | "theme" | "back"
+                        >
+                      ].length > 1;
                     return (
                       <div key={group}>
                         {multi ? (
@@ -1381,9 +1438,43 @@ export default function ProfilePage() {
 
         {view === "promo" ? (
           <>
-            <BackBar onBack={() => setView("home")} />
+            <BackBar
+              title={t("profile.promo", "Промокод")}
+              onBack={() => setView("home")}
+            />
             <div className="profile-edit__main space-y-4">
               <div className="profile-edit-fields">
+                <div className="profile-edit-row">
+                  <span className="profile-edit-row__label">
+                    {t("profile.referral", "Рефералка")}
+                  </span>
+                  <div className="profile-promo__code-wrap">
+                    <p className="profile-edit-row__value profile-promo__code">
+                      {myReferralCode}
+                    </p>
+                    <IconActionButton
+                      label={
+                        copied
+                          ? t("profile.copied", "Скопировано")
+                          : t("profile.copy_code", "Скопировать код")
+                      }
+                      disabled={!myReferralCode || myReferralCode === "—"}
+                      onClick={() => void handleCopyReferral()}
+                    >
+                      {copied ? <IconCheck /> : <IconCopy />}
+                    </IconActionButton>
+                  </div>
+                </div>
+
+                <div className="profile-edit-row">
+                  <span className="profile-edit-row__label">
+                    {t("profile.my_clients", "Ваши клиенты")}
+                  </span>
+                  <p className="profile-edit-row__value profile-promo__count">
+                    {clientsCount}
+                  </p>
+                </div>
+
                 <div className="profile-edit-row">
                   <span className="profile-edit-row__label">
                     {t("profile.promo", "Промокод")}
@@ -1425,37 +1516,6 @@ export default function ProfilePage() {
                     </>
                   )}
                 </div>
-
-                <div className="profile-edit-row">
-                  <span className="profile-edit-row__label">
-                    {t("profile.referral", "Рефералка")}
-                  </span>
-                  <div className="profile-promo__code-wrap">
-                    <p className="profile-edit-row__value profile-promo__code">
-                      {myReferralCode}
-                    </p>
-                    <IconActionButton
-                      label={
-                        copied
-                          ? t("profile.copied", "Скопировано")
-                          : t("profile.copy_code", "Скопировать код")
-                      }
-                      disabled={!myReferralCode || myReferralCode === "—"}
-                      onClick={() => void handleCopyReferral()}
-                    >
-                      {copied ? <IconCheck /> : <IconCopy />}
-                    </IconActionButton>
-                  </div>
-                </div>
-
-                <div className="profile-edit-row">
-                  <span className="profile-edit-row__label">
-                    {t("profile.my_clients", "Ваши клиенты")}
-                  </span>
-                  <p className="profile-edit-row__value profile-promo__count">
-                    {clientsCount}
-                  </p>
-                </div>
               </div>
             </div>
           </>
@@ -1463,111 +1523,94 @@ export default function ProfilePage() {
 
         {view === "support" ? (
           <>
-            <BackBar onBack={() => setView("home")} />
-            <div className="profile-edit__main space-y-4">
-              <div className="profile-edit-fields">
-                <div className="profile-edit-row">
-                  <span className="profile-edit-row__label">
-                    {t("profile.support", "Поддержка")}
+            <BackBar
+              title={t("profile.support", "Поддержка")}
+              onBack={() => setView("home")}
+            />
+            <div className="space-y-4">
+              <section className="profile-card">
+                <button
+                  type="button"
+                  className="profile-nav-row theme-hover text-left"
+                  onClick={() => openTelegram(support.telegram.url)}
+                >
+                  <span className="profile-nav-row__main">
+                    <span className="profile-nav-row__hint">
+                      {support.telegram.title}
+                    </span>
                   </span>
-                  <div className="profile-support__list">
-                    <button
-                      type="button"
-                      className="profile-doc-row"
-                      onClick={() => openTelegram(support.telegram.url)}
-                    >
-                      <span className="profile-doc-row__main">
-                        <span className="profile-doc-row__label">
-                          {support.telegram.title}
-                        </span>
-                        {support.telegram.hint ? (
-                          <span className="profile-doc-row__hint">
-                            {support.telegram.hint}
-                          </span>
-                        ) : null}
-                      </span>
-                      <svg
-                        className="profile-doc-row__chevron"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        aria-hidden
-                      >
-                        <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="profile-doc-row"
-                      onClick={() => openWhatsApp(support.whatsapp.url)}
-                    >
-                      <span className="profile-doc-row__main">
-                        <span className="profile-doc-row__label">
-                          {support.whatsapp.title}
-                        </span>
-                        {support.whatsapp.hint ? (
-                          <span className="profile-doc-row__hint">
-                            {support.whatsapp.hint}
-                          </span>
-                        ) : null}
-                      </span>
-                      <svg
-                        className="profile-doc-row__chevron"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        aria-hidden
-                      >
-                        <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
+                  <svg
+                    className="profile-nav-row__chevron"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="profile-nav-row theme-hover text-left"
+                  onClick={() => openWhatsApp(support.whatsapp.url)}
+                >
+                  <span className="profile-nav-row__main">
+                    <span className="profile-nav-row__hint">
+                      {support.whatsapp.title}
+                    </span>
+                  </span>
+                  <svg
+                    className="profile-nav-row__chevron"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </section>
 
-              <FaqSection />
-            </div>
-          </>
-        ) : null}
-
-        {view === "documents" ? (
-          <>
-            <BackBar onBack={() => setView("home")} />
-            <div className="profile-edit__main space-y-4">
-              <div className="profile-edit-fields">
+              <section className="profile-card">
                 {documents.length === 0 ? (
-                  <p className="profile-promo__hint" style={{ marginTop: 0 }}>
+                  <p
+                    className="profile-nav-row is-static"
+                    style={{ color: "var(--app-description)" }}
+                  >
                     {t("profile.documents_empty", "Документов пока нет")}
                   </p>
                 ) : (
                   documents.map((doc) => (
-                    <div key={doc.id} className="profile-edit-row">
-                      <button
-                        type="button"
-                        className="profile-doc-row"
-                        disabled={!doc.url}
-                        onClick={() => {
-                          if (doc.url) openBrowser(doc.url);
-                        }}
+                    <button
+                      key={doc.id}
+                      type="button"
+                      className="profile-nav-row theme-hover text-left"
+                      disabled={!doc.url}
+                      onClick={() => {
+                        if (doc.url) openBrowser(doc.url);
+                      }}
+                    >
+                      <span className="profile-nav-row__main">
+                        <span className="profile-nav-row__hint">{doc.title}</span>
+                      </span>
+                      <svg
+                        className="profile-nav-row__chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        aria-hidden
                       >
-                        <span className="profile-doc-row__label">{doc.title}</span>
-                        <svg
-                          className="profile-doc-row__chevron"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          aria-hidden
-                        >
-                          <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-                        </svg>
-                      </button>
-                    </div>
+                        <path strokeLinecap="round" d="m9 6 6 6-6 6" />
+                      </svg>
+                    </button>
                   ))
                 )}
-              </div>
+              </section>
+
+              <FaqSection />
             </div>
           </>
         ) : null}

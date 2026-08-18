@@ -191,7 +191,7 @@ export default function StationDetail({ station }: { station: Station }) {
 
   return (
     <div className="page-content">
-        <div className="mb-3">
+        <div className="app-back-bar">
           <BackButton onClick={handleBack}>
             {selectedStand
               ? t("map.back_to_stations", "К станциям")

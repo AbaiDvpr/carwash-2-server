@@ -6,17 +6,35 @@ import { useT } from "@/hooks/useT";
 import GaragePanel from "./components/GaragePanel";
 import "./components/profile.css";
 
-export default function GaragePage() {
+type GaragePageProps = {
+  embedded?: boolean;
+  onBack?: () => void;
+};
+
+export default function GaragePage({
+  embedded = false,
+  onBack,
+}: GaragePageProps) {
   const t = useT();
+
+  const content = (
+    <div className="profile-edit">
+      <div className="app-back-bar">
+        {onBack ? (
+          <BackButton iconOnly onClick={onBack} />
+        ) : (
+          <BackButton iconOnly href="/profile" />
+        )}
+      </div>
+      <GaragePanel />
+    </div>
+  );
+
+  if (embedded) return content;
 
   return (
     <PageLayout title={t("profile.garage", "Гараж")} className="page--profile-edit">
-      <div className="profile-edit">
-        <div className="mb-3">
-          <BackButton iconOnly href="/profile" />
-        </div>
-        <GaragePanel />
-      </div>
+      {content}
     </PageLayout>
   );
 }

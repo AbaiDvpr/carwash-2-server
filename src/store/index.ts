@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import appReducer from "./slices/appSlice";
 import i18nReducer from "./slices/i18nSlice";
+/** Документы (политика/оферта) и поддержка: ./slices/variablesSlice.ts */
 import variablesReducer from "./slices/variablesSlice";
 
 export const makeStore = () =>

@@ -10,7 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
-import BackButton from "@/components/ui/BackButton";
+import AppBackButton from "@/components/ui/AppBackButton";
 import { ApiError } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/api/photo";
 import { fetchPlateTypes, type PlateType } from "@/lib/api/garage";
@@ -18,9 +18,11 @@ import {
   createGarageV2,
   deleteGarageV2,
   fetchGaragesV2,
+  fetchGarageV2FuelTypes,
   fetchGarageV2PistolTypes,
   updateGarageV2,
   type GarageV2,
+  type GarageV2FuelType,
   type GarageV2PistolType,
   type GarageV2PowerType,
 } from "@/lib/api/garageV2";
@@ -67,8 +69,35 @@ function IconBolt() {
   );
 }
 
+function IconHybrid() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 18.5V8.2A1.2 1.2 0 0 1 5.7 7h5.1A1.2 1.2 0 0 1 12 8.2v10.3" />
+      <path strokeLinecap="round" d="M4.5 18.5h9M6.5 9.8h4M12 11h1.2a1.2 1.2 0 0 1 1.2 1.2v2.4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m18.2 5.2-3.6 5.6H17l-.6 5.2 3.8-5.8H17.8l.4-5Z" />
+    </svg>
+  );
+}
+
+/** Пробел между буквами и цифрами: 111AAA11 → 111 AAA 11, A1B2 → A 1 B 2 */
+function formatPlateGaps(value: string): string {
+  const clean = value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  let out = "";
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i]!;
+    if (i > 0) {
+      const prev = clean[i - 1]!;
+      const prevDigit = prev >= "0" && prev <= "9";
+      const curDigit = ch >= "0" && ch <= "9";
+      if (prevDigit !== curDigit) out += " ";
+    }
+    out += ch;
+  }
+  return out;
+}
+
 function normalizePlate(value: string): string {
-  return value.replace(/[^A-Za-z0-9 ]/g, "").toUpperCase().slice(0, 12);
+  return formatPlateGaps(value).slice(0, 14);
 }
 
 function plateForApi(value: string): string {
@@ -113,6 +142,7 @@ function apiErrorMessage(err: unknown, fallback: string): string {
       : null;
   return (
     body?.errors?.pistol_type_id?.[0] ??
+    body?.errors?.fuel_type_id?.[0] ??
     body?.errors?.car_plate?.[0] ??
     body?.errors?.power_type?.[0] ??
     body?.message ??
@@ -266,11 +296,20 @@ function ConnectorThumb({
 
 type Screen = "list" | "form";
 
-export default function Garage2Page() {
+type Garage2PageProps = {
+  embedded?: boolean;
+  onBack?: () => void;
+};
+
+export default function Garage2Page({
+  embedded = false,
+  onBack,
+}: Garage2PageProps) {
   const t = useT();
   const router = useRouter();
   const [garages, setGarages] = useState<GarageV2[]>([]);
   const [pistolTypes, setPistolTypes] = useState<GarageV2PistolType[]>([]);
+  const [fuelTypes, setFuelTypes] = useState<GarageV2FuelType[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>(FALLBACK_COUNTRIES);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -284,8 +323,12 @@ export default function Garage2Page() {
   const [countryCode, setCountryCode] = useState("kz");
   const [powerType, setPowerType] = useState<GarageV2PowerType | null>(null);
   const [pistolTypeId, setPistolTypeId] = useState<number | null>(null);
+  const [fuelTypeId, setFuelTypeId] = useState<number | null>(null);
 
   const isEdit = editing != null;
+
+  const needsFuel = powerType === "fuel" || powerType === "hybrid";
+  const needsElectric = powerType === "electric" || powerType === "hybrid";
 
   const activeCountry = useMemo(
     () =>
@@ -298,17 +341,19 @@ export default function Garage2Page() {
   const canSubmit = useMemo(() => {
     const clean = plateForApi(plate);
     if (clean.length < 3 || powerType == null || saving) return false;
-    if (powerType === "electric" && pistolTypeId == null) return false;
+    if (needsElectric && pistolTypeId == null) return false;
+    if (needsFuel && fuelTypeId == null) return false;
     return true;
-  }, [plate, powerType, pistolTypeId, saving]);
+  }, [plate, powerType, needsFuel, needsElectric, pistolTypeId, fuelTypeId, saving]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [list, types, plateTypes] = await Promise.all([
+      const [list, types, fuels, plateTypes] = await Promise.all([
         fetchGaragesV2(),
         fetchGarageV2PistolTypes(),
+        fetchGarageV2FuelTypes(),
         fetchPlateTypes().catch(() => [] as PlateType[]),
       ]);
       const nextCountries = countriesFromTypes(plateTypes);
@@ -320,6 +365,7 @@ export default function Garage2Page() {
       );
       setGarages(list);
       setPistolTypes(types);
+      setFuelTypes(fuels);
     } catch (err) {
       setError(
         apiErrorMessage(
@@ -341,6 +387,7 @@ export default function Garage2Page() {
     setCountryCode(countries[0]?.code ?? "kz");
     setPowerType(null);
     setPistolTypeId(null);
+    setFuelTypeId(null);
     setEditing(null);
     setError(null);
     setFlagDrawerOpen(false);
@@ -358,15 +405,27 @@ export default function Garage2Page() {
     setCountryCode(country.code);
     setPowerType(garage.power_type);
     setPistolTypeId(garage.pistol_type_id);
+    setFuelTypeId(garage.fuel_type_id);
     setError(null);
     setFlagDrawerOpen(false);
     setScreen("form");
   }
 
+  function selectPowerType(next: GarageV2PowerType) {
+    setPowerType(next);
+    if (next === "fuel") setPistolTypeId(null);
+    if (next === "electric") setFuelTypeId(null);
+  }
+
+  function goProfile() {
+    if (onBack) onBack();
+    else router.push("/profile");
+  }
+
   function backToList() {
     if (saving) return;
     if (garages.length === 0) {
-      router.push("/profile");
+      goProfile();
       return;
     }
     resetForm();
@@ -393,7 +452,8 @@ export default function Garage2Page() {
       const input = {
         car_plate: plateForApi(plate),
         power_type: powerType,
-        pistol_type_id: powerType === "electric" ? pistolTypeId : null,
+        pistol_type_id: needsElectric ? pistolTypeId : null,
+        fuel_type_id: needsFuel ? fuelTypeId : null,
         plate_type_id: activeCountry.plateTypeId,
       };
 
@@ -442,14 +502,17 @@ export default function Garage2Page() {
     }
   }
 
-  return (
-    <PageLayout title={t("profile.garage2", "Гараж 2")} className="page--profile-edit">
+  const content = (
+    <>
       <div className="profile-edit garage2">
-        <div className="garage2__toolbar">
+        <div className="app-back-bar garage2__toolbar">
           {screen === "form" ? (
-            <BackButton iconOnly onClick={backToList} />
+            <AppBackButton
+              title={isEdit ? t("common.edit", "Изменить") : t("garage2.add", "Добавить")}
+              onClick={backToList}
+            />
           ) : (
-            <BackButton iconOnly href="/profile" />
+            <AppBackButton title={t("profile.garage2", "Гараж")} onClick={goProfile} />
           )}
           {screen === "form" && isEdit ? (
             <IconActionButton
@@ -476,9 +539,6 @@ export default function Garage2Page() {
         {screen === "list" && !loading ? (
           <div className="profile-edit__main space-y-4">
             <div className="profile-edit-fields">
-              <p className="profile-edit-row__label">
-                {t("garage2.my_cars", "Мои авто")}
-              </p>
               <ul className="garage2__list">
                 {garages.map((item) => {
                   const country = countryForGarage(item, countries);
@@ -494,12 +554,22 @@ export default function Garage2Page() {
                             {country.flag}
                           </span>
                           <span className="garage2__list-texts">
-                            <span className="garage2__list-plate">{item.car_plate}</span>
+                            <span className="garage2__list-plate">
+                              {formatPlateGaps(item.car_plate)}
+                            </span>
                             <span className="garage2__list-meta">
-                              {item.power_type === "electric"
-                                ? item.pistol_type?.type ??
-                                  t("garage2.electric", "Электро")
-                                : t("garage2.fuel", "Топливо")}
+                              {item.power_type === "hybrid"
+                                ? [
+                                    item.fuel_type?.name ??
+                                      t("garage2.fuel", "Топливо"),
+                                    item.pistol_type?.type ??
+                                      t("garage2.electric", "Электро"),
+                                  ].join(" · ")
+                                : item.power_type === "electric"
+                                  ? item.pistol_type?.type ??
+                                    t("garage2.electric", "Электро")
+                                  : item.fuel_type?.name ??
+                                    t("garage2.fuel", "Топливо")}
                             </span>
                           </span>
                         </span>
@@ -583,7 +653,7 @@ export default function Garage2Page() {
                   {t("garage2.power_title", "Тип питания")}
                 </p>
                 <div
-                  className="garage2__power"
+                  className="garage2__power garage2__power--3"
                   role="radiogroup"
                   aria-label={t("garage2.power_title", "Тип питания")}
                 >
@@ -591,10 +661,7 @@ export default function Garage2Page() {
                     type="button"
                     role="radio"
                     aria-checked={powerType === "fuel"}
-                    onClick={() => {
-                      setPowerType("fuel");
-                      setPistolTypeId(null);
-                    }}
+                    onClick={() => selectPowerType("fuel")}
                     className={`garage2__power-btn${powerType === "fuel" ? " is-active" : ""}`}
                   >
                     <span className="garage2__power-icon" aria-hidden>
@@ -610,7 +677,7 @@ export default function Garage2Page() {
                     type="button"
                     role="radio"
                     aria-checked={powerType === "electric"}
-                    onClick={() => setPowerType("electric")}
+                    onClick={() => selectPowerType("electric")}
                     className={`garage2__power-btn${powerType === "electric" ? " is-active" : ""}`}
                   >
                     <span className="garage2__power-icon" aria-hidden>
@@ -622,10 +689,60 @@ export default function Garage2Page() {
                       </span>
                     </span>
                   </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={powerType === "hybrid"}
+                    onClick={() => selectPowerType("hybrid")}
+                    className={`garage2__power-btn${powerType === "hybrid" ? " is-active" : ""}`}
+                  >
+                    <span className="garage2__power-icon" aria-hidden>
+                      <IconHybrid />
+                    </span>
+                    <span className="garage2__power-text">
+                      <span className="garage2__power-title">
+                        {t("garage2.hybrid", "Гибрид")}
+                      </span>
+                    </span>
+                  </button>
                 </div>
               </div>
 
-              {powerType === "electric" ? (
+              {needsFuel ? (
+                <div className="profile-edit-row">
+                  <p className="profile-edit-row__label">
+                    {t("garage2.fuel_title", "Тип топлива")}
+                  </p>
+                  {fuelTypes.length === 0 ? (
+                    <p className="garage2__empty">
+                      {t("garage2.no_fuels", "Типы топлива пока не загружены")}
+                    </p>
+                  ) : (
+                    <div
+                      className="garage2__fuels"
+                      role="listbox"
+                      aria-label={t("garage2.fuel_title", "Тип топлива")}
+                    >
+                      {fuelTypes.map((type) => (
+                        <button
+                          key={type.id}
+                          type="button"
+                          role="option"
+                          aria-selected={fuelTypeId === type.id}
+                          className={`garage2__fuel-chip${fuelTypeId === type.id ? " is-active" : ""}`}
+                          onClick={() => setFuelTypeId(type.id)}
+                        >
+                          {type.group === "gasoline"
+                            ? type.code.toUpperCase()
+                            : type.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {needsElectric ? (
                 <div className="profile-edit-row">
                   <p className="profile-edit-row__label">
                     {t("garage2.connector_title", "Тип зарядки")}
@@ -677,6 +794,14 @@ export default function Garage2Page() {
           onClose={() => setFlagDrawerOpen(false)}
         />
       ) : null}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <PageLayout title={t("profile.garage2", "Гараж")} className="page--profile-edit">
+      {content}
     </PageLayout>
   );
 }

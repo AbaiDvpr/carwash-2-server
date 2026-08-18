@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
-import BackButton from "@/components/ui/BackButton";
+import AppBackButton from "@/components/ui/AppBackButton";
 import { useT } from "@/hooks/useT";
 import { useToast } from "@/hooks/useToast";
 import { forceLogout } from "@/lib/forceLogout";
@@ -19,7 +19,15 @@ function IconLogout() {
   );
 }
 
-export default function EditAccountPage() {
+type EditAccountPageProps = {
+  embedded?: boolean;
+  onBack?: () => void;
+};
+
+export default function EditAccountPage({
+  embedded = false,
+  onBack,
+}: EditAccountPageProps) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -35,101 +43,119 @@ export default function EditAccountPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [logoutOpen]);
 
-  return (
-    <PageLayout title={t("profile.edit", "Редактирование")} className="page--profile-edit">
-      <div className="profile-edit">
-        <div className="mb-3">
-          <BackButton iconOnly href="/profile" />
-        </div>
+  function goBack() {
+    if (onBack) onBack();
+    else router.push("/profile");
+  }
 
-        <div className="profile-edit__main space-y-4">
-          <div className="profile-edit-fields">
-            <label className="profile-edit-row">
-              <span className="profile-edit-row__label">
-                {t("profile.first_name", "Имя")}
-              </span>
-              <input
-                type="text"
-                value={profileEdit.firstName}
-                onChange={(e) => {
-                  profileEdit.clearFeedback();
-                  profileEdit.setFirstName(e.target.value);
-                }}
-                disabled={profileEdit.loading || profileEdit.saving}
-                placeholder={t("profile.first_name", "Имя")}
-                autoComplete="given-name"
-                className="profile-edit-row__value"
-              />
-            </label>
-            <label className="profile-edit-row">
-              <span className="profile-edit-row__label">
-                {t("profile.last_name", "Фамилия")}
-              </span>
-              <input
-                type="text"
-                value={profileEdit.lastName}
-                onChange={(e) => {
-                  profileEdit.clearFeedback();
-                  profileEdit.setLastName(e.target.value);
-                }}
-                disabled={profileEdit.loading || profileEdit.saving}
-                placeholder={t("profile.last_name", "Фамилия")}
-                autoComplete="family-name"
-                className="profile-edit-row__value"
-              />
-            </label>
-            <label className="profile-edit-row">
-              <span className="profile-edit-row__label">Email</span>
-              <input
-                type="email"
-                value={profileEdit.email}
-                onChange={(e) => {
-                  profileEdit.clearFeedback();
-                  profileEdit.setEmail(e.target.value);
-                }}
-                disabled={profileEdit.loading || profileEdit.saving}
-                placeholder="example@mail.com"
-                autoComplete="email"
-                inputMode="email"
-                className="profile-edit-row__value"
-              />
-            </label>
-          </div>
-
-          <button
-            type="button"
-            disabled={!profileEdit.canSave}
-            onClick={() => {
-              void profileEdit.save().then((ok) => {
-                if (!ok) return;
-                showToast(t("common.saved", "Сохранено"));
-                window.setTimeout(() => router.push("/profile"), 350);
-              });
-            }}
-            className="theme-button w-full"
-          >
-            {profileEdit.saving
-              ? t("common.saving", "Сохранение…")
-              : t("common.save", "Сохранить")}
-          </button>
-
-          {profileEdit.message ? (
-            <p className="profile-edit__feedback is-ok">{profileEdit.message}</p>
-          ) : null}
-          {profileEdit.error ? (
-            <p className="profile-edit__feedback is-error">{profileEdit.error}</p>
-          ) : null}
-        </div>
-
-        <div className="profile-edit__logout">
-          <ProfileNavRow
-            icon={<IconLogout />}
-            label={t("profile.logout", "Выйти")}
-            danger
-            onClick={() => setLogoutOpen(true)}
-          />
-        </div>
+  const content = (
+    <div className="profile-edit">
+      <div className="app-back-bar">
+        <AppBackButton
+          title={t("profile.edit", "Редактирование профиля")}
+          onClick={goBack}
+        />
       </div>
+
+      <div className="profile-edit__main space-y-4">
+        <div className="profile-edit-fields">
+          <label className="profile-edit-row">
+            <span className="profile-edit-row__label">
+              {t("profile.first_name", "Имя")}
+            </span>
+            <input
+              type="text"
+              value={profileEdit.firstName}
+              onChange={(e) => {
+                profileEdit.clearFeedback();
+                profileEdit.setFirstName(e.target.value);
+              }}
+              disabled={profileEdit.loading || profileEdit.saving}
+              placeholder={t("profile.first_name", "Имя")}
+              autoComplete="given-name"
+              className="profile-edit-row__value"
+            />
+          </label>
+          <label className="profile-edit-row">
+            <span className="profile-edit-row__label">
+              {t("profile.last_name", "Фамилия")}
+            </span>
+            <input
+              type="text"
+              value={profileEdit.lastName}
+              onChange={(e) => {
+                profileEdit.clearFeedback();
+                profileEdit.setLastName(e.target.value);
+              }}
+              disabled={profileEdit.loading || profileEdit.saving}
+              placeholder={t("profile.last_name", "Фамилия")}
+              autoComplete="family-name"
+              className="profile-edit-row__value"
+            />
+          </label>
+          <label className="profile-edit-row">
+            <span className="profile-edit-row__label">Email</span>
+            <input
+              type="email"
+              value={profileEdit.email}
+              onChange={(e) => {
+                profileEdit.clearFeedback();
+                profileEdit.setEmail(e.target.value);
+              }}
+              disabled={profileEdit.loading || profileEdit.saving}
+              placeholder="example@mail.com"
+              autoComplete="email"
+              inputMode="email"
+              className="profile-edit-row__value"
+            />
+          </label>
+        </div>
+
+        <button
+          type="button"
+          disabled={!profileEdit.canSave}
+          onClick={() => {
+            void profileEdit.save().then((ok) => {
+              if (!ok) return;
+              showToast(t("common.saved", "Сохранено"));
+              window.setTimeout(goBack, 350);
+            });
+          }}
+          className="theme-button w-full"
+        >
+          {profileEdit.saving
+            ? t("common.saving", "Сохранение…")
+            : t("common.save", "Сохранить")}
+        </button>
+
+        {profileEdit.message ? (
+          <p className="profile-edit__feedback is-ok">{profileEdit.message}</p>
+        ) : null}
+        {profileEdit.error ? (
+          <p className="profile-edit__feedback is-error">{profileEdit.error}</p>
+        ) : null}
+      </div>
+
+      <div className="profile-edit__logout">
+        <ProfileNavRow
+          icon={<IconLogout />}
+          label={t("profile.logout", "Выйти")}
+          danger
+          onClick={() => setLogoutOpen(true)}
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        content
+      ) : (
+        <PageLayout title={t("profile.edit", "Редактирование")} className="page--profile-edit">
+          {content}
+        </PageLayout>
+      )}
 
       {logoutOpen ? (
         <div
@@ -194,6 +220,6 @@ export default function EditAccountPage() {
           </div>
         </div>
       ) : null}
-    </PageLayout>
+    </>
   );
 }

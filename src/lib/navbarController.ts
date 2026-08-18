@@ -7,7 +7,7 @@ export type WebNavbarScreen = Exclude<NavbarScreen, "qr">;
 
 export const NAVBAR_ROUTES: Record<WebNavbarScreen, string> = {
   map: "/",
-  history: "/history",
+  history: "/profile/history",
   chatbot: "/chatbot",
   profile: "/profile",
 };

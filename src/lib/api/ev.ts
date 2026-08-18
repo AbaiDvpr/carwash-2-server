@@ -82,7 +82,7 @@ export type EvLocation = {
   map_yandex: string | null;
   open_hours: Record<string, string> | null;
   is_open: boolean;
-  status: "Открыто" | "Закрыто";
+  status: "Открыто" | "Закрыто" | "Занято";
   chargers_total: number;
   stations_count?: number | null;
   pistols_total: number;
@@ -281,17 +281,25 @@ export function toEvStation(location: EvLocation): Station {
       ? location.stations_count
       : Math.max(1, location.chargers_total || (location.chargers ?? []).length || 1);
 
+  const freeSlots =
+    typeof location.free_slots === "number"
+      ? Math.max(0, location.free_slots)
+      : pistols.filter((p) => p.status === "free").length;
+  const hoursOpen = location.is_open || location.status === "Открыто" || location.status === "Занято";
+  const status: Station["status"] =
+    hoursOpen && freeSlots > 0 ? "Открыто" : hoursOpen ? "Занято" : "Закрыто";
+
   return {
     id: evStationId(location.id),
     name: location.address,
     address: location.address,
-    status: location.status,
+    status,
     kind: "charging",
     geoId: location.geo_id ?? null,
     photoUrl: resolveMediaUrl(location.photo_url),
     hoursLabel: formatOpenHoursLabel(location.open_hours),
     openHours: location.open_hours ?? null,
-    freeSlots: pistols.filter((p) => p.status === "free").length,
+    freeSlots,
     washersTotal: pistols.length,
     washers: pistols,
     latitude: lat,

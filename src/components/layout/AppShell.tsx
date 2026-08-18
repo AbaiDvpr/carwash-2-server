@@ -7,6 +7,7 @@ import AuthErrorBlock from "./AuthErrorBlock";
 import Header from "./Header/header";
 import MobileAccessGate from "./MobileAccessGate";
 import PagePreloader from "./PagePreloader";
+import WebViewGuard from "./WebViewGuard";
 
 type AppShellProps = {
   children: ReactNode;
@@ -15,6 +16,7 @@ type AppShellProps = {
 export default function AppShell({ children }: AppShellProps) {
   return (
     <>
+      <WebViewGuard />
       {/* До gate: debug успеет включиться, модалка видна даже на preloader */}
       <AuthDebugBoot />
       <MobileAccessGate>

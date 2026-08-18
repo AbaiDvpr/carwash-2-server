@@ -96,89 +96,92 @@ export default function BalanceTopUp({
   }
 
   return (
-    <div className="profile-topup space-y-4">
-      <section className="profile-card">
-        <div className="profile-card__balance">
-          <div className="profile-card__balance-item">
-            <p className="profile-card__balance-label">
-              {t("home.balance", "Баланс")}
-            </p>
-            <p className="profile-card__balance-value">
-              {loading && balance == null ? "…" : formatBalance(balance ?? 0)}
-            </p>
-          </div>
+    <div className="profile-edit__main space-y-4">
+      <div className="profile-edit-fields">
+        <div className="profile-edit-row">
+          <span className="profile-edit-row__label">
+            {t("home.balance", "Баланс")}
+          </span>
+          <p className="profile-edit-row__value profile-topup__balance">
+            {loading && balance == null ? "…" : formatBalance(balance ?? 0)}
+          </p>
         </div>
-      </section>
 
-      <section className="profile-card" role="radiogroup" aria-label={t("payment.method", "Способ оплаты")}>
-        {METHODS.map((item) => {
-          const active = method === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              disabled={saving}
-              onClick={() => {
-                setMethod(item.id);
-                setMessage(null);
-                setError(null);
-              }}
-              className="profile-nav-row theme-hover text-left disabled:opacity-60"
-            >
-              <RadioMark checked={active} />
-              <span className="profile-nav-row__main">
-                <span className="profile-nav-row__hint">{item.label}</span>
-              </span>
-            </button>
-          );
-        })}
-      </section>
-
-      <section className="profile-card">
-        <div className="profile-edit-fields">
-          <label className="profile-edit-row">
-            <span className="profile-nav-row__label">
-              {t("payment.amount", "Сумма")}
-            </span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={amount}
-              disabled={saving}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, "");
-                setAmount(formatAmountDigits(digits));
-                setMessage(null);
-                setError(null);
-              }}
-              placeholder="2 000"
-              className="profile-edit-row__value"
-            />
-            <div className="profile-topup__presets">
-              {PRESETS.map((value) => (
+        <div className="profile-edit-row">
+          <span className="profile-edit-row__label">
+            {t("payment.method", "Способ оплаты")}
+          </span>
+          <div
+            className="profile-topup__methods"
+            role="radiogroup"
+            aria-label={t("payment.method", "Способ оплаты")}
+          >
+            {METHODS.map((item) => {
+              const active = method === item.id;
+              return (
                 <button
-                  key={value}
+                  key={item.id}
                   type="button"
+                  role="radio"
+                  aria-checked={active}
                   disabled={saving}
                   onClick={() => {
-                    setAmount(formatAmountDigits(String(value)));
+                    setMethod(item.id);
                     setMessage(null);
                     setError(null);
                   }}
-                  className={[
-                    "profile-topup__preset",
-                    parsed === value ? "is-active" : "",
-                  ].join(" ")}
+                  className={`profile-doc-row${active ? " is-active" : ""}`}
                 >
-                  {formatBalance(value)}
+                  <span className="profile-doc-row__main">
+                    <span className="profile-doc-row__label">{item.label}</span>
+                  </span>
+                  <RadioMark checked={active} />
                 </button>
-              ))}
-            </div>
-          </label>
+              );
+            })}
+          </div>
         </div>
-      </section>
+
+        <label className="profile-edit-row">
+          <span className="profile-edit-row__label">
+            {t("payment.amount", "Сумма")}
+          </span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={amount}
+            disabled={saving}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "");
+              setAmount(formatAmountDigits(digits));
+              setMessage(null);
+              setError(null);
+            }}
+            placeholder="2 000"
+            className="profile-edit-row__value"
+          />
+          <div className="profile-topup__presets">
+            {PRESETS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  setAmount(formatAmountDigits(String(value)));
+                  setMessage(null);
+                  setError(null);
+                }}
+                className={[
+                  "profile-topup__preset",
+                  parsed === value ? "is-active" : "",
+                ].join(" ")}
+              >
+                {formatBalance(value)}
+              </button>
+            ))}
+          </div>
+        </label>
+      </div>
 
       {error ? <p className="profile-edit__feedback is-error">{error}</p> : null}
       {message ? <p className="profile-edit__feedback is-ok">{message}</p> : null}
@@ -194,7 +197,7 @@ export default function BalanceTopUp({
           : t("profile.top_up", "Пополнить")}
       </button>
 
-      <p className="theme-description text-center" style={{ fontSize: "var(--app-text-sm)" }}>
+      <p className="profile-promo__hint" style={{ marginTop: 0, textAlign: "center" }}>
         {t("payment.min_note", "Минимум 100 ₸")}
       </p>
     </div>

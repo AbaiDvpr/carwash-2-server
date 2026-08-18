@@ -51,9 +51,11 @@ export default function Header() {
           {NAV_LINKS.map(({ screen, key, fallback }) => {
             const active =
               (screen === "map" && (pathname === "/" || pathname.startsWith("/map"))) ||
-              (screen === "history" && pathname.startsWith("/history")) ||
+              (screen === "history" && pathname.startsWith("/profile/history")) ||
               (screen === "chatbot" && pathname.startsWith("/chatbot")) ||
-              (screen === "profile" && pathname.startsWith("/profile"));
+              (screen === "profile" &&
+                pathname.startsWith("/profile") &&
+                !pathname.startsWith("/profile/history"));
 
             return (
               <button

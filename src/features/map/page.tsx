@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/layout/PageLayout";
@@ -10,12 +10,13 @@ import {
   connectorLabel,
   formatPowerKw,
   formatPricePerKwh,
+  normalizeConnectorType,
+  type ConnectorSlug,
 } from "@/features/map/evConnectors";
 import {
   type ChargingCostFilter,
   type ChargingFilters,
   type MapFilters,
-  type WashFilters,
   type WashPriceFilter,
   countActiveFilters,
   createDefaultFilters,
@@ -26,6 +27,8 @@ import {
   toggleKindEnabled,
   writeMapFilters,
 } from "@/features/map/filters";
+import { fetchGarageV2PistolTypes } from "@/lib/api/garageV2";
+import { resolveMediaUrl } from "@/lib/api/photo";
 import { useStations } from "@/hooks/useStations";
 import { useT } from "@/hooks/useT";
 import { useUserLocation } from "@/hooks/useUserLocation";
@@ -44,42 +47,13 @@ const LIST_MAX_KM = 100;
 
 type StationWithDistance = Station & { distanceKm: number | null };
 
-type FilterOptionKey = "freeOnly";
-
-const FILTER_SECTIONS: {
+const FILTER_TABS: {
   kind: StationKind;
   titleKey: string;
   titleFallback: string;
-  options: {
-    key: FilterOptionKey;
-    labelKey: string;
-    labelFallback: string;
-  }[];
 }[] = [
-  {
-    kind: "wash",
-    titleKey: "common.wash",
-    titleFallback: "Мойка",
-    options: [
-      {
-        key: "freeOnly",
-        labelKey: "map.filter_free_wash",
-        labelFallback: "Есть свободные посты",
-      },
-    ],
-  },
-  {
-    kind: "charging",
-    titleKey: "common.charging",
-    titleFallback: "ЭЗС",
-    options: [
-      {
-        key: "freeOnly",
-        labelKey: "map.filter_free_charge",
-        labelFallback: "Есть свободные слоты",
-      },
-    ],
-  },
+  { kind: "wash", titleKey: "common.wash", titleFallback: "Мойка" },
+  { kind: "charging", titleKey: "common.charging", titleFallback: "ЭЗС" },
 ];
 
 const COST_OPTIONS: {
@@ -88,15 +62,9 @@ const COST_OPTIONS: {
   labelFallback: string;
 }[] = [
   { value: "all", labelKey: "map.filter_cost_all", labelFallback: "Все" },
-  { value: "free", labelKey: "map.filter_cost_free", labelFallback: "Бесплатно" },
   { value: "lte70", labelKey: "map.filter_price_lte70", labelFallback: "до 70 ₸/кВт·ч" },
   { value: "lte120", labelKey: "map.filter_price_lte120", labelFallback: "70–120 ₸/кВт·ч" },
   { value: "gt120", labelKey: "map.filter_price_gt120", labelFallback: "от 120 ₸/кВт·ч" },
-  {
-    value: "unknown",
-    labelKey: "map.filter_cost_unknown",
-    labelFallback: "Цена неизвестна",
-  },
 ];
 
 const WASH_PRICE_OPTIONS: {
@@ -108,16 +76,7 @@ const WASH_PRICE_OPTIONS: {
   { value: "lte1500", labelKey: "map.filter_wash_lte1500", labelFallback: "до 1 500 ₸" },
   { value: "lte3000", labelKey: "map.filter_wash_lte3000", labelFallback: "1 500–3 000 ₸" },
   { value: "gt3000", labelKey: "map.filter_wash_gt3000", labelFallback: "от 3 000 ₸" },
-  {
-    value: "unknown",
-    labelKey: "map.filter_cost_unknown",
-    labelFallback: "Цена неизвестна",
-  },
 ];
-
-function FilterSectionLabel({ children }: { children: ReactNode }) {
-  return <p className="map-filter-section__label">{children}</p>;
-}
 
 function formatDistanceLabel(km: number): string {
   if (km < 1) return `${Math.round(km * 1000)} м`;
@@ -197,43 +156,54 @@ function KindSwitcher({
   );
 }
 
-function WashFilterExtras({
-  draft,
+function RadioMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={`theme-radio relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2${
+        checked ? " is-on" : ""
+      }`}
+      aria-hidden
+    >
+      {checked ? (
+        <span className="h-2 w-2 rounded-full bg-[var(--app-button-text)]" />
+      ) : null}
+    </span>
+  );
+}
+
+function FilterRadioGroup({
+  label,
+  value,
+  options,
   onChange,
 }: {
-  draft: WashFilters;
-  onChange: (next: WashFilters) => void;
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
 }) {
-  const t = useT();
-
   return (
-    <div className="map-filter-section">
-      <FilterSectionLabel>
-        {t("map.filter_price_wash", "Цена тарифа")}
-      </FilterSectionLabel>
-      <p className="map-filter-section__hint">
-        {t(
-          "map.filter_price_wash_hint",
-          "По минимальной цене услуги на мойке",
-        )}
-      </p>
-      <div className="map-ev-chips map-ev-chips--wrap">
-        {WASH_PRICE_OPTIONS.map((option) => {
-          const checked = draft.price === option.value;
+    <section className="map-filter-section map-filter-section--rows">
+      <p className="map-filter-section__label">{label}</p>
+      <div role="radiogroup" aria-label={label}>
+        {options.map((option) => {
+          const on = value === option.value;
           return (
             <button
               key={option.value}
               type="button"
-              className={`map-ev-chip${checked ? " is-on" : ""}`}
-              aria-pressed={checked}
-              onClick={() => onChange({ ...draft, price: option.value })}
+              role="radio"
+              aria-checked={on}
+              className="map-filter-row"
+              onClick={() => onChange(option.value)}
             >
-              {t(option.labelKey, option.labelFallback)}
+              <RadioMark checked={on} />
+              <span>{option.label}</span>
             </button>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -252,138 +222,112 @@ function FilterChevron({ open }: { open: boolean }) {
   );
 }
 
-function AvailabilityRows({
-  options,
-  values,
-  onToggle,
+function ConnectorThumb({
+  photoUrl,
+  label,
+  selected,
+  onSelect,
 }: {
-  options: {
-    key: FilterOptionKey;
-    labelKey: string;
-    labelFallback: string;
-  }[];
-  values: Record<FilterOptionKey, boolean>;
-  onToggle: (key: FilterOptionKey) => void;
+  photoUrl: string | null;
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
 }) {
-  const t = useT();
+  const [failed, setFailed] = useState(false);
+  const src = photoUrl && !failed ? photoUrl : null;
+
   return (
-    <div className="map-filter-section map-filter-section--rows">
-      <FilterSectionLabel>
-        {t("map.filter_availability", "Доступность")}
-      </FilterSectionLabel>
-      {options.map((option) => {
-        const checked = values[option.key];
-        return (
-          <button
-            key={option.key}
-            type="button"
-            className="map-filter-row"
-            onClick={() => onToggle(option.key)}
-            aria-pressed={checked}
-          >
-            <span>{t(option.labelKey, option.labelFallback)}</span>
-            <span
-              className={`map-filter-sheet__check${checked ? " is-on" : ""}`}
-              aria-hidden
-            >
-              {checked ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 5 5L20 7" />
-                </svg>
-              ) : null}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <button
+      type="button"
+      className={`map-filter-conn${selected ? " is-on" : ""}`}
+      aria-pressed={selected}
+      onClick={onSelect}
+    >
+      <span className="map-filter-conn__media" aria-hidden>
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt="" onError={() => setFailed(true)} />
+        ) : (
+          <span className="map-filter-conn__fallback">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
+            </svg>
+          </span>
+        )}
+      </span>
+      <span className="map-filter-conn__label">{label}</span>
+    </button>
   );
 }
 
-type SpeedAccordionKey = "fast" | "slow";
+function photosFromStations(stations: Station[]): Partial<Record<ConnectorSlug, string>> {
+  const map: Partial<Record<ConnectorSlug, string>> = {};
+  for (const station of stations) {
+    if (station.kind !== "charging") continue;
+    for (const connector of station.connectors ?? []) {
+      const slug = connector.slug as ConnectorSlug;
+      if (connector.photoUrl && slug && !map[slug]) map[slug] = connector.photoUrl;
+    }
+    for (const stand of station.chargerStands ?? []) {
+      for (const port of stand.ports) {
+        const slug = port.slug as ConnectorSlug;
+        if (port.photoUrl && slug && !map[slug]) map[slug] = port.photoUrl;
+      }
+    }
+  }
+  return map;
+}
 
-const SPEED_ACCORDIONS: {
-  key: SpeedAccordionKey;
-  group: "dc" | "ac";
-  titleKey: string;
-  titleFallback: string;
-  hintKey: string;
-  hintFallback: string;
-}[] = [
-  {
-    key: "fast",
-    group: "dc",
-    titleKey: "map.filter_fast",
-    titleFallback: "Быстрые",
-    hintKey: "map.filter_fast_hint",
-    hintFallback: "DC · обычно от 50 кВт",
-  },
-  {
-    key: "slow",
-    group: "ac",
-    titleKey: "map.filter_slow",
-    titleFallback: "Медленные",
-    hintKey: "map.filter_slow_hint",
-    hintFallback: "AC · Type 1 / Type 2 и аналоги",
-  },
-];
-
-function ChargingSpeedFilters({
+function ChargingConnectorFilters({
   draft,
   onChange,
+  photoBySlug,
 }: {
   draft: ChargingFilters;
   onChange: (next: ChargingFilters) => void;
+  photoBySlug: Partial<Record<ConnectorSlug, string>>;
 }) {
   const t = useT();
-  const [openKey, setOpenKey] = useState<SpeedAccordionKey | null>("fast");
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   return (
-    <div className="map-filter-section">
-      <FilterSectionLabel>
+    <section className="map-filter-section">
+      <p className="map-filter-section__label">
         {t("map.filter_speed", "Тип зарядки")}
-      </FilterSectionLabel>
-      <p className="map-filter-section__hint">
-        {t(
-          "map.filter_speed_hint",
-          "Раскройте блок и выберите нужные коннекторы",
-        )}
       </p>
-
       <div className="map-filter-acc-list">
-        {SPEED_ACCORDIONS.map((acc) => {
-          const group =
-            CONNECTOR_GROUPS.find((item) => item.group === acc.group) ?? null;
-          const slugs = group?.slugs ?? [];
-          const selectedInGroup = slugs.filter((slug) =>
+        {CONNECTOR_GROUPS.map((group) => {
+          const selectedInGroup = group.slugs.filter((slug) =>
             draft.connectors.includes(slug),
           );
-          const activeCount = selectedInGroup.length;
-          const open = openKey === acc.key;
+          const open = openGroup === group.group;
 
           return (
             <div
-              key={acc.key}
-              className={`map-filter-acc${open ? " is-open" : ""}${activeCount > 0 ? " is-active" : ""}`}
+              key={group.group}
+              className={`map-filter-acc${open ? " is-open" : ""}${selectedInGroup.length > 0 ? " is-active" : ""}`}
             >
               <button
                 type="button"
                 className="map-filter-acc__head"
                 aria-expanded={open}
                 onClick={() =>
-                  setOpenKey((prev) => (prev === acc.key ? null : acc.key))
+                  setOpenGroup((prev) => (prev === group.group ? null : group.group))
                 }
               >
                 <span className="map-filter-acc__titles">
                   <span className="map-filter-acc__title">
-                    {t(acc.titleKey, acc.titleFallback)}
+                    {t(group.titleKey, group.titleFallback)}
                   </span>
                   <span className="map-filter-acc__hint">
-                    {t(acc.hintKey, acc.hintFallback)}
+                    {selectedInGroup.length > 0
+                      ? selectedInGroup.map((slug) => connectorLabel(slug)).join(", ")
+                      : t("history.filter_all", "Все")}
                   </span>
                 </span>
                 <span className="map-filter-acc__meta">
-                  {activeCount > 0 ? (
-                    <span className="map-filter-acc__badge">{activeCount}</span>
+                  {selectedInGroup.length > 0 ? (
+                    <span className="map-filter-acc__badge">{selectedInGroup.length}</span>
                   ) : null}
                   <FilterChevron open={open} />
                 </span>
@@ -391,23 +335,17 @@ function ChargingSpeedFilters({
 
               {open ? (
                 <div className="map-filter-acc__body">
-                  <div className="map-ev-chips map-ev-chips--wrap">
-                    {slugs.map((slug) => {
-                      const selected = draft.connectors.includes(slug);
-                      return (
-                        <button
-                          key={slug}
-                          type="button"
-                          className={`map-ev-chip${selected ? " is-on" : ""}`}
-                          aria-pressed={selected}
-                          onClick={() => onChange(toggleConnector(draft, slug))}
-                        >
-                          {connectorLabel(slug)}
-                        </button>
-                      );
-                    })}
+                  <div className="map-filter-conn-grid">
+                    {group.slugs.map((slug) => (
+                      <ConnectorThumb
+                        key={slug}
+                        photoUrl={photoBySlug[slug] ?? null}
+                        label={connectorLabel(slug)}
+                        selected={draft.connectors.includes(slug)}
+                        onSelect={() => onChange(toggleConnector(draft, slug))}
+                      />
+                    ))}
                   </div>
-
                   {selectedInGroup.length > 0 ? (
                     <button
                       type="button"
@@ -416,12 +354,12 @@ function ChargingSpeedFilters({
                         onChange({
                           ...draft,
                           connectors: draft.connectors.filter(
-                            (slug) => !slugs.includes(slug),
+                            (slug) => !group.slugs.includes(slug),
                           ),
                         })
                       }
                     >
-                      {t("map.filter_clear_group", "Сбросить коннекторы")}
+                      {t("map.filter_clear_group", "Сбросить")}
                     </button>
                   ) : null}
                 </div>
@@ -430,50 +368,19 @@ function ChargingSpeedFilters({
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
-function ChargingPriceFilters({
-  draft,
-  onChange,
-}: {
-  draft: ChargingFilters;
-  onChange: (next: ChargingFilters) => void;
-}) {
-  const t = useT();
-  return (
-    <div className="map-filter-section">
-      <FilterSectionLabel>
-        {t("map.filter_price_ev", "Цена за кВт·ч")}
-      </FilterSectionLabel>
-      <div className="map-ev-chips map-ev-chips--wrap">
-        {COST_OPTIONS.map((option) => {
-          const checked = draft.cost === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              className={`map-ev-chip${checked ? " is-on" : ""}`}
-              aria-pressed={checked}
-              onClick={() => onChange({ ...draft, cost: option.value })}
-            >
-              {t(option.labelKey, option.labelFallback)}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/** Drawer: табы Мойка / ЭЗС + пункты фильтрации активного типа */
+/** Drawer как на истории: шапка, плитки Мойка/ЭЗС, radio-строки, кнопки колонкой */
 function MapFilterDrawer({
   filters,
+  stations,
   onChange,
   onClose,
 }: {
   filters: MapFilters;
+  stations: Station[];
   onChange: (next: MapFilters) => void;
   onClose: () => void;
 }) {
@@ -483,9 +390,7 @@ function MapFilterDrawer({
   const [activeTab, setActiveTab] = useState<StationKind>(() =>
     filters.wash.enabled || !filters.charging.enabled ? "wash" : "charging",
   );
-  const activeSection =
-    FILTER_SECTIONS.find((section) => section.kind === activeTab) ?? FILTER_SECTIONS[0]!;
-  const sectionDraft = draft[activeTab];
+  const [typePhotos, setTypePhotos] = useState<Partial<Record<ConnectorSlug, string>>>({});
 
   useEffect(() => {
     setPortalReady(true);
@@ -497,6 +402,44 @@ function MapFilterDrawer({
       filters.wash.enabled || !filters.charging.enabled ? "wash" : "charging",
     );
   }, [filters]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchGarageV2PistolTypes()
+      .then((types) => {
+        if (cancelled) return;
+        const next: Partial<Record<ConnectorSlug, string>> = {};
+        for (const type of types) {
+          const slug = normalizeConnectorType(type.type);
+          const url = resolveMediaUrl(type.photo_url);
+          if (!url || slug === "other" || next[slug]) continue;
+          next[slug] = url;
+        }
+        setTypePhotos(next);
+      })
+      .catch(() => {
+        /* без авторизации просто берём фото с точек */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const photoBySlug = useMemo(() => {
+    return { ...typePhotos, ...photosFromStations(stations) };
+  }, [stations, typePhotos]);
+
+  const patchCharging = (next: ChargingFilters) => {
+    setDraft((prev) => ({ ...prev, charging: next }));
+  };
 
   if (!portalReady) return null;
 
@@ -511,6 +454,7 @@ function MapFilterDrawer({
       <div
         className="map-filter-sheet"
         role="dialog"
+        aria-modal="true"
         aria-label={t("map.filter", "Фильтр")}
       >
         <div className="map-filter-sheet__header">
@@ -534,16 +478,16 @@ function MapFilterDrawer({
             role="tablist"
             aria-label={t("map.filter_type", "Тип точек")}
           >
-            {FILTER_SECTIONS.map((section) => (
+            {FILTER_TABS.map((tab) => (
               <button
-                key={section.kind}
+                key={tab.kind}
                 type="button"
                 role="tab"
-                aria-selected={activeTab === section.kind}
-                className={`map-filter-sheet__tab map-filter-sheet__tab--${section.kind}${activeTab === section.kind ? " is-active" : ""}`}
-                onClick={() => setActiveTab(section.kind)}
+                aria-selected={activeTab === tab.kind}
+                className={`map-filter-sheet__tab${activeTab === tab.kind ? " is-active" : ""}`}
+                onClick={() => setActiveTab(tab.kind)}
               >
-                {t(section.titleKey, section.titleFallback)}
+                {t(tab.titleKey, tab.titleFallback)}
               </button>
             ))}
           </div>
@@ -551,42 +495,44 @@ function MapFilterDrawer({
 
         <div className="map-filter-sheet__body">
           <div className="map-filter-flat">
-            {activeTab === "charging" ? (
-              <ChargingSpeedFilters
-                draft={draft.charging}
-                onChange={(charging) => setDraft((prev) => ({ ...prev, charging }))}
-              />
-            ) : null}
-
-            <AvailabilityRows
-              options={activeSection.options}
-              values={{
-                freeOnly: sectionDraft.freeOnly,
-              }}
-              onToggle={(key) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  [activeTab]: {
-                    ...prev[activeTab],
-                    [key]: !prev[activeTab][key],
-                  },
-                }))
-              }
-            />
-
-            {activeTab === "charging" ? (
-              <ChargingPriceFilters
-                draft={draft.charging}
-                onChange={(charging) => setDraft((prev) => ({ ...prev, charging }))}
-              />
-            ) : null}
-
             {activeTab === "wash" ? (
-              <WashFilterExtras
-                draft={draft.wash}
-                onChange={(wash) => setDraft((prev) => ({ ...prev, wash }))}
+              <FilterRadioGroup
+                label={t("map.filter_price_wash", "Цена тарифа")}
+                value={draft.wash.price}
+                options={WASH_PRICE_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.labelKey, option.labelFallback),
+                }))}
+                onChange={(value) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    wash: { ...prev.wash, price: value as WashPriceFilter },
+                  }))
+                }
               />
-            ) : null}
+            ) : (
+              <>
+                <ChargingConnectorFilters
+                  draft={draft.charging}
+                  onChange={patchCharging}
+                  photoBySlug={photoBySlug}
+                />
+                <FilterRadioGroup
+                  label={t("map.filter_price_ev", "Цена за кВт·ч")}
+                  value={draft.charging.cost}
+                  options={COST_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: t(option.labelKey, option.labelFallback),
+                  }))}
+                  onChange={(value) =>
+                    patchCharging({
+                      ...draft.charging,
+                      cost: value as ChargingCostFilter,
+                    })
+                  }
+                />
+              </>
+            )}
           </div>
         </div>
 
@@ -1276,6 +1222,7 @@ function MapPageInner() {
       {filterOpen ? (
         <MapFilterDrawer
           filters={filters}
+          stations={stations}
           onChange={setFilters}
           onClose={() => setFilterOpen(false)}
         />

@@ -13,6 +13,18 @@ export type HistorySession = {
   payment_id?: number | null;
   payment_amount?: string | number | null;
   payment_description?: string | null;
+  amount?: number | null;
+  limit_mode?: string | null;
+  limit_value?: number | null;
+  limit_label?: string | null;
+  pistol_id?: number | null;
+  pistol_type?: string | null;
+  port_label?: string | null;
+  charger_id?: number | null;
+  charger_type?: string | null;
+  charger_power?: number | string | null;
+  price_per_kwh?: number | string | null;
+  stand_title?: string | null;
   start_at: string | null;
   end_at: string | null;
   duration_minutes: number | null;
@@ -28,7 +40,6 @@ export type HistoryKindFilter = "all" | "wash" | "charging";
 export type HistoryPeriodFilter = "all" | "today" | "yesterday" | "7d" | "30d";
 
 export type HistorySessionsQuery = {
-  kind?: HistoryKindFilter;
   period?: HistoryPeriodFilter;
   status?: string[];
 };
@@ -62,19 +73,19 @@ export function fetchEvSessions(
   return apiFetch<SessionsResponse>(`/api/ev/sessions${buildQuery(params)}`);
 }
 
-/** Мойки + ЭЗС, новые сверху. kind/period/status уходят в API. */
+/** Мойки + ЭЗС, новые сверху. У каждого типа свой period/status. */
 export async function fetchAllSessions(
-  params: HistorySessionsQuery = {},
+  params: {
+    wash?: HistorySessionsQuery;
+    charging?: HistorySessionsQuery;
+  } = {},
 ): Promise<{
   total: number;
   sessions: HistorySession[];
 }> {
-  const kind = params.kind ?? "all";
-  const shared = { period: params.period, status: params.status };
-
   const [cw, ev] = await Promise.all([
-    kind === "charging" ? Promise.resolve({ total: 0, sessions: [] as HistorySession[] }) : fetchCwSessions(shared),
-    kind === "wash" ? Promise.resolve({ total: 0, sessions: [] as HistorySession[] }) : fetchEvSessions(shared),
+    fetchCwSessions(params.wash ?? {}),
+    fetchEvSessions(params.charging ?? {}),
   ]);
 
   const sessions = [

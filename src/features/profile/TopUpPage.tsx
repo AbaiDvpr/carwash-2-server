@@ -17,7 +17,7 @@ export default function TopUpPage() {
       className="page--profile-edit"
     >
       <div className="profile-edit">
-        <div className="mb-3">
+        <div className="app-back-bar">
           <BackButton iconOnly href="/profile" />
         </div>
         <BalanceTopUp

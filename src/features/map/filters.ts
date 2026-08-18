@@ -9,17 +9,14 @@ export type WashPriceFilter =
   | "all"
   | "lte1500"
   | "lte3000"
-  | "gt3000"
-  | "unknown";
+  | "gt3000";
 
 /** Цена ЭЗС за кВт·ч (₸) */
 export type ChargingCostFilter =
   | "all"
-  | "free"
   | "lte70"
   | "lte120"
-  | "gt120"
-  | "unknown";
+  | "gt120";
 
 export type WashFilters = {
   enabled: boolean;
@@ -88,7 +85,6 @@ export function stationMinTariffPrice(station: Station): number | null {
 function matchesWashPrice(station: Station, price: WashPriceFilter): boolean {
   if (price === "all") return true;
   const min = stationMinTariffPrice(station);
-  if (price === "unknown") return min == null;
   if (min == null) return false;
   if (price === "lte1500") return min <= 1500;
   if (price === "lte3000") return min > 1500 && min <= 3000;
@@ -102,9 +98,7 @@ function matchesChargingCost(
 ): boolean {
   if (cost === "all") return true;
   const price = station.pricePerKwh;
-  if (cost === "unknown") return price == null;
   if (price == null) return false;
-  if (cost === "free") return price === 0;
   if (cost === "lte70") return price > 0 && price <= 70;
   if (cost === "lte120") return price > 70 && price <= 120;
   if (cost === "gt120") return price > 120;
@@ -124,19 +118,18 @@ function matchesChargingExtras(
 }
 
 export function matchesFilters(station: Station, filters: MapFilters): boolean {
-  // На карте только открытые мойки / ЭЗС
+  // На карте только открытые точки. ЭЗС с 0 свободных пистолетов — «Занято», не показываем.
   if (station.status !== "Открыто") return false;
+  if (station.kind === "charging" && station.freeSlots <= 0) return false;
 
   if (station.kind === "wash") {
     const options = filters.wash;
     if (!options.enabled) return false;
-    if (options.freeOnly && station.freeSlots <= 0) return false;
     return matchesWashPrice(station, options.price);
   }
 
   const options = filters.charging;
   if (!options.enabled) return false;
-  if (options.freeOnly && station.freeSlots <= 0) return false;
   return matchesChargingExtras(station, options);
 }
 
@@ -147,9 +140,7 @@ export function countActiveFilters(filters: MapFilters): number {
 
   if (filters.wash.enabled !== defaults.wash.enabled) count += 1;
   if (filters.charging.enabled !== defaults.charging.enabled) count += 1;
-  if (filters.wash.freeOnly) count += 1;
   if (filters.wash.price !== "all") count += 1;
-  if (filters.charging.freeOnly) count += 1;
   if (filters.charging.connectors.length > 0) count += 1;
   if (filters.charging.cost !== "all") count += 1;
 
@@ -197,22 +188,19 @@ const WASH_PRICES = new Set<string>([
   "lte1500",
   "lte3000",
   "gt3000",
-  "unknown",
 ]);
 
 const CHARGING_COSTS = new Set<string>([
   "all",
-  "free",
   "lte70",
   "lte120",
   "gt120",
-  "unknown",
 ]);
 
 function parseWashFilters(raw: unknown): WashFilters | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Record<string, unknown>;
-  const price = value.price;
+  const price = value.price === "unknown" ? "all" : value.price;
   if (typeof price !== "string" || !WASH_PRICES.has(price)) return null;
   if (typeof value.enabled !== "boolean") return null;
   if (typeof value.openOnly !== "boolean") return null;
@@ -228,7 +216,8 @@ function parseWashFilters(raw: unknown): WashFilters | null {
 function parseChargingFilters(raw: unknown): ChargingFilters | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Record<string, unknown>;
-  const cost = value.cost;
+  const cost =
+    value.cost === "unknown" || value.cost === "free" ? "all" : value.cost;
   if (typeof cost !== "string" || !CHARGING_COSTS.has(cost)) return null;
   if (typeof value.enabled !== "boolean") return null;
   if (typeof value.openOnly !== "boolean") return null;

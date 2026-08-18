@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
-import BackButton from "@/components/ui/BackButton";
+import AppBackButton from "@/components/ui/AppBackButton";
 import { useLocale, useT } from "@/hooks/useT";
 import { useToast } from "@/hooks/useToast";
 import { useAppDispatch } from "@/store/hooks";
@@ -33,43 +33,62 @@ function RadioMark({ checked }: { checked: boolean }) {
   );
 }
 
-export default function SelectLanguagePage() {
+type SelectLanguagePageProps = {
+  embedded?: boolean;
+  onBack?: () => void;
+};
+
+export default function SelectLanguagePage({
+  embedded = false,
+  onBack,
+}: SelectLanguagePageProps) {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { showToast } = useToast();
 
+  function goBack() {
+    if (onBack) onBack();
+    else router.push("/profile");
+  }
+
+  const content = (
+    <div className="profile-edit">
+      <div className="app-back-bar">
+        <AppBackButton title={t("profile.language", "Язык")} onClick={goBack} />
+      </div>
+
+      <section className="profile-card">
+        {LANGUAGE_OPTIONS.map((lang) => (
+          <button
+            key={lang.id}
+            type="button"
+            role="radio"
+            aria-checked={lang.id === locale}
+            onClick={() => {
+              dispatch(setLocale(lang.id));
+              notifyLocaleChanged(lang.id);
+              showToast(lang.label);
+              goBack();
+            }}
+            className="profile-nav-row theme-hover text-left"
+          >
+            <RadioMark checked={lang.id === locale} />
+            <span className="profile-nav-row__main">
+              <span className="profile-nav-row__hint">{lang.label}</span>
+            </span>
+          </button>
+        ))}
+      </section>
+    </div>
+  );
+
+  if (embedded) return content;
+
   return (
     <PageLayout title={t("profile.language", "Язык")} className="page--profile-edit">
-      <div className="profile-edit">
-        <div className="mb-3">
-          <BackButton iconOnly href="/profile" />
-        </div>
-
-        <section className="profile-card">
-          {LANGUAGE_OPTIONS.map((lang) => (
-            <button
-              key={lang.id}
-              type="button"
-              role="radio"
-              aria-checked={lang.id === locale}
-              onClick={() => {
-                dispatch(setLocale(lang.id));
-                notifyLocaleChanged(lang.id);
-                showToast(lang.label);
-                router.push("/profile");
-              }}
-              className="profile-nav-row theme-hover text-left"
-            >
-              <RadioMark checked={lang.id === locale} />
-              <span className="profile-nav-row__main">
-                <span className="profile-nav-row__hint">{lang.label}</span>
-              </span>
-            </button>
-          ))}
-        </section>
-      </div>
+      {content}
     </PageLayout>
   );
 }

@@ -7,7 +7,7 @@
   padding-bottom: 1.25rem;
 }
 
-/* Редактирование: «Выйти» у низа экрана (без жёсткого page-pad-bottom) */
+/* Редактирование: «Выйти» у низа экрана */
 .page--profile-edit {
   display: flex;
   flex-direction: column;
@@ -19,15 +19,16 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 100%;
-  /* вместо глобальных 2rem — только safe-area */
-  padding-bottom: max(0.4rem, env(safe-area-inset-bottom, 0px));
+  padding-bottom: 0;
 }
 
 .profile-edit {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  min-height: 100%;
+  min-height: calc(
+    100dvh - var(--app-page-pad-top) - 3.25rem
+  );
   font-family: inherit;
   font-size: var(--app-font-size);
   line-height: var(--app-line-height);
@@ -42,8 +43,8 @@
 
 .profile-edit__logout {
   margin-top: auto;
-  padding-top: 0.75rem;
-  padding-bottom: 0;
+  padding-top: 1.25rem;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
   background: transparent;
   display: flex;
   justify-content: center;
@@ -356,19 +357,34 @@
   color: var(--app-danger);
 }
 
+.profile-topup__balance {
+  margin: 0;
+}
+
+.profile-topup__methods {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.profile-topup__methods .profile-doc-row.is-active {
+  border-color: var(--app-button);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-button) 22%, transparent);
+}
+
 .profile-topup__presets {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.65rem;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
 }
 
 .profile-topup__preset {
   margin: 0;
-  padding: 0.4rem 0.7rem;
+  padding: 0.45rem 0.75rem;
   border: var(--app-border-width) solid var(--app-border);
   border-radius: var(--app-button-radius);
-  background: var(--app-hover);
+  background: var(--app-block);
   color: var(--app-text);
   font-family: inherit;
   font-size: var(--app-text-sm);
@@ -381,8 +397,9 @@
 
 .profile-topup__preset.is-active {
   border-color: var(--app-button);
-  background: var(--app-button);
-  color: var(--app-button-text);
+  background: var(--app-block);
+  color: var(--app-text);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-button) 22%, transparent);
 }
 
 .profile-topup__preset:disabled {
@@ -504,14 +521,16 @@
   font-family: inherit;
   font-size: var(--app-text-lg);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: normal;
+  word-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
   outline: none;
 }
 
 .garage2__plate-input::placeholder {
   color: var(--app-description);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: normal;
 }
 
 .garage2__empty {
@@ -519,6 +538,13 @@
   padding: 0;
   font-size: var(--app-text-sm);
   font-weight: 500;
+  color: var(--app-description);
+}
+
+.garage2__list-title {
+  margin: 0 0 0.55rem;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
   color: var(--app-description);
 }
 
@@ -534,9 +560,9 @@
 .garage2__list-item {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.5rem;
   margin: 0;
-  padding: 0.65rem 0.8rem;
+  padding: 0.7rem 0.75rem 0.7rem 0.85rem;
   border: var(--app-border-width) solid var(--app-border);
   border-radius: var(--app-button-radius);
   background: var(--app-block);
@@ -578,19 +604,14 @@
     color-mix(in oklab, var(--app-border) 85%, transparent);
 }
 
-.garage2__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-
-
 .garage2__list-plate {
   font-size: var(--app-text-md);
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: normal;
+  word-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
   color: var(--app-text);
+  white-space: nowrap;
 }
 
 .garage2__list-meta {
@@ -606,9 +627,39 @@
   gap: 0.15rem;
 }
 
+.garage2__list-actions .profile-icon-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--app-text);
+}
+
 .garage2__list-actions .profile-icon-btn svg {
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: block;
+}
+
+.garage2__list-actions .profile-icon-btn:hover {
+  background: color-mix(in oklab, var(--app-hover) 70%, transparent);
+  color: var(--app-text);
+}
+
+.garage2__list-actions .profile-icon-btn:active {
+  transform: scale(0.96);
+}
+
+.garage2__list-actions .profile-icon-btn--danger {
+  color: var(--app-danger);
+  background: transparent;
+  border: 0;
+}
+
+.garage2__list-actions .profile-icon-btn--danger:hover {
+  background: color-mix(in oklab, var(--app-danger) 10%, transparent);
+  color: var(--app-danger);
 }
 
 .garage2__power {
@@ -618,19 +669,24 @@
   padding: 0;
 }
 
+.garage2__power--3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
 .garage2__power-btn {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 0.45rem;
+  justify-content: center;
+  gap: 0.35rem;
   margin: 0;
-  min-height: 2.75rem;
-  padding: 0.65rem 0.8rem;
+  min-height: 3.35rem;
+  padding: 0.55rem 0.35rem;
   border: var(--app-border-width) solid var(--app-border);
   border-radius: var(--app-button-radius);
   background: var(--app-block);
   color: var(--app-text);
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -663,7 +719,7 @@
 }
 
 .garage2__power-title {
-  font-size: var(--app-text-sm);
+  font-size: var(--app-text-xs);
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;
@@ -673,9 +729,41 @@
   display: none;
 }
 
+.garage2__fuels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.garage2__fuel-chip {
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.4rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.45rem 0.35rem;
+  border: var(--app-border-width) solid var(--app-border);
+  border-radius: var(--app-button-radius);
+  background: var(--app-block);
+  color: var(--app-text);
+  font-size: var(--app-text-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.garage2__fuel-chip.is-active {
+  border-color: var(--app-button);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-button) 22%, transparent);
+}
+
 .garage2__conns {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.55rem;
   padding: 0;
 }
@@ -705,8 +793,8 @@
 .garage2__conn-media {
   display: grid;
   place-items: center;
-  width: 3.1rem;
-  height: 3.1rem;
+  width: 2.65rem;
+  height: 2.65rem;
   overflow: hidden;
   border-radius: 6px;
   background: #fff;
@@ -752,17 +840,6 @@
   align-items: center;
   text-align: center;
   padding: 0.35rem 0.5rem 0.85rem;
-}
-
-.profile-hero__email {
-  margin: 0 2.5rem 0.85rem;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--app-text-md);
-  font-weight: 500;
-  color: var(--app-description);
 }
 
 .profile-hero__avatar-wrap {
@@ -927,8 +1004,8 @@
 }
 
 .profile-hero__camera svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
 .profile-hero__hello {
@@ -950,6 +1027,10 @@
 
 .profile-card + .profile-card {
   margin-top: 0;
+}
+
+.profile-theme-tabs {
+  margin-bottom: 0.75rem;
 }
 
 .profile-card__balance {
@@ -1056,9 +1137,12 @@
   border: 0;
   background: transparent;
   color: inherit;
+  font: inherit;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .profile-card__balance-link:active .profile-card__balance-value {

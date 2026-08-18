@@ -4,10 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { createPortal } from "react-dom";
 import type { MapRef } from "react-map-gl/maplibre";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import Supercluster from "supercluster";
 import type { Station, StationKind } from "@/data/stations";
 import Toast from "@/components/ui/Toast";
 import StationMapDrawer from "@/features/home/components/StationMapDrawer";
+import MyServicesIcon from "@/features/home/components/MyServicesIcon";
+import {
+  detailsChargingPath,
+  mapActiveEvSessions,
+  type MapLiveSession,
+} from "@/features/home/mapLiveSession";
+import { fetchActiveEvSessions } from "@/lib/api/evSessions";
 import { useToast } from "@/hooks/useToast";
 import { useT } from "@/hooks/useT";
 import { useUserCity } from "@/hooks/useUserCity";
@@ -201,7 +209,7 @@ function MapLoading() {
   );
 }
 
-function MapError() {
+function MapError({ onRetry }: { onRetry: () => void }) {
   const t = useT();
   return (
     <div className="map-error">
@@ -209,6 +217,21 @@ function MapError() {
       <p className="map-error__text">
         {t("map.check_internet", "Проверьте интернет и обновите страницу")}
       </p>
+      <button
+        type="button"
+        className="map-error__retry"
+        onClick={onRetry}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M4.5 12a7.5 7.5 0 0 1 12.9-5.2M19.5 12a7.5 7.5 0 0 1-12.9 5.2"
+          />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17.5 4.5v4h-4M6.5 19.5v-4h4" />
+        </svg>
+        {t("common.refresh", "Обновить")}
+      </button>
     </div>
   );
 }
@@ -425,6 +448,12 @@ async function createMapView() {
     onSelectStation: (station: Station | null) => void;
     washPrefs: KindMarkerPrefs;
     chargingPrefs: KindMarkerPrefs;
+    sessionFab: {
+      kind: "wash" | "charging" | "idle";
+      active: boolean;
+      label: string;
+      onOpen: () => void;
+    };
   };
   return function MapView({
     stations,
@@ -434,8 +463,10 @@ async function createMapView() {
     onSelectStation,
     washPrefs,
     chargingPrefs,
+    sessionFab,
   }: MapViewProps) {
     const [status, setStatus] = useState<MapStatus>("loading");
+    const [mapRetryKey, setMapRetryKey] = useState(0);
     const [userLocation, setUserLocation] = useState<{
       latitude: number;
       longitude: number;
@@ -636,15 +667,33 @@ async function createMapView() {
     }, [cityCenter, status, focusStation]);
 
     return (
-      <div className="map-root">
+      <div className={`map-root${sessionFab.active ? " map-root--session-fab" : ""}`}>
         {status === "loading" && <MapLoading />}
-        {status === "error" && <MapError />}
+        {status === "error" && (
+          <MapError
+            onRetry={() => {
+              setStatus("loading");
+              setMapRetryKey((key) => key + 1);
+            }}
+          />
+        )}
         {status === "ready" && (
           <div
             className="map-zoom-controls"
             onPointerDown={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
           >
+            <button
+              type="button"
+              className={`map-session-fab map-session-fab--${sessionFab.kind}${sessionFab.active ? " is-active" : ""}`}
+              onClick={sessionFab.onOpen}
+              aria-label={sessionFab.label}
+              title={sessionFab.label}
+            >
+              <span className="map-session-fab__icon" aria-hidden>
+                <MyServicesIcon />
+              </span>
+            </button>
             <button
               type="button"
               className="map-zoom-controls__btn"
@@ -683,6 +732,7 @@ async function createMapView() {
         )}
 
         <MapGL
+          key={mapRetryKey}
           ref={mapRef}
           initialViewState={cityCenter}
           mapStyle={MAP_STYLE}
@@ -842,6 +892,181 @@ const MapView = dynamic(createMapView, {
   loading: MapLoading,
 });
 
+function MapServicesDrawer({
+  onClose,
+  onSessionsLoaded,
+  onOpenSession,
+}: {
+  onClose: () => void;
+  onSessionsLoaded: (sessions: MapLiveSession[]) => void;
+  onOpenSession: (session: MapLiveSession) => void;
+}) {
+  const t = useT();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<MapLiveSession[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const sessions = await fetchActiveEvSessions();
+        if (cancelled) return;
+        const mapped = mapActiveEvSessions(sessions);
+        setItems(mapped);
+        onSessionsLoaded(mapped);
+      } catch {
+        if (cancelled) return;
+        setItems([]);
+        onSessionsLoaded([]);
+        setError(
+          t("map.services_load_error", "Не удалось загрузить активные услуги"),
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [onSessionsLoaded, t]);
+
+  const count = items.length;
+  const summary =
+    !loading && !error && count > 0
+      ? t("map.services_active_count", "{n} активных").replace("{n}", String(count))
+      : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="map-drawer__backdrop"
+        onClick={onClose}
+        aria-label={t("common.close", "Закрыть")}
+      />
+      <div
+        className="map-list-sheet map-list-sheet--services is-expanded"
+        role="dialog"
+        aria-label={t("map.my_services", "Мои услуги")}
+      >
+        <div className="map-list-sheet__header">
+          <div className="map-list-sheet__title-row">
+            <div className="map-list-sheet__heading">
+              <h2 className="map-list-sheet__title">
+                {t("map.my_services", "Мои услуги")}
+              </h2>
+              {summary ? (
+                <p className="map-list-sheet__summary">{summary}</p>
+              ) : null}
+            </div>
+            <div className="map-list-sheet__tools">
+              <button
+                type="button"
+                className="app-drawer-close"
+                onClick={onClose}
+                aria-label={t("common.close", "Закрыть")}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          {loading ? (
+            <p className="map-list-sheet__loading">
+              {t("map.services_loading", "Загружаем услуги…")}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="map-list-sheet__scroll">
+          {error ? (
+            <div className="map-services-empty" role="alert">
+              <span className="map-services-empty__icon" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v4M12 17h.01M10.3 4.3 2.6 18a1.8 1.8 0 0 0 1.6 2.7h15.6a1.8 1.8 0 0 0 1.6-2.7L13.7 4.3a1.8 1.8 0 0 0-3.4 0Z"
+                  />
+                </svg>
+              </span>
+              <p className="map-services-empty__title">{error}</p>
+            </div>
+          ) : !loading && items.length === 0 ? (
+            <div className="map-services-empty" role="status">
+              <span className="map-services-empty__icon" aria-hidden>
+                <MyServicesIcon />
+              </span>
+              <p className="map-services-empty__title">
+                {t("map.no_services_title", "Никаких услуг нет")}
+              </p>
+              <p className="map-services-empty__text">
+                {t(
+                  "map.no_services_text",
+                  "Когда машина будет мыться или заряжаться, статус появится здесь.",
+                )}
+              </p>
+            </div>
+          ) : !loading ? (
+            <ul className="map-services-list">
+              {items.map((session) => {
+                const isDone = session.step === "charged_ok";
+                const statusLabel =
+                  session.kind === "wash"
+                    ? isDone
+                      ? t("map.session_wash_done", "Мойка завершена")
+                      : t("map.session_washing", "Машина моется")
+                    : isDone
+                      ? t("map.session_charge_done", "Зарядка завершена")
+                      : t("map.session_charging", "Машина заряжается");
+                const kindLabel =
+                  session.kind === "wash"
+                    ? t("common.wash", "Мойка")
+                    : t("common.charging", "ЭЗС");
+                const place =
+                  session.address && session.address !== session.stationName
+                    ? `${session.stationName} · ${session.address}`
+                    : session.stationName || session.address;
+                return (
+                  <li key={`${session.kind}-${session.dbSessionId}`}>
+                    <button
+                      type="button"
+                      className={`map-services-row map-services-row--${session.kind}${isDone ? " is-done" : ""}`}
+                      onClick={() => onOpenSession(session)}
+                    >
+                      <span className="map-services-row__icon" aria-hidden>
+                        {session.kind === "wash" ? (
+                          <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2.2C12 2.2 5.5 9.4 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 9.4 12 2.2 12 2.2Z" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="7 3 10 18" fill="currentColor">
+                            <path d="M11 21h-1l1-7H7l6-11h1l-1 7h4l-6 11z" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="map-services-row__main">
+                        <span className="map-services-row__kind">{kindLabel}</span>
+                        <span className="map-services-row__title">{place}</span>
+                        <span className="map-services-row__status">{statusLabel}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function HomeMap({
   stations,
   loading,
@@ -852,14 +1077,69 @@ export default function HomeMap({
   markerPrefs = DEFAULT_MARKER_STYLE_PREFS,
 }: HomeMapProps) {
   const t = useT();
+  const router = useRouter();
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+  const [activeSessions, setActiveSessions] = useState<MapLiveSession[]>([]);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumeSession, setResumeSession] = useState<MapLiveSession | null>(null);
+  const [servicesOpen, setServicesOpen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
   const { geoId, cities } = useUserCity();
   const { location: userLocation, loading: locationLoading } = useUserLocation();
 
+  const refreshActiveSessions = useCallback(async () => {
+    try {
+      const sessions = await fetchActiveEvSessions();
+      setActiveSessions(mapActiveEvSessions(sessions));
+    } catch {
+      /* без токена / сеть — FAB просто idle */
+      setActiveSessions([]);
+    }
+  }, []);
+
+  const handleSessionsLoaded = useCallback((sessions: MapLiveSession[]) => {
+    setActiveSessions(sessions);
+  }, []);
+
   useEffect(() => {
     setPortalReady(true);
-  }, []);
+    void refreshActiveSessions();
+    const onFocus = () => void refreshActiveSessions();
+    window.addEventListener("focus", onFocus);
+    const tick = window.setInterval(() => void refreshActiveSessions(), 20_000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(tick);
+    };
+  }, [refreshActiveSessions]);
+
+  // Локально обновляем step, когда истёк planned_end_at
+  useEffect(() => {
+    const ends = activeSessions
+      .filter((s) => s.step === "charging" && s.chargeEndsAt != null)
+      .map((s) => s.chargeEndsAt as number);
+    if (ends.length === 0) return;
+
+    const tick = window.setInterval(() => {
+      const now = Date.now();
+      setActiveSessions((prev) => {
+        let changed = false;
+        const next = prev.map((s) => {
+          if (
+            s.step === "charging" &&
+            s.chargeEndsAt != null &&
+            now >= s.chargeEndsAt
+          ) {
+            changed = true;
+            return { ...s, step: "charged_ok" as const, chargeEndsAt: null };
+          }
+          return s;
+        });
+        return changed ? next : prev;
+      });
+    }, 400);
+    return () => window.clearInterval(tick);
+  }, [activeSessions]);
 
   const focusStation = useMemo(() => {
     if (!focusStationId) return null;
@@ -886,7 +1166,52 @@ export default function HomeMap({
   useEffect(() => {
     if (!focusStation) return;
     setSelectedStation(focusStation);
+    setResumeOpen(false);
+    setResumeSession(null);
   }, [focusStation]);
+
+  const hasLiveSession = activeSessions.length > 0;
+  const fabKind =
+    activeSessions.find((s) => s.kind === "charging")?.kind ??
+    activeSessions[0]?.kind ??
+    "idle";
+
+  function openServicesFab() {
+    setSelectedStation(null);
+    setResumeOpen(false);
+    setResumeSession(null);
+    setServicesOpen(true);
+  }
+
+  function openServiceFromDrawer(session: MapLiveSession) {
+    setServicesOpen(false);
+    if (session.kind === "charging") {
+      setSelectedStation(null);
+      setResumeOpen(false);
+      setResumeSession(null);
+      router.push(detailsChargingPath(session.dbSessionId));
+      return;
+    }
+    const full = stations.find((s) => s.id === session.stationId) ?? null;
+    if (!full) return;
+    setResumeSession(session);
+    setResumeOpen(true);
+    setSelectedStation(full);
+  }
+
+  function clearLiveSession() {
+    setActiveSessions([]);
+    setResumeOpen(false);
+    setResumeSession(null);
+    void refreshActiveSessions();
+  }
+
+  const sessionFabLabel = hasLiveSession
+    ? t("map.my_services_count", "Мои услуги ({n})").replace(
+        "{n}",
+        String(activeSessions.length),
+      )
+    : t("map.my_services", "Мои услуги");
 
   return (
     <>
@@ -931,7 +1256,16 @@ export default function HomeMap({
                 selectedStation={selectedStation}
                 washPrefs={markerPrefs.wash}
                 chargingPrefs={markerPrefs.charging}
+                sessionFab={{
+                  kind: fabKind,
+                  active: hasLiveSession,
+                  label: sessionFabLabel,
+                  onOpen: openServicesFab,
+                }}
                 onSelectStation={(station) => {
+                  setServicesOpen(false);
+                  setResumeOpen(false);
+                  setResumeSession(null);
                   setSelectedStation(station);
                   if (!station) onFocusConsumed?.();
                 }}
@@ -942,13 +1276,55 @@ export default function HomeMap({
       </div>
 
       {portalReady &&
+        servicesOpen &&
+        !selectedStation &&
+        createPortal(
+          <MapServicesDrawer
+            onClose={() => setServicesOpen(false)}
+            onSessionsLoaded={handleSessionsLoaded}
+            onOpenSession={openServiceFromDrawer}
+          />,
+          document.body,
+        )}
+
+      {portalReady &&
         selectedStation &&
         createPortal(
           <StationMapDrawer
+            key={`${selectedStation.id}-${resumeOpen ? `resume-${resumeSession?.dbSessionId ?? "x"}` : "browse"}`}
             station={selectedStation}
             userLocation={userLocation}
+            resumeSession={
+              resumeOpen &&
+              resumeSession &&
+              resumeSession.stationId === selectedStation.id
+                ? {
+                    standId: resumeSession.standId,
+                    portId: resumeSession.portId,
+                    step: resumeSession.step,
+                    chargeEndsAt: resumeSession.chargeEndsAt,
+                    dbSessionId: resumeSession.dbSessionId,
+                  }
+                : null
+            }
+            onLiveSessionChange={(session) => {
+              if (session?.kind === "charging" && session.dbSessionId) {
+                void refreshActiveSessions();
+              } else if (!session) {
+                void refreshActiveSessions();
+              }
+            }}
+            onPayNavigate={clearLiveSession}
+            onMinimize={() => {
+              setSelectedStation(null);
+              setResumeOpen(false);
+              setResumeSession(null);
+              onFocusConsumed?.();
+            }}
             onClose={() => {
               setSelectedStation(null);
+              setResumeOpen(false);
+              setResumeSession(null);
               onFocusConsumed?.();
             }}
           />,

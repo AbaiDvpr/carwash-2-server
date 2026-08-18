@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import type {
   Station,
   StationChargerStand,
@@ -28,14 +29,38 @@ import {
   buildWeeklyHoursSchedule,
   type WeekHoursRow,
 } from "@/lib/openHours";
+import BackButton from "@/components/ui/BackButton";
+import EvChargeFlow, {
+  type EvChargeStep,
+  type EvPhotoHeader,
+} from "./EvChargeFlow";
+import {
+  detailsChargingPath,
+  type MapLiveSession,
+} from "@/features/home/mapLiveSession";
+
+export type { MapLiveSession };
 
 const YANDEX_LOGO = "/img/yandex_logo.svg";
 const GIS_LOGO = "/img/gis_logo.svg";
+
+type MapLiveResume = {
+  standId: number;
+  portId: number;
+  step: EvChargeStep;
+  chargeEndsAt: number | null;
+  dbSessionId?: number | null;
+};
 
 type StationMapDrawerProps = {
   station: Station;
   userLocation: { latitude: number; longitude: number } | null;
   onClose: () => void;
+  /** Свернуть активную сессию (мойка/зарядка) — остаётся alert на карте */
+  onMinimize?: () => void;
+  resumeSession?: MapLiveResume | null;
+  onLiveSessionChange?: (session: MapLiveSession | null) => void;
+  onPayNavigate?: () => void;
 };
 
 function SheetCloseButton({ onClick }: { onClick: () => void }) {
@@ -49,28 +74,6 @@ function SheetCloseButton({ onClick }: { onClick: () => void }) {
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
         <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
-      </svg>
-    </button>
-  );
-}
-
-function SheetBackButton({
-  onClick,
-  label,
-}: {
-  onClick: () => void;
-  label?: string;
-}) {
-  const t = useT();
-  return (
-    <button
-      type="button"
-      className="map-conn-step__back"
-      onClick={onClick}
-      aria-label={label ?? t("common.back", "Назад")}
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-        <path strokeLinecap="round" d="m15 6-6 6 6 6" />
       </svg>
     </button>
   );
@@ -202,11 +205,18 @@ function postTone(status: string | null | undefined): StatusTone {
   return "offline";
 }
 
+function washStatusText(tone: StatusTone, t: (key: string, fallback: string) => string) {
+  if (tone === "free") return t("map.status_free", "Свободен");
+  if (tone === "busy" || tone === "charging") return t("map.status_busy", "Занят");
+  return t("map.status_offline", "Не в сети");
+}
+
 function WashPostsGrid({
   washers,
 }: {
   washers: Station["washers"];
 }) {
+  const t = useT();
   if (washers.length === 0) return null;
 
   return (
@@ -221,7 +231,7 @@ function WashPostsGrid({
             >
               <span className="map-status-cell__num">{index + 1}</span>
               <span className="map-status-cell__status">
-                {washer.statusLabel || tone}
+                {washStatusText(tone, t)}
               </span>
             </div>
           );
@@ -280,30 +290,30 @@ function MetaIcons({
   );
 }
 
-function ConnectorInfoCard({ port }: { port: StationConnectorPort }) {
+function ConnectorInfoCard({
+  port,
+  onSelect,
+}: {
+  port: StationConnectorPort;
+  onSelect?: (port: StationConnectorPort) => void;
+}) {
   const t = useT();
   const isCharging = port.status === "charging" || port.status === "busy";
   const isFree = port.status === "free";
-  const percent =
-    port.chargePercent != null && Number.isFinite(port.chargePercent)
-      ? port.chargePercent
-      : null;
+  const clickable = isFree && typeof onSelect === "function";
 
-  return (
-    <article
-      className={`map-conn-card${isCharging ? " is-charging" : ""}${isFree ? " is-free" : ""}`}
-    >
+  const body = (
+    <>
       <div className="map-conn-card__media" aria-hidden>
         <MediaThumb src={port.photoUrl} className="map-conn-card__photo" />
       </div>
       <div className="map-conn-card__body">
-        <h3 className="map-conn-card__title">{port.label}</h3>
-        <MetaIcons pricePerKwh={port.pricePerKwh} powerKw={port.powerKw} />
+        <span className="map-conn-card__title">{port.label}</span>
       </div>
       <div className="map-conn-card__state">
         {isCharging ? (
-          <span className="map-conn-card__charge" title={port.statusLabel || "Зарядка"}>
-            {percent != null ? `${percent}%` : port.statusLabel || "Зарядка"}
+          <span className="map-conn-card__charge">
+            {t("map.status_busy_short", "занят")}
           </span>
         ) : isFree ? (
           <span className="map-conn-card__free">
@@ -311,10 +321,30 @@ function ConnectorInfoCard({ port }: { port: StationConnectorPort }) {
           </span>
         ) : (
           <span className="map-conn-card__offline">
-            {port.statusLabel || "Не в сети"}
+            {t("map.status_offline_short", "не в сети")}
           </span>
         )}
       </div>
+    </>
+  );
+
+  if (clickable) {
+    return (
+      <button
+        type="button"
+        className={`map-conn-card is-free is-pickable`}
+        onClick={() => onSelect(port)}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <article
+      className={`map-conn-card${isCharging ? " is-charging" : ""}${isFree ? " is-free" : ""}`}
+    >
+      {body}
     </article>
   );
 }
@@ -328,31 +358,38 @@ function StandPickButton({
 }) {
   const t = useT();
   const free = stand.ports.filter((p) => p.status === "free").length;
-  const total = stand.ports.length;
+  const hasFree = free > 0;
 
   return (
-    <button type="button" className="map-stand-pick" onClick={onOpen}>
+    <button
+      type="button"
+      className={`map-stand-pick${hasFree ? " is-free" : " is-busy"}`}
+      onClick={onOpen}
+    >
       <span className="map-stand-pick__main">
-        <span className="map-stand-pick__title-row">
-          <span className="map-stand-pick__title">{stand.title}</span>
-          {total > 0 ? (
-            <span className="map-stand-pick__live">
-              {free}/{total} {t("map.free", "свободно")}
-            </span>
-          ) : null}
-        </span>
         <MetaIcons pricePerKwh={stand.pricePerKwh} powerKw={stand.powerKw} />
+        <span className="map-stand-pick__title">{stand.title}</span>
       </span>
-      <svg
-        className="map-stand-pick__chevron"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        aria-hidden
-      >
-        <path strokeLinecap="round" d="m9 6 6 6-6 6" />
-      </svg>
+      <span className="map-stand-pick__aside map-stand-pick__aside--ports">
+        {stand.ports.length > 0 ? (
+          stand.ports.map((port) => {
+            const tone = postTone(port.status);
+            return (
+              <span
+                key={port.id}
+                className={`map-stand-pick__port-chip is-status is-${tone}`}
+                title={port.label}
+              >
+                {port.label}
+              </span>
+            );
+          })
+        ) : (
+          <span className="map-stand-pick__ports-empty">
+            {t("map.no_connectors_short", "Нет коннекторов")}
+          </span>
+        )}
+      </span>
     </button>
   );
 }
@@ -491,12 +528,34 @@ export default function StationMapDrawer({
   station: initialStation,
   userLocation,
   onClose,
+  onMinimize,
+  resumeSession = null,
+  onLiveSessionChange,
+  onPayNavigate,
 }: StationMapDrawerProps) {
   const t = useT();
   const locale = useLocale();
+  const router = useRouter();
+  const navigatedToDetailsRef = useRef(false);
   const [routeOpen, setRouteOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
-  const [selectedStandId, setSelectedStandId] = useState<number | null>(null);
+  const [selectedStandId, setSelectedStandId] = useState<number | null>(
+    () => resumeSession?.standId ?? null,
+  );
+  const [selectedPortId, setSelectedPortId] = useState<number | null>(
+    () => resumeSession?.portId ?? null,
+  );
+  const [evChargeStep, setEvChargeStep] = useState<EvChargeStep>(
+    () => resumeSession?.step ?? "init",
+  );
+  const [chargeEndsAt, setChargeEndsAt] = useState<number | null>(
+    () => resumeSession?.chargeEndsAt ?? null,
+  );
+  const [dbSessionId, setDbSessionId] = useState<number | null>(
+    () => resumeSession?.dbSessionId ?? null,
+  );
+  const [hideStationPhoto, setHideStationPhoto] = useState(false);
+  const [photoHeader, setPhotoHeader] = useState<EvPhotoHeader | null>(null);
   const {
     station: freshStation,
     loading,
@@ -510,7 +569,14 @@ export default function StationMapDrawer({
     () => Boolean(initialStation.photoUrl),
   );
   const [stationPhotoReady, setStationPhotoReady] = useState(false);
-  const hasStationPhoto = Boolean(station.photoUrl) && !stationPhotoFailed;
+  const hasStationPhoto =
+    Boolean(station.photoUrl) &&
+    !stationPhotoFailed &&
+    !hideStationPhoto &&
+    photoHeader?.mode !== "connect";
+  const connectHero = photoHeader?.mode === "connect";
+  const setupHeader =
+    photoHeader?.mode === "setup" ? photoHeader : null;
 
   useEffect(() => {
     const url = station.photoUrl;
@@ -584,29 +650,118 @@ export default function StationMapDrawer({
 
   const openStand = (standId: number) => {
     setSelectedStandId(standId);
+    setSelectedPortId(null);
+    setEvChargeStep("init");
+    setChargeEndsAt(null);
+    setHideStationPhoto(false);
+    setPhotoHeader(null);
     setRouteOpen(false);
     setHoursOpen(false);
   };
 
   const closeStand = () => {
     setSelectedStandId(null);
+    setSelectedPortId(null);
+    setEvChargeStep("init");
+    setChargeEndsAt(null);
+    setHideStationPhoto(false);
+    setPhotoHeader(null);
     setRouteOpen(false);
     setHoursOpen(false);
+  };
+
+  const openFreePort = (port: StationConnectorPort) => {
+    if (port.status !== "free") return;
+    setSelectedPortId(port.id);
+    setEvChargeStep("init");
+    setChargeEndsAt(null);
+    setHideStationPhoto(false);
+    setPhotoHeader(null);
+    setRouteOpen(false);
+    setHoursOpen(false);
+  };
+
+  const closePortFlow = () => {
+    setSelectedPortId(null);
+    setEvChargeStep("init");
+    setChargeEndsAt(null);
+    setHideStationPhoto(false);
+    setPhotoHeader(null);
   };
 
   const closeHours = () => setHoursOpen(false);
 
+  const isLiveStep =
+    evChargeStep === "charging" || evChargeStep === "charged_ok";
+
   const dismissAll = () => {
+    if (isLiveStep && onMinimize) {
+      onMinimize();
+      return;
+    }
+    onLiveSessionChange?.(null);
     setHoursOpen(false);
     setRouteOpen(false);
+    setSelectedPortId(null);
+    setEvChargeStep("init");
+    setChargeEndsAt(null);
+    setHideStationPhoto(false);
+    setPhotoHeader(null);
     onClose();
   };
 
   useEffect(() => {
+    if (resumeSession) return;
     setSelectedStandId(null);
+    setSelectedPortId(null);
+    setEvChargeStep("init");
+    setChargeEndsAt(null);
     setRouteOpen(false);
     setHoursOpen(false);
-  }, [initialStation.id]);
+  }, [initialStation.id, resumeSession]);
+
+  useEffect(() => {
+    if (!onLiveSessionChange) return;
+    if (!isLiveStep || selectedStandId == null || selectedPortId == null) {
+      return;
+    }
+    if (dbSessionId == null) return;
+    onLiveSessionChange({
+      kind: "charging",
+      dbSessionId,
+      stationId: String(station.id),
+      stationName: station.name,
+      address: station.address || station.name,
+      standId: selectedStandId,
+      portId: selectedPortId,
+      step: evChargeStep,
+      chargeEndsAt: evChargeStep === "charging" ? chargeEndsAt : null,
+    });
+  }, [
+    onLiveSessionChange,
+    isLiveStep,
+    selectedStandId,
+    selectedPortId,
+    evChargeStep,
+    chargeEndsAt,
+    dbSessionId,
+    station.id,
+    station.name,
+    station.address,
+  ]);
+
+  // Зарядка / готово к оплате — на /details-charging/{sessionId}
+  useEffect(() => {
+    if (!isLiveStep || dbSessionId == null) {
+      if (!isLiveStep) navigatedToDetailsRef.current = false;
+      return;
+    }
+    if (resumeSession) return;
+    if (navigatedToDetailsRef.current) return;
+    navigatedToDetailsRef.current = true;
+    router.push(detailsChargingPath(dbSessionId));
+    onMinimize?.();
+  }, [isLiveStep, dbSessionId, resumeSession, router, onMinimize]);
 
   const km = useMemo(() => {
     if (!userLocation) return null;
@@ -635,6 +790,10 @@ export default function StationMapDrawer({
     selectedStandId == null
       ? null
       : (chargerStands.find((s) => s.id === selectedStandId) ?? null);
+  const selectedPort =
+    selectedStand == null || selectedPortId == null
+      ? null
+      : (selectedStand.ports.find((p) => p.id === selectedPortId) ?? null);
 
   useEffect(() => {
     const apply = () => {
@@ -664,12 +823,32 @@ export default function StationMapDrawer({
       <div className="map-drawer__backdrop" aria-hidden />
 
       <div
-        className={`map-station-photo-layer is-visible${!hasStationPhoto ? " is-placeholder is-ready" : ""}${hasStationPhoto && stationPhotoLoading ? " is-loading" : ""}${hasStationPhoto && stationPhotoReady ? " is-ready" : ""}${isCharging ? " is-charging" : " is-wash"}`}
+        className={`map-station-photo-layer is-visible${!hasStationPhoto && !connectHero ? " is-placeholder is-ready" : ""}${hasStationPhoto && stationPhotoLoading ? " is-loading" : ""}${hasStationPhoto && stationPhotoReady ? " is-ready" : ""}${connectHero ? " is-connect-hero is-ready" : ""}${isCharging ? " is-charging" : " is-wash"}`}
         aria-busy={hasStationPhoto && stationPhotoLoading}
         aria-hidden={false}
         onClick={(event) => event.stopPropagation()}
       >
-        {hasStationPhoto ? (
+        {connectHero ? (
+          <div className="map-station-photo-layer__connect" aria-hidden>
+            <span className="map-station-photo-layer__connect-disc">
+              <svg viewBox="0 0 64 64" fill="none">
+                <rect x="22" y="8" width="8" height="14" rx="2" fill="currentColor" opacity="0.9" />
+                <rect x="34" y="8" width="8" height="14" rx="2" fill="currentColor" opacity="0.9" />
+                <path
+                  d="M18 24h28v10c0 8-6.5 14.5-14 14.5S18 42 18 34V24Z"
+                  fill="currentColor"
+                  opacity="0.95"
+                />
+                <path
+                  d="M30 48.5v7M34 48.5v7"
+                  stroke="currentColor"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+          </div>
+        ) : hasStationPhoto ? (
           <>
             <div className="map-station-photo-layer__loader" role="status">
               <span className="map-station-photo-layer__spinner" aria-hidden />
@@ -704,47 +883,68 @@ export default function StationMapDrawer({
             </span>
           </div>
         )}
-        <div className="map-station-photo-layer__title-bar">
-          <div className="map-station-photo-layer__title-main">
-            <h2
-              id="map-station-photo-title"
-              className="map-station-photo-layer__title"
-            >
-              {station.address || station.name}
-            </h2>
-            <div className="map-station-photo-layer__meta">
-              <span
-                className="map-station-photo-layer__meta-item"
-                title={station.hoursLabel}
+        {!connectHero ? (
+          <div className="map-station-photo-layer__title-bar">
+            <div className="map-station-photo-layer__title-main">
+              <h2
+                id="map-station-photo-title"
+                className="map-station-photo-layer__title"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                  <circle cx="12" cy="12" r="9" />
-                  <path strokeLinecap="round" d="M12 7v5l3 2" />
-                </svg>
-                <span>{hoursText}</span>
-              </span>
-              {km != null ? (
-                <span className="map-station-photo-layer__meta-item">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" />
-                    <circle cx="12" cy="10" r="2.5" />
-                  </svg>
-                  {formatDistanceLabel(km)}
-                </span>
-              ) : null}
+                {setupHeader
+                  ? setupHeader.title
+                  : station.address || station.name}
+              </h2>
+              {setupHeader ? (
+                <div className="map-station-photo-layer__meta">
+                  <span className="map-station-photo-layer__meta-item">
+                    <span>{setupHeader.meta}</span>
+                  </span>
+                </div>
+              ) : (
+                <div className="map-station-photo-layer__meta">
+                  <span
+                    className="map-station-photo-layer__meta-item"
+                    title={station.hoursLabel}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                      <circle cx="12" cy="12" r="9" />
+                      <path strokeLinecap="round" d="M12 7v5l3 2" />
+                    </svg>
+                    <span>{hoursText}</span>
+                  </span>
+                  {km != null ? (
+                    <span className="map-station-photo-layer__meta-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" />
+                        <circle cx="12" cy="10" r="2.5" />
+                      </svg>
+                      {formatDistanceLabel(km)}
+                    </span>
+                  ) : null}
+                </div>
+              )}
             </div>
+            {!setupHeader ? <StationSheetMarker station={station} /> : null}
           </div>
-          <StationSheetMarker station={station} />
-        </div>
+        ) : null}
       </div>
 
       <div
         className={`map-station-sheet is-peek has-photo-static${loading ? " is-refreshing" : ""}`}
         role="dialog"
         aria-labelledby={
-          !hoursOpen && !routeOpen && !selectedStand
-            ? "map-station-photo-title"
-            : "map-station-sheet-title"
+          hoursOpen || routeOpen
+            ? undefined
+            : selectedStand
+              ? "map-station-sheet-title"
+              : "map-station-photo-title"
+        }
+        aria-label={
+          hoursOpen
+            ? t("map.hours_schedule", "График работы")
+            : routeOpen
+              ? t("map.build_route", "Проложить маршрут")
+              : undefined
         }
         aria-busy={loading}
         style={sheetStyle}
@@ -757,66 +957,33 @@ export default function StationMapDrawer({
       >
         <div className="map-station-sheet__toolbar">
           <div className="map-conn-step__head map-conn-step__head--toolbar">
-            <SheetBackButton
+            <BackButton
+              className="map-station-sheet__back"
               onClick={
                 hoursOpen
                   ? closeHours
                   : routeOpen
                     ? closeRoute
-                    : selectedStand
-                      ? closeStand
-                      : dismissAll
+                    : selectedPort
+                      ? isLiveStep
+                        ? dismissAll
+                        : closePortFlow
+                      : selectedStand
+                        ? closeStand
+                        : dismissAll
               }
             />
-            {hoursOpen ? (
-              <div className="min-w-0 flex-1">
-                <h2 id="map-station-sheet-title" className="map-conn-step__title">
-                  {t("map.hours_schedule", "График работы")}
-                </h2>
-                <p className="map-conn-step__parent">
-                  {station.address || station.name}
-                </p>
-              </div>
-            ) : routeOpen ? (
-              <div className="min-w-0 flex-1">
-                <h2 id="map-station-sheet-title" className="map-conn-step__title">
-                  {t("map.build_route", "Проложить маршрут")}
-                </h2>
-                <p className="map-conn-step__parent">
-                  {station.address || station.name}
-                </p>
-              </div>
-            ) : selectedStand ? (
-              <div className="min-w-0 flex-1">
-                <h2 id="map-station-sheet-title" className="map-conn-step__title">
-                  {selectedStand.title}
-                </h2>
-                <p className="map-conn-step__parent">
-                  {selectedStand.powerKw != null
-                    ? formatPowerKw(selectedStand.powerKw)
-                    : null}
-                  {selectedStand.powerKw != null &&
-                  selectedStand.pricePerKwh != null
-                    ? " · "
-                    : null}
-                  {selectedStand.pricePerKwh != null
-                    ? formatPricePerKwh(selectedStand.pricePerKwh)
-                    : null}
-                </p>
-              </div>
-            ) : (
-              <div className="map-station-sheet__toolbar-spacer" aria-hidden />
-            )}
+            <div className="map-station-sheet__toolbar-spacer" aria-hidden />
           </div>
           {!hoursOpen && !routeOpen ? (
             <div className="map-station-sheet__toolbar-actions">
-              {!selectedStand ? (
+              {!selectedStand && !selectedPort ? (
                 <>
                   <HoursButton onClick={toggleHours} active={hoursOpen} />
                   <RouteButton onClick={toggleRoute} active={routeOpen} />
                 </>
               ) : null}
-              <ScanQrButton />
+              {!selectedPort ? <ScanQrButton /> : null}
             </div>
           ) : null}
           <SheetCloseButton onClick={dismissAll} />
@@ -849,20 +1016,52 @@ export default function StationMapDrawer({
               onPicked={closeRoute}
             />
           </div>
+        ) : selectedStand && selectedPort ? (
+          <div className="map-station-sheet__body" {...scrollProps}>
+            <EvChargeFlow
+              port={selectedPort}
+              stand={selectedStand}
+              station={station}
+              step={evChargeStep}
+              onStepChange={setEvChargeStep}
+              onRestartInit={() => {
+                setChargeEndsAt(null);
+                setDbSessionId(null);
+                setEvChargeStep("init");
+              }}
+              onHidePhoto={setHideStationPhoto}
+              onPhotoHeader={setPhotoHeader}
+              chargeEndsAt={chargeEndsAt}
+              onChargeEndsAt={setChargeEndsAt}
+              onPayNavigate={onPayNavigate}
+              dbSessionId={dbSessionId}
+              onDbSessionId={setDbSessionId}
+            />
+          </div>
         ) : selectedStand ? (
           <div className="map-station-sheet__body" {...scrollProps}>
-            <p className="map-stand-pick-list__label">
-              {t("map.connectors", "Коннекторы")}
-            </p>
+            <div className="map-conn-step__stand-head">
+              <h2 id="map-station-sheet-title" className="map-conn-step__title">
+                <MetaIcons
+                  pricePerKwh={selectedStand.pricePerKwh}
+                  powerKw={selectedStand.powerKw}
+                />
+              </h2>
+              <p className="map-conn-step__parent">{selectedStand.title}</p>
+            </div>
 
             <div className="map-conn-step__list">
               {selectedStand.ports.length === 0 ? (
                 <p className="map-stand__empty">
-                  {t("map.no_connectors", "Нет коннекторов на этой стойке")}
+                  {t("map.no_connectors", "Нет коннекторов на этой станции")}
                 </p>
               ) : (
                 selectedStand.ports.map((port) => (
-                  <ConnectorInfoCard key={port.id} port={port} />
+                  <ConnectorInfoCard
+                    key={port.id}
+                    port={port}
+                    onSelect={openFreePort}
+                  />
                 ))
               )}
             </div>
@@ -882,7 +1081,7 @@ export default function StationMapDrawer({
             {isCharging && !loading && chargerStands.length > 0 ? (
               <div className="map-stand-pick-list">
                 <p className="map-stand-pick-list__label">
-                  {t("map.stands", "Стойки")}
+                  {t("map.station_section", "Станция")}
                 </p>
                 <div className="map-stand-pick-list__items">
                   {chargerStands.map((stand) => (

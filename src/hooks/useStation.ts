@@ -31,6 +31,15 @@ export function useStation(id: string): UseStationState {
     let cancelled = false;
     const idChanged = loadedIdRef.current !== id;
 
+    if (!id) {
+      setStation(null);
+      setLoading(false);
+      setError(null);
+      setNotFound(false);
+      loadedIdRef.current = id;
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setNotFound(false);

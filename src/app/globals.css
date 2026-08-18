@@ -157,6 +157,34 @@ body {
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* WebView: без выделения / callout / long-press меню */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"],
+.allow-select {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+img,
+picture,
+video,
+svg,
+canvas {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
+  pointer-events: auto;
 }
 
 .app-root {
@@ -469,6 +497,37 @@ html.fullscreen .app-header {
   display: flex;
   flex-direction: column;
   gap: var(--app-stack-gap);
+}
+
+/**
+ * Фиксированная шапка с «Назад»: не уезжает вверх при длинном скролле.
+ * Скролл — у .app-shell, поэтому sticky цепляется к верху экрана.
+ */
+.app-back-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: calc(-1 * var(--app-page-pad-top));
+  margin-inline: calc(-1 * var(--app-page-pad-x));
+  margin-bottom: 0.75rem;
+  padding-top: max(0.45rem, var(--app-page-pad-top));
+  padding-inline: var(--app-page-pad-x);
+  padding-bottom: 0.55rem;
+  background: var(--background);
+}
+
+.app-back-bar--overlay {
+  padding-top: 52px;
+}
+
+.app-back-bar--stack {
+  flex-direction: column;
+  align-items: stretch;
 }
 
 /**

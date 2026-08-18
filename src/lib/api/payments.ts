@@ -43,8 +43,9 @@ export async function payCarWash(input: {
 
 /** Оплата ЭЗС с баланса + запись в историю (ev_sessions). */
 export async function payEv(input: {
-  location_id: number;
-  tariff_id: number;
+  location_id?: number;
+  tariff_id?: number;
+  session_id?: number;
   description?: string;
   car_id?: number;
 }): Promise<BalancePaymentResponse> {

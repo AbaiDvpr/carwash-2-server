@@ -47,7 +47,7 @@ export type Station = {
   id: string;
   name: string;
   address: string;
-  status: "Открыто" | "Закрыто";
+  status: "Открыто" | "Закрыто" | "Занято";
   /** Мойка или электростанция */
   kind: StationKind;
   /** Город локации (mdm_geos.id) */

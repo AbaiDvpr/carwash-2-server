@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useT } from "@/hooks/useT";
 
 const backClassName =
-  "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-medium theme-accent-text transition hover:bg-[var(--app-hover)]";
+  "inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-hover)]";
 
 const backIconOnlyClassName =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--app-text)] transition hover:bg-[var(--app-hover)]";

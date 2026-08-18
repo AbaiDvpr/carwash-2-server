@@ -1,6 +1,11 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-/** Документ из стора — меняй title/url через setDocument / setDocuments. */
+/**
+ * App variables (documents, support contacts).
+ *
+ * Документы поддержки (политика / оферта) — меняй URL здесь:
+ *   frontend/src/store/slices/variablesSlice.ts → initialState.documents
+ */
 export type DocumentVariable = {
   id: string;
   title: string;
@@ -24,16 +29,18 @@ type VariablesState = {
 };
 
 const initialState: VariablesState = {
+  // ── Документы (Профиль → Поддержка) ─────────────────────────────────────
+  // Быстро поменять ссылки: правь только поле `url` ниже.
   documents: [
     {
       id: "privacy",
       title: "Политика конфиденциальности",
-      url: "https://www.google.com",
+      url: "https://masnaget.digital/hipoint/privacy-policy.html",
     },
     {
       id: "offer",
       title: "Публичная оферта",
-      url: "https://www.youtube.com",
+      url: "https://masnaget.digital/hipoint/public-offer.html",
     },
   ],
   support: {
