@@ -22,8 +22,15 @@ export function openMap({ provider, lat, lng, url }: OpenMapParams): void {
     ...(url ? { url } : {}),
   });
 
-  if (!sent && url) {
-    window.open(url, "_blank", "noopener,noreferrer");
+  if (!sent) {
+    const trimmedUrl = url?.trim();
+    // Если URL пришёл пустым/null (часто из админки), всё равно открываем карту по координатам.
+    const fallbackUrl =
+      provider === "yandex"
+        ? `https://yandex.kz/maps/?ll=${encodeURIComponent(`${lng},${lat}`)}&z=16`
+        : `https://2gis.kz/geo/${lat},${lng}`;
+
+    window.open(trimmedUrl || fallbackUrl, "_blank", "noopener,noreferrer");
   }
 }
 

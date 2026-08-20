@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import Supercluster from "supercluster";
 import type { Station, StationKind } from "@/data/stations";
 import Toast from "@/components/ui/Toast";
+import PreloaderOverlay from "@/components/layout/PreloaderOverlay";
 import StationMapDrawer from "@/features/home/components/StationMapDrawer";
 import MyServicesIcon from "@/features/home/components/MyServicesIcon";
 import {
@@ -59,6 +60,8 @@ type HomeMapProps = {
   /** Открыть список точек снизу */
   onOpenList: () => void;
   markerPrefs?: MapMarkerStylePrefs;
+  /** Карта или точки ещё грузятся — скрыть нижние кнопки на странице */
+  onBusyChange?: (busy: boolean) => void;
 };
 
 type StationPointProps = {
@@ -198,16 +201,6 @@ function groupOverlappingStations(
   }));
 }
 
-
-function MapLoading() {
-  const t = useT();
-  return (
-    <div className="map-loading">
-      <div className="map-loading__spinner" />
-      <p className="map-loading__text">{t("map.loading", "Загрузка карты…")}</p>
-    </div>
-  );
-}
 
 function MapError({ onRetry }: { onRetry: () => void }) {
   const t = useT();
@@ -454,6 +447,7 @@ async function createMapView() {
       label: string;
       onOpen: () => void;
     };
+    onStatusChange?: (status: MapStatus) => void;
   };
   return function MapView({
     stations,
@@ -464,6 +458,7 @@ async function createMapView() {
     washPrefs,
     chargingPrefs,
     sessionFab,
+    onStatusChange,
   }: MapViewProps) {
     const [status, setStatus] = useState<MapStatus>("loading");
     const [mapRetryKey, setMapRetryKey] = useState(0);
@@ -477,6 +472,10 @@ async function createMapView() {
     const t = useT();
     const focusedOnce = useRef<string | null>(null);
     const mapRef = useRef<MapRef>(null);
+
+    useEffect(() => {
+      onStatusChange?.(status);
+    }, [status, onStatusChange]);
 
     const stationsById = useMemo(
       () => new Map(stations.map((station) => [station.id, station])),
@@ -668,7 +667,6 @@ async function createMapView() {
 
     return (
       <div className={`map-root${sessionFab.active ? " map-root--session-fab" : ""}`}>
-        {status === "loading" && <MapLoading />}
         {status === "error" && (
           <MapError
             onRetry={() => {
@@ -889,7 +887,7 @@ async function createMapView() {
 
 const MapView = dynamic(createMapView, {
   ssr: false,
-  loading: MapLoading,
+  loading: () => null,
 });
 
 function MapServicesDrawer({
@@ -1075,6 +1073,7 @@ export default function HomeMap({
   onFocusConsumed,
   onOpenList,
   markerPrefs = DEFAULT_MARKER_STYLE_PREFS,
+  onBusyChange,
 }: HomeMapProps) {
   const t = useT();
   const router = useRouter();
@@ -1086,6 +1085,7 @@ export default function HomeMap({
   const [portalReady, setPortalReady] = useState(false);
   const { geoId, cities } = useUserCity();
   const { location: userLocation, loading: locationLoading } = useUserLocation();
+  const [mapViewBusy, setMapViewBusy] = useState(true);
 
   const refreshActiveSessions = useCallback(async () => {
     try {
@@ -1163,6 +1163,26 @@ export default function HomeMap({
     [mapGeoId, cities],
   );
 
+  const mapGeoKey = `${mapGeoId ?? "all"}-${markerPrefs.wash.shapeId}-${markerPrefs.charging.shapeId}`;
+
+  useEffect(() => {
+    if (loading || locationLoading) setMapViewBusy(true);
+  }, [loading, locationLoading]);
+
+  useEffect(() => {
+    setMapViewBusy(true);
+  }, [mapGeoKey]);
+
+  const mapBusy = loading || locationLoading || mapViewBusy;
+
+  useEffect(() => {
+    onBusyChange?.(mapBusy);
+  }, [mapBusy, onBusyChange]);
+
+  const preloaderLabel = locationLoading
+    ? "Определяем геолокацию"
+    : "Загрузка карты";
+
   useEffect(() => {
     if (!focusStation) return;
     setSelectedStation(focusStation);
@@ -1218,38 +1238,24 @@ export default function HomeMap({
       <div className="map-page">
         <div className="map-page__body">
           <div className="map-page__frame">
-            <div className="map-top-actions">
-              <button
-                type="button"
-                onClick={onOpenList}
-                className="map-list-btn"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-                </svg>
-                <span>{t("map.list", "Список")}</span>
-              </button>
-            </div>
+            {!mapBusy ? (
+              <div className="map-top-actions">
+                <button
+                  type="button"
+                  onClick={onOpenList}
+                  className="map-list-btn"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+                  </svg>
+                  <span>{t("map.list", "Список")}</span>
+                </button>
+              </div>
+            ) : null}
 
-            {loading || locationLoading ? (
-              <div className="map-loading">
-                <div className="map-loading__spinner" aria-hidden />
-                <p className="map-loading__text">
-                  {locationLoading
-                    ? t("map.locating", "Определяем геолокацию…")
-                    : t("map.loading", "Загрузка карты…")}
-                </p>
-              </div>
-            ) : error ? (
-              <div className="map-error">
-                <p className="map-error__title">
-                  {t("map.load_error", "Не удалось загрузить точки")}
-                </p>
-                <p className="map-error__text">{error}</p>
-              </div>
-            ) : (
+            {!loading && !locationLoading && !error ? (
               <MapView
-                key={`${mapGeoId ?? "all"}-${markerPrefs.wash.shapeId}-${markerPrefs.charging.shapeId}`}
+                key={mapGeoKey}
                 stations={stations}
                 cityCenter={cityCenter}
                 focusStation={focusStation}
@@ -1269,8 +1275,23 @@ export default function HomeMap({
                   setSelectedStation(station);
                   if (!station) onFocusConsumed?.();
                 }}
+                onStatusChange={(status) => setMapViewBusy(status !== "ready")}
               />
-            )}
+            ) : error ? (
+              <div className="map-error">
+                <p className="map-error__title">
+                  {t("map.load_error", "Не удалось загрузить точки")}
+                </p>
+                <p className="map-error__text">{error}</p>
+              </div>
+            ) : null}
+
+            {mapBusy && !error ? (
+              <PreloaderOverlay
+                mode="inline"
+                label={preloaderLabel}
+              />
+            ) : null}
           </div>
         </div>
       </div>

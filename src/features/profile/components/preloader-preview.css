@@ -1,0 +1,697 @@
+.preloader-preview__section {
+  margin-bottom: 0.65rem;
+}
+
+.preloader-preview__section--default {
+  margin-bottom: 0.75rem;
+}
+
+.preloader-preview__item--default {
+  width: 100%;
+  max-width: 100%;
+}
+
+.preloader-preview__section-head {
+  padding: 0.75rem 0.85rem 0.35rem;
+}
+
+.preloader-preview__section-title {
+  margin: 0;
+  font-size: var(--app-text-sm);
+  font-weight: 750;
+  color: var(--app-text);
+}
+
+.preloader-preview__section-desc {
+  margin: 0.2rem 0 0;
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  color: var(--app-description);
+  line-height: 1.35;
+}
+
+.preloader-preview__grid {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.35rem 0.45rem 0.65rem;
+}
+
+.preloader-preview__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.65rem 0.55rem;
+  border: 0;
+  border-radius: calc(var(--app-section-radius) * 0.85);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.preloader-preview__item.is-on .preloader-preview__label {
+  color: var(--app-button);
+}
+
+.preloader-preview__stage {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+}
+
+.preloader-preview__stage--plain,
+.preloader-preview__stage--round {
+  width: 5rem;
+  height: 5rem;
+}
+
+.preloader-preview__meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.preloader-preview__label {
+  display: block;
+  font-size: var(--app-text-sm);
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.preloader-preview__hint {
+  display: block;
+  margin-top: 0.12rem;
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  color: var(--app-description);
+}
+
+.preloader-preview__hero {
+  display: grid;
+  place-items: center;
+  min-height: 10.5rem;
+  margin-bottom: 0.65rem;
+  padding: 1.25rem;
+  background: transparent;
+  border: 0;
+}
+
+.preloader-preview__note {
+  margin: 0.65rem 0.35rem 0;
+  color: var(--app-description);
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.app-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--app-background, #fff) 92%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+/* Цвета из image_1787059580707.svg: cyan → green → yellow */
+.app-preloader,
+.map-loading,
+.preloader-preview__hero,
+.preloader-preview__section,
+.preloader-mark,
+.preloader-circle,
+.preloader-combo {
+  --preloader-c1: #00c0f0;
+  --preloader-c2: #40d0d0;
+  --preloader-c3: #80e0a0;
+  --preloader-c4: #f0e010;
+}
+
+/* ── SVG (файл не меняем; градиент только по маске формы) ── */
+
+.preloader-mark {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  background: transparent;
+}
+
+.preloader-mark__icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  background: transparent;
+}
+
+/* Базовый градиент для masked-вариантов — цвета из SVG */
+.preloader-mark--sweep,
+.preloader-mark--rotate,
+.preloader-mark--wave,
+.preloader-mark--grad {
+  background: linear-gradient(
+    135deg,
+    var(--preloader-c1) 0%,
+    var(--preloader-c3) 50%,
+    var(--preloader-c4) 100%
+  );
+}
+
+.preloader-mark--sweep {
+  background-size: 220% 100%;
+  animation: preloader-sweep-bg 1.8s linear infinite;
+}
+
+.preloader-mark--rotate {
+  background: conic-gradient(
+    from 0deg,
+    var(--preloader-c1),
+    var(--preloader-c2),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c1)
+  );
+  animation: preloader-rotate-bg 2.2s linear infinite;
+}
+
+.preloader-mark--wave {
+  background-size: 180% 180%;
+  animation: preloader-wave-bg 2s ease-in-out infinite alternate;
+}
+
+.preloader-mark--pulse .preloader-mark__icon {
+  animation: preloader-pulse 1.6s ease-in-out infinite;
+}
+
+.preloader-mark--shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 38%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 62%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  animation: preloader-shimmer 1.35s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.preloader-mark--breathe {
+  animation: preloader-breathe 1.7s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.preloader-mark--spin .preloader-mark__icon {
+  animation: preloader-spin 2s linear infinite;
+  transform-origin: center;
+}
+
+.preloader-mark--fade .preloader-mark__icon {
+  animation: preloader-fade 1.5s ease-in-out infinite;
+}
+
+.preloader-mark--bounce {
+  animation: preloader-bounce 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes preloader-sweep-bg {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes preloader-rotate-bg {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes preloader-wave-bg {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 100% 100%;
+  }
+}
+
+@keyframes preloader-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    filter: saturate(0.85) brightness(0.95);
+  }
+  50% {
+    opacity: 1;
+    filter: saturate(1.15) brightness(1.08);
+  }
+}
+
+@keyframes preloader-shimmer {
+  0% {
+    background-position: 120% 50%;
+  }
+  100% {
+    background-position: -20% 50%;
+  }
+}
+
+@keyframes preloader-breathe {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.78;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes preloader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes preloader-fade {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes preloader-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(0.96);
+  }
+  50% {
+    transform: translateY(-6%) scale(1);
+  }
+}
+
+/* SVG + градиент (только форма, без подложки) */
+
+.preloader-mark--grad-sweep-h {
+  background: linear-gradient(
+    90deg,
+    var(--preloader-c1),
+    var(--preloader-c2),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c1)
+  );
+  background-size: 240% 100%;
+  animation: preloader-sweep-bg 1.6s linear infinite;
+}
+
+.preloader-mark--grad-sweep-v {
+  background: linear-gradient(
+    180deg,
+    var(--preloader-c1),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c1)
+  );
+  background-size: 100% 240%;
+  animation: preloader-grad-sweep-v 1.7s linear infinite;
+}
+
+.preloader-mark--grad-conic {
+  background: conic-gradient(
+    from 0deg,
+    var(--preloader-c1),
+    var(--preloader-c2),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c1)
+  );
+  animation: preloader-rotate-bg 2s linear infinite;
+}
+
+.preloader-mark--grad-rainbow {
+  background: linear-gradient(
+    90deg,
+    var(--preloader-c1),
+    var(--preloader-c2),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c3),
+    var(--preloader-c1)
+  );
+  background-size: 320% 100%;
+  animation: preloader-sweep-bg 2.2s linear infinite;
+}
+
+.preloader-mark--grad-diagonal {
+  background: linear-gradient(
+    135deg,
+    var(--preloader-c1),
+    var(--preloader-c2),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c1)
+  );
+  background-size: 220% 220%;
+  animation: preloader-wave-bg 2s ease-in-out infinite alternate;
+}
+
+.preloader-mark--grad-pulse {
+  background: linear-gradient(
+    135deg,
+    var(--preloader-c1),
+    var(--preloader-c3),
+    var(--preloader-c4)
+  );
+  animation: preloader-grad-pulse 1.5s ease-in-out infinite;
+}
+
+.preloader-mark--grad-shimmer {
+  background: linear-gradient(
+    110deg,
+    var(--preloader-c1) 0%,
+    var(--preloader-c2) 25%,
+    #fff 50%,
+    var(--preloader-c4) 75%,
+    var(--preloader-c1) 100%
+  );
+  background-size: 280% 100%;
+  animation: preloader-shimmer 1.2s ease-in-out infinite;
+}
+
+.preloader-mark--grad-wave {
+  background: linear-gradient(
+    120deg,
+    var(--preloader-c1),
+    var(--preloader-c2),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c1)
+  );
+  background-size: 300% 300%;
+  animation: preloader-grad-wave 2.4s ease-in-out infinite;
+}
+
+.preloader-mark--grad-hue {
+  background: linear-gradient(
+    135deg,
+    var(--preloader-c1),
+    var(--preloader-c3),
+    var(--preloader-c4)
+  );
+  animation: preloader-grad-hue 2.5s linear infinite;
+}
+
+.preloader-mark--grad-soft {
+  background: linear-gradient(
+    135deg,
+    var(--preloader-c1),
+    var(--preloader-c3),
+    var(--preloader-c4)
+  );
+  background-size: 180% 180%;
+  animation: preloader-grad-soft 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes preloader-grad-sweep-v {
+  0% {
+    background-position: 50% 0%;
+  }
+  100% {
+    background-position: 50% 100%;
+  }
+}
+
+@keyframes preloader-grad-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    filter: saturate(0.8);
+  }
+  50% {
+    opacity: 1;
+    filter: saturate(1.2);
+  }
+}
+
+@keyframes preloader-grad-wave {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes preloader-grad-hue {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
+@keyframes preloader-grad-soft {
+  0% {
+    background-position: 0% 0%;
+    opacity: 0.75;
+  }
+  100% {
+    background-position: 100% 100%;
+    opacity: 1;
+  }
+}
+
+/* ── Круглые блоки: только обводка, без заливки ── */
+
+.preloader-circle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+  overflow: visible;
+}
+
+.preloader-circle > .preloader-mark {
+  position: relative;
+  z-index: 1;
+}
+
+.preloader-circle--sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--preloader-c1),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c1)
+  );
+  background-size: 220% 100%;
+  animation: preloader-sweep-bg 1.8s linear infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.preloader-circle--rotate::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 4px solid transparent;
+  border-top-color: var(--preloader-c1);
+  border-right-color: var(--preloader-c4);
+  animation: preloader-spin 1.2s linear infinite;
+}
+
+.preloader-circle--pulse::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 4px solid color-mix(in oklab, var(--preloader-c1) 55%, transparent);
+  animation: preloader-circle-pulse 1.5s ease-in-out infinite;
+}
+
+.preloader-circle--ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 5px solid color-mix(in oklab, var(--preloader-c1) 22%, transparent);
+  border-top-color: var(--preloader-c1);
+  border-right-color: var(--preloader-c4);
+  animation: preloader-spin 1s linear infinite;
+}
+
+.preloader-circle--border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--preloader-c1),
+    var(--preloader-c3),
+    var(--preloader-c4),
+    var(--preloader-c1)
+  );
+  background-size: 220% 100%;
+  animation: preloader-sweep-bg 1.6s linear infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.preloader-circle--soft::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 4px solid color-mix(in oklab, var(--preloader-c3) 45%, transparent);
+}
+
+.preloader-circle--shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  animation: preloader-shimmer 1.35s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.preloader-circle--double::before,
+.preloader-circle--double::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  border: 4px solid transparent;
+  background: transparent;
+}
+
+.preloader-circle--double::before {
+  inset: 0;
+  border-top-color: var(--preloader-c1);
+  border-right-color: var(--preloader-c3);
+  animation: preloader-spin 1.4s linear infinite;
+}
+
+.preloader-circle--double::after {
+  inset: 12%;
+  border-bottom-color: var(--preloader-c4);
+  border-left-color: var(--preloader-c2);
+  animation: preloader-spin 1.8s linear infinite reverse;
+}
+
+.preloader-circle--dotted::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 5px dotted color-mix(in oklab, var(--preloader-c1) 75%, transparent);
+  animation: preloader-spin 2.4s linear infinite;
+}
+
+.preloader-circle--glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid color-mix(in oklab, var(--app-border) 55%, transparent);
+}
+
+@keyframes preloader-circle-pulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Комбо: градиент на иконке + кольца ── */
+
+.preloader-combo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.preloader-combo > .preloader-mark {
+  position: relative;
+  z-index: 1;
+}
+
+.preloader-combo--grad-h-double::before,
+.preloader-combo--grad-h-double::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  border: 4px solid transparent;
+  background: transparent;
+}
+
+.preloader-combo--grad-h-double::before {
+  inset: 0;
+  border-top-color: var(--preloader-c1, #00c0f0);
+  border-right-color: var(--preloader-c3, #80e0a0);
+  animation: preloader-spin 1.4s linear infinite;
+}
+
+.preloader-combo--grad-h-double::after {
+  inset: 14%;
+  border-bottom-color: var(--preloader-c4, #f0e010);
+  border-left-color: var(--preloader-c2, #40d0d0);
+  animation: preloader-spin 1.8s linear infinite reverse;
+}

@@ -11,12 +11,7 @@ import EvChargeCheckout, {
   type EvCheckoutLimits,
 } from "@/features/home/components/EvChargeCheckout";
 import type { EvChargeStep } from "@/features/home/components/EvChargeFlow";
-import ChargingSessionView, {
-  CHARGING_UI_VARIANTS,
-  readChargingUiVariant,
-  writeChargingUiVariant,
-  type ChargingUiVariant,
-} from "@/features/charging/ChargingSessionView";
+import ChargingSessionView from "@/features/charging/ChargingSessionView";
 import {
   fetchEvSession,
   plannedEndAtMs,
@@ -27,6 +22,7 @@ import {
 import { ApiError } from "@/lib/api";
 import "@/features/home/components/map.css";
 import "@/features/profile/components/profile.css";
+import "@/features/payment/ev-charge-payment.css";
 import "./details-charging.css";
 import "./charging-session-variants.css";
 
@@ -65,7 +61,6 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
   const [ready, setReady] = useState(false);
   const [step, setStep] = useState<EvChargeStep>("charging");
   const [chargeEndsAt, setChargeEndsAt] = useState<number | null>(null);
-  const [variant, setVariant] = useState<ChargingUiVariant>("original");
   const [cancelNote, setCancelNote] = useState(false);
 
   const stationId = evSession
@@ -116,7 +111,6 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
   }, [sessionId, validId, t]);
 
   useEffect(() => {
-    setVariant(readChargingUiVariant());
     void reloadSession();
   }, [reloadSession]);
 
@@ -176,11 +170,6 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
     router.push("/");
   }
 
-  function selectVariant(next: ChargingUiVariant) {
-    setVariant(next);
-    writeChargingUiVariant(next);
-  }
-
   if (!ready || (evSession && loading)) {
     return (
       <PageLayout title={t("ev.charging_title", "Идёт зарядка")} className="page--profile-edit">
@@ -196,7 +185,7 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
     return (
       <PageLayout title={t("ev.charging_title", "Идёт зарядка")} className="page--profile-edit">
         <div className="profile-edit details-charging">
-          <div className="app-back-bar app-back-bar--overlay app-back-bar--stack details-charging__top">
+          <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
             <BackButton onClick={goToMap}>
               {t("common.back", "Назад")}
             </BackButton>
@@ -231,7 +220,7 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
     return (
       <PageLayout title={t("ev.charging_title", "Идёт зарядка")} className="page--profile-edit">
         <div className="profile-edit details-charging">
-          <div className="app-back-bar app-back-bar--overlay app-back-bar--stack details-charging__top">
+          <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
             <BackButton onClick={goToMap}>
               {t("common.back", "Назад")}
             </BackButton>
@@ -261,36 +250,19 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
   return (
     <PageLayout title={t("ev.charging_title", "Идёт зарядка")} className="page--profile-edit">
       <div className="profile-edit details-charging">
-        <div className="app-back-bar app-back-bar--overlay app-back-bar--stack details-charging__top">
+        <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
           <BackButton onClick={goToMap}>
             {t("common.back", "Назад")}
           </BackButton>
-          {step === "charging" ? (
-            <div
-              className="details-charging__variants"
-              role="tablist"
-              aria-label={t("ev.ui_variants", "Варианты экрана")}
-            >
-              {CHARGING_UI_VARIANTS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={variant === item.id}
-                  className={`details-charging__variant${variant === item.id ? " is-on" : ""}`}
-                  onClick={() => selectVariant(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
         </div>
 
-        <div className="details-charging__stage">
+        <div
+          className={`details-charging__stage${
+            step === "charging" ? " is-charging" : " is-status"
+          }`}
+        >
           {step === "charging" ? (
             <ChargingSessionView
-              variant={variant}
               step={step}
               onStepChange={(next) => void onStepChange(next)}
               port={port}

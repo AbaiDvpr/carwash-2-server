@@ -1,0 +1,142 @@
+/* Оплата мойки — те же карточки, что профиль / ЭЗС */
+
+.cw-pay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-stack-gap);
+}
+
+.cw-pay__title {
+  margin: 0;
+  font-size: var(--app-text-md, 1rem);
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.cw-pay__tariffs {
+  display: flex;
+  flex-direction: column;
+}
+
+.cw-pay__tariff {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: var(--app-row-gap);
+  margin: 0;
+  padding: var(--app-row-pad-y) 0;
+  border: 0;
+  border-bottom: var(--app-border-width) solid
+    color-mix(in oklab, var(--app-border) 85%, transparent);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cw-pay__tariff:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.cw-pay__tariff:first-of-type {
+  padding-top: 0.35rem;
+}
+
+.cw-pay__check {
+  display: inline-flex;
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid color-mix(in oklab, var(--app-description) 40%, transparent);
+  border-radius: 0.35rem;
+  color: #fff;
+}
+
+.cw-pay__tariff.is-on .cw-pay__check {
+  border-color: var(--app-text);
+  background: var(--app-text);
+}
+
+.cw-pay__check svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.cw-pay__tariff-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.cw-pay__tariff-title {
+  display: block;
+  margin: 0;
+  color: var(--app-text);
+  font-size: var(--app-text-md);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.cw-pay__tariff-desc {
+  display: block;
+  margin: 0.2rem 0 0;
+  color: var(--app-description);
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.cw-pay__tariff-items {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cw-pay__tariff-items li {
+  color: var(--app-description);
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.cw-pay__tariff-price {
+  flex-shrink: 0;
+  margin: 0;
+  color: var(--app-text);
+  font-size: var(--app-text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cw-pay__hint {
+  margin: 0;
+  color: var(--app-description);
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+}
+
+.cw-pay__hint.is-danger {
+  color: var(--app-danger);
+}
+
+.cw-pay .csv-params__row .profile-card__balance-label,
+.cw-pay .csv-params__row .profile-card__balance-value {
+  margin: 0;
+}
+
+.cw-pay .csv-params__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cw-pay .csv-params__row .profile-card__balance-value {
+  text-align: right;
+  font-weight: 700;
+}

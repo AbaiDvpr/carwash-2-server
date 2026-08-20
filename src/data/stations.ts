@@ -291,6 +291,11 @@ export function getStationByPaymentSlug(slug: string): Station | undefined {
   return STATIONS.find((station) => station.paymentSlug === slug);
 }
 
-export function getPaymentPath(station: Station): string {
-  return `/payment/car-wash/${station.paymentSlug}`;
+export function getPaymentPath(
+  station: Station,
+  tariffKey?: string | null,
+): string {
+  const path = `/payment/car-wash/${station.paymentSlug}`;
+  if (!tariffKey) return path;
+  return `${path}?tariff=${encodeURIComponent(tariffKey)}`;
 }

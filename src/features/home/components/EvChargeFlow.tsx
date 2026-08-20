@@ -468,7 +468,7 @@ export default function EvChargeFlow({
             <span className="ev-flow__slider-label">
               {t("ev.price_to", "Лимит оплаты")}
             </span>
-            <label className="ev-flow__money">
+            <label className="ev-flow__money ev-flow__money--price">
               <input
                 type="text"
                 inputMode="numeric"
@@ -530,7 +530,7 @@ export default function EvChargeFlow({
             <span className="ev-flow__slider-label">
               {t("ev.charge_to", "Зарядить до")}
             </span>
-            <label className="ev-flow__money">
+            <label className="ev-flow__money ev-flow__money--pct">
               <input
                 type="text"
                 inputMode="numeric"
@@ -593,7 +593,7 @@ export default function EvChargeFlow({
             <span className="ev-flow__slider-label">
               {t("ev.time_to", "Заряжать")}
             </span>
-            <label className="ev-flow__money">
+            <label className="ev-flow__money ev-flow__money--time">
               <input
                 type="text"
                 inputMode="numeric"

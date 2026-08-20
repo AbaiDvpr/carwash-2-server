@@ -327,13 +327,7 @@ export default function EvChargePayment() {
 
         <div className="profile-edit__main ev-pay profile-home">
           <section className="profile-card">
-            <div className="profile-card__balance">
-              <div className="profile-card__balance-item">
-                <p className="profile-card__balance-label">
-                  {t("ev.order_station", "Станция")}
-                </p>
-                <p className="profile-card__balance-value">{standTitle}</p>
-              </div>
+            <div className="profile-card__balance ev-pay__order">
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
                   {t("ev.order_address", "Адрес")}
@@ -342,13 +336,9 @@ export default function EvChargePayment() {
               </div>
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
-                  {t("home.balance", "Баланс")}
+                  {t("ev.order_station", "Станция")}
                 </p>
-                <p className="profile-card__balance-value">
-                  {balanceLoading && balance == null
-                    ? "…"
-                    : formatBalance(balanceValue)}
-                </p>
+                <p className="profile-card__balance-value">{standTitle}</p>
               </div>
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
@@ -373,13 +363,23 @@ export default function EvChargePayment() {
             <div className="profile-card__balance">
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
-                  {t("ev.charge_cost", "Зарядка")}
+                  {t("home.balance", "Баланс")}
+                </p>
+                <p className="profile-card__balance-value">
+                  {balanceLoading && balance == null
+                    ? "…"
+                    : formatBalance(balanceValue)}
+                </p>
+              </div>
+              <div className="profile-card__balance-item">
+                <p className="profile-card__balance-label">
+                  {t("ev.from_balance", "С баланса")}
                 </p>
                 <p className="profile-card__balance-value">{amountLabel} ₸</p>
               </div>
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
-                  {t("ev.from_balance", "С баланса")}
+                  {t("ev.charge_cost", "Зарядка")}
                 </p>
                 <p className="profile-card__balance-value">{amountLabel} ₸</p>
               </div>

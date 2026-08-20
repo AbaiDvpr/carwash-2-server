@@ -1,0 +1,11 @@
+.csv-ev-badge--wash {
+  background: color-mix(in oklab, var(--map-wash, #38bdf8) 22%, var(--app-block));
+}
+
+.csv-ev-badge--wash svg {
+  color: #0284c7;
+}
+
+.csv-status--center {
+  text-align: center;
+}

@@ -1,0 +1,30 @@
+/* Очередь мойки — прелоадер внутри карточки */
+
+.wash-prep {
+  width: 100%;
+}
+
+.wash-prep__body {
+  align-items: stretch !important;
+  justify-content: flex-start;
+  text-align: center;
+  gap: 0;
+  padding-top: 0.35rem;
+}
+
+.wash-prep__preloader {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 10.5rem;
+  padding: 1rem 0 0.75rem;
+  box-sizing: border-box;
+}
+
+.wash-prep__hint {
+  margin: 0.15rem 0 0;
+  color: var(--app-description);
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  line-height: 1.4;
+}

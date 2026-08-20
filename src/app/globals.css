@@ -238,6 +238,11 @@ html.fullscreen .app-header {
   flex-direction: column;
 }
 
+.page--dashboard {
+  flex: 1;
+  min-height: 100%;
+}
+
 /**
  * Единые паддинги контента на всех страницах.
  * Меняются через --app-page-pad-*.

@@ -4,25 +4,17 @@ import {
   type ConnectorSlug,
 } from "@/features/map/evConnectors";
 
-/** Цена мойки по мин. тарифу (₸ за услугу) */
-export type WashPriceFilter =
-  | "all"
-  | "lte1500"
-  | "lte3000"
-  | "gt3000";
+/** Цена мойки по мин. тарифу (₸ за услугу); пустой список = все */
+export type WashPriceFilter = "lte1500" | "lte3000" | "gt3000";
 
-/** Цена ЭЗС за кВт·ч (₸) */
-export type ChargingCostFilter =
-  | "all"
-  | "lte70"
-  | "lte120"
-  | "gt120";
+/** Цена ЭЗС за кВт·ч (₸); пустой список = все */
+export type ChargingCostFilter = "lte70" | "lte120" | "gt120";
 
 export type WashFilters = {
   enabled: boolean;
   openOnly: boolean;
   freeOnly: boolean;
-  price: WashPriceFilter;
+  prices: WashPriceFilter[];
 };
 
 export type ChargingFilters = {
@@ -31,7 +23,7 @@ export type ChargingFilters = {
   freeOnly: boolean;
   /** Пусто = все коннекторы */
   connectors: ConnectorSlug[];
-  cost: ChargingCostFilter;
+  costs: ChargingCostFilter[];
 };
 
 export type MapFilters = {
@@ -43,7 +35,7 @@ export const DEFAULT_WASH_FILTERS: WashFilters = {
   enabled: true,
   openOnly: true,
   freeOnly: false,
-  price: "all",
+  prices: [],
 };
 
 export const DEFAULT_CHARGING_FILTERS: ChargingFilters = {
@@ -51,7 +43,7 @@ export const DEFAULT_CHARGING_FILTERS: ChargingFilters = {
   openOnly: true,
   freeOnly: false,
   connectors: [],
-  cost: "all",
+  costs: [],
 };
 
 export function createDefaultFilters(kind: StationKind | "all" = "all"): MapFilters {
@@ -82,27 +74,34 @@ export function stationMinTariffPrice(station: Station): number | null {
   return Math.min(...prices);
 }
 
-function matchesWashPrice(station: Station, price: WashPriceFilter): boolean {
-  if (price === "all") return true;
+function matchesWashPrices(
+  station: Station,
+  prices: WashPriceFilter[],
+): boolean {
+  if (prices.length === 0 || prices.length === WASH_PRICES.size) return true;
   const min = stationMinTariffPrice(station);
   if (min == null) return false;
-  if (price === "lte1500") return min <= 1500;
-  if (price === "lte3000") return min > 1500 && min <= 3000;
-  if (price === "gt3000") return min > 3000;
-  return true;
+  return prices.some((price) => {
+    if (price === "lte1500") return min <= 1500;
+    if (price === "lte3000") return min > 1500 && min <= 3000;
+    if (price === "gt3000") return min > 3000;
+    return false;
+  });
 }
 
-function matchesChargingCost(
+function matchesChargingCosts(
   station: Station,
-  cost: ChargingCostFilter,
+  costs: ChargingCostFilter[],
 ): boolean {
-  if (cost === "all") return true;
+  if (costs.length === 0 || costs.length === CHARGING_COSTS.size) return true;
   const price = station.pricePerKwh;
   if (price == null) return false;
-  if (cost === "lte70") return price > 0 && price <= 70;
-  if (cost === "lte120") return price > 70 && price <= 120;
-  if (cost === "gt120") return price > 120;
-  return true;
+  return costs.some((cost) => {
+    if (cost === "lte70") return price > 0 && price <= 70;
+    if (cost === "lte120") return price > 70 && price <= 120;
+    if (cost === "gt120") return price > 120;
+    return false;
+  });
 }
 
 function matchesChargingExtras(
@@ -114,7 +113,7 @@ function matchesChargingExtras(
     if (!filters.connectors.some((slug) => slugs.has(slug))) return false;
   }
 
-  return matchesChargingCost(station, filters.cost);
+  return matchesChargingCosts(station, filters.costs);
 }
 
 export function matchesFilters(station: Station, filters: MapFilters): boolean {
@@ -125,7 +124,7 @@ export function matchesFilters(station: Station, filters: MapFilters): boolean {
   if (station.kind === "wash") {
     const options = filters.wash;
     if (!options.enabled) return false;
-    return matchesWashPrice(station, options.price);
+    return matchesWashPrices(station, options.prices);
   }
 
   const options = filters.charging;
@@ -140,9 +139,13 @@ export function countActiveFilters(filters: MapFilters): number {
 
   if (filters.wash.enabled !== defaults.wash.enabled) count += 1;
   if (filters.charging.enabled !== defaults.charging.enabled) count += 1;
-  if (filters.wash.price !== "all") count += 1;
+  if (filters.wash.prices.length > 0 && filters.wash.prices.length < WASH_PRICES.size) {
+    count += 1;
+  }
   if (filters.charging.connectors.length > 0) count += 1;
-  if (filters.charging.cost !== "all") count += 1;
+  if (filters.charging.costs.length > 0 && filters.charging.costs.length < CHARGING_COSTS.size) {
+    count += 1;
+  }
 
   return count;
 }
@@ -183,25 +186,39 @@ const CONNECTOR_SLUGS = new Set<string>(
   CONNECTOR_CATALOG.map((item) => item.slug),
 );
 
-const WASH_PRICES = new Set<string>([
-  "all",
-  "lte1500",
-  "lte3000",
-  "gt3000",
-]);
+const WASH_PRICES = new Set<string>(["lte1500", "lte3000", "gt3000"]);
 
-const CHARGING_COSTS = new Set<string>([
-  "all",
-  "lte70",
-  "lte120",
-  "gt120",
-]);
+const CHARGING_COSTS = new Set<string>(["lte70", "lte120", "gt120"]);
+
+function parseWashPrices(raw: unknown): WashPriceFilter[] {
+  if (Array.isArray(raw)) {
+    return raw.filter(
+      (item): item is WashPriceFilter =>
+        typeof item === "string" && WASH_PRICES.has(item),
+    );
+  }
+  if (typeof raw === "string" && WASH_PRICES.has(raw)) {
+    return [raw as WashPriceFilter];
+  }
+  return [];
+}
+
+function parseChargingCosts(raw: unknown): ChargingCostFilter[] {
+  if (Array.isArray(raw)) {
+    return raw.filter(
+      (item): item is ChargingCostFilter =>
+        typeof item === "string" && CHARGING_COSTS.has(item),
+    );
+  }
+  if (typeof raw === "string" && CHARGING_COSTS.has(raw)) {
+    return [raw as ChargingCostFilter];
+  }
+  return [];
+}
 
 function parseWashFilters(raw: unknown): WashFilters | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Record<string, unknown>;
-  const price = value.price === "unknown" ? "all" : value.price;
-  if (typeof price !== "string" || !WASH_PRICES.has(price)) return null;
   if (typeof value.enabled !== "boolean") return null;
   if (typeof value.openOnly !== "boolean") return null;
   if (typeof value.freeOnly !== "boolean") return null;
@@ -209,16 +226,13 @@ function parseWashFilters(raw: unknown): WashFilters | null {
     enabled: value.enabled,
     openOnly: value.openOnly,
     freeOnly: value.freeOnly,
-    price: price as WashPriceFilter,
+    prices: parseWashPrices(value.prices ?? value.price),
   };
 }
 
 function parseChargingFilters(raw: unknown): ChargingFilters | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Record<string, unknown>;
-  const cost =
-    value.cost === "unknown" || value.cost === "free" ? "all" : value.cost;
-  if (typeof cost !== "string" || !CHARGING_COSTS.has(cost)) return null;
   if (typeof value.enabled !== "boolean") return null;
   if (typeof value.openOnly !== "boolean") return null;
   if (typeof value.freeOnly !== "boolean") return null;
@@ -232,7 +246,7 @@ function parseChargingFilters(raw: unknown): ChargingFilters | null {
     openOnly: value.openOnly,
     freeOnly: value.freeOnly,
     connectors,
-    cost: cost as ChargingCostFilter,
+    costs: parseChargingCosts(value.costs ?? value.cost),
   };
 }
 

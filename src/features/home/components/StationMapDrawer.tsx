@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import type {
-  Station,
-  StationChargerStand,
-  StationConnectorPort,
+import {
+  getPaymentPath,
+  type Station,
+  type StationChargerStand,
+  type StationConnectorPort,
 } from "@/data/stations";
 import {
   formatPowerKw,
@@ -556,6 +557,9 @@ export default function StationMapDrawer({
   );
   const [hideStationPhoto, setHideStationPhoto] = useState(false);
   const [photoHeader, setPhotoHeader] = useState<EvPhotoHeader | null>(null);
+  const [selectedWashTariffKey, setSelectedWashTariffKey] = useState<string | null>(
+    null,
+  );
   const {
     station: freshStation,
     loading,
@@ -718,6 +722,7 @@ export default function StationMapDrawer({
     setChargeEndsAt(null);
     setRouteOpen(false);
     setHoursOpen(false);
+    setSelectedWashTariffKey(null);
   }, [initialStation.id, resumeSession]);
 
   useEffect(() => {
@@ -1110,41 +1115,76 @@ export default function StationMapDrawer({
                 <p className="map-station-sheet__tariffs-label">
                   {t("payment.tariffs", "Тарифы")}
                 </p>
-                <ul className="map-station-sheet__tariff-list">
-                  {washTariffs.map((tariff) => (
-                    <li
-                      key={tariff.id ?? tariff.title}
-                      className="map-station-sheet__tariff"
-                    >
-                      <div className="map-station-sheet__tariff-main">
-                        <p className="map-station-sheet__tariff-title">
-                          {tariff.title}
+                <div
+                  className="map-station-sheet__tariff-list"
+                  role="radiogroup"
+                  aria-label={t("payment.tariffs", "Тарифы")}
+                >
+                  {washTariffs.map((tariff) => {
+                    const key =
+                      tariff.id != null ? String(tariff.id) : tariff.title;
+                    const selected = selectedWashTariffKey === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={`map-station-sheet__tariff${selected ? " is-on" : ""}`}
+                        onClick={() => setSelectedWashTariffKey(key)}
+                      >
+                        <span
+                          className={`theme-radio map-station-sheet__tariff-radio${selected ? " is-on" : ""}`}
+                          aria-hidden
+                        >
+                          {selected ? (
+                            <span className="map-station-sheet__tariff-radio-dot" />
+                          ) : null}
+                        </span>
+                        <div className="map-station-sheet__tariff-main">
+                          <p className="map-station-sheet__tariff-title">
+                            {tariff.title}
+                          </p>
+                          {tariff.description ? (
+                            <p className="map-station-sheet__tariff-desc">
+                              {tariff.description}
+                            </p>
+                          ) : null}
+                          {tariff.items && tariff.items.length > 0 ? (
+                            <ul className="map-station-sheet__tariff-items">
+                              {tariff.items.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="map-station-sheet__tariff-desc">
+                              {t("map.tariff_no_items", "Состав не указан")}
+                            </p>
+                          )}
+                        </div>
+                        <p className="map-station-sheet__tariff-price">
+                          {Number.isFinite(tariff.price)
+                            ? `${tariff.price.toLocaleString("ru-RU")} ₸`
+                            : "—"}
                         </p>
-                        {tariff.description ? (
-                          <p className="map-station-sheet__tariff-desc">
-                            {tariff.description}
-                          </p>
-                        ) : null}
-                        {tariff.items && tariff.items.length > 0 ? (
-                          <ul className="map-station-sheet__tariff-items">
-                            {tariff.items.map((item) => (
-                              <li key={item}>{item}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="map-station-sheet__tariff-desc">
-                            {t("map.tariff_no_items", "Состав не указан")}
-                          </p>
-                        )}
-                      </div>
-                      <p className="map-station-sheet__tariff-price">
-                        {Number.isFinite(tariff.price)
-                          ? `${tariff.price.toLocaleString("ru-RU")} ₸`
-                          : "—"}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedWashTariffKey ? (
+                  <button
+                    type="button"
+                    className="map-station-sheet__btn map-station-sheet__btn--pay map-station-sheet__pay-after"
+                    onClick={() => {
+                      onPayNavigate?.();
+                      router.push(
+                        getPaymentPath(station, selectedWashTariffKey),
+                      );
+                    }}
+                  >
+                    {t("ev.pay", "Оплатить")}
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>

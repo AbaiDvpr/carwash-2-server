@@ -426,12 +426,15 @@
   bottom: 0;
   z-index: 50;
   display: flex;
+  height: auto;
   max-height: min(88dvh, 720px);
   flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
   background: var(--app-block);
   color: var(--app-text);
   border-top: var(--app-border-width) solid color-mix(in oklab, var(--app-border) 80%, transparent);
-  border-radius: var(--app-section-radius) var(--app-section-radius) 0 0;
+  border-radius: 1.25rem 1.25rem 0 0;
   box-shadow: 0 -8px 32px rgb(0 0 0 / 0.12);
   animation: history-drawer-slide-up 0.28s ease-out;
 }
@@ -454,6 +457,7 @@
   padding: 0.75rem var(--app-page-pad-x) 0.65rem;
   background: var(--app-block);
   border-bottom: 1px solid var(--app-border);
+  border-radius: 1.25rem 1.25rem 0 0;
 }
 
 .history-drawer__title-row {
@@ -493,45 +497,41 @@
 }
 
 .history-drawer--filter .history-drawer__body {
+  flex: 0 1 auto;
   gap: 0;
+  padding-bottom: 0;
 }
 
-.history-drawer__footer {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+.history-filter-stack {
+  display: grid;
+}
+
+.history-filter-pane {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.history-filter-pane.is-on {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.history-drawer__reset-wrap {
   flex-shrink: 0;
-  gap: 0.55rem;
-  padding: 0.55rem var(--app-page-pad-x) calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--app-border);
-  background: var(--app-block);
 }
 
 .history-drawer__reset {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 0.9rem;
-  border: 1px solid color-mix(in oklab, var(--app-description) 28%, transparent);
-  border-radius: 0.85rem;
-  background: transparent;
-  color: var(--app-text);
-  font-size: var(--app-text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.history-drawer__reset:active {
-  background: var(--app-hover);
-}
-
-.history-drawer__apply {
   display: flex;
   width: 100%;
   align-items: center;
   justify-content: center;
   min-height: 44px;
+  padding: 0 0.9rem;
   border: 0;
   border-radius: 0.75rem;
   background: var(--app-button);

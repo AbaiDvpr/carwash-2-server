@@ -1,23 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { PageLayout } from "@/components/layout";
+import BackButton from "@/components/ui/BackButton";
 import { getStationByPaymentSlug, type Station } from "@/data/stations";
 import { ApiError } from "@/lib/api";
 import { fetchCwStation } from "@/lib/api/cw";
 import { fetchEvStation, parseEvStationId } from "@/lib/api/ev";
 import PaymentPage from "./page";
+import "@/features/profile/components/profile.css";
+import "./ev-charge-payment.css";
 
 type PaymentRouteProps = {
   slug: string;
+  tariff?: string | null;
 };
 
-/**
- * slug = число → мойка из API
- * slug = ev-{id} → ЭЗС из API
- * slug = Sauran… → статический пункт (гео)
- */
-export default function PaymentRoute({ slug }: PaymentRouteProps) {
+export default function PaymentRoute({ slug, tariff = null }: PaymentRouteProps) {
+  const router = useRouter();
   const evId = parseEvStationId(slug);
   const isCwLocationId = /^\d+$/.test(slug);
   const isApiStation = isCwLocationId || evId != null;
@@ -65,33 +66,46 @@ export default function PaymentRoute({ slug }: PaymentRouteProps) {
     };
   }, [isApiStation, slug, evId]);
 
+  const goHome = () => router.push("/");
+
   if (loading) {
     return (
-      <div className="page-content">
-        <div className="h-5 w-28 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-        <div className="mt-4 h-48 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-900" />
-      </div>
+      <PageLayout title="Оплата" className="page--profile-edit">
+        <div className="profile-edit">
+          <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
+            <BackButton onClick={goHome}>Назад</BackButton>
+          </div>
+          <div className="ev-pay-skeleton">
+            <div className="ev-pay-skeleton__line" />
+            <div className="ev-pay-skeleton__block" />
+          </div>
+        </div>
+      </PageLayout>
     );
   }
 
   if (notFound || !station) {
     return (
-      <div className="page-content text-center">
-        <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-          Точка не найдена
-        </h1>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {error ?? "Такой точки для оплаты нет."}
-        </p>
-        <Link
-          href="/"
-          className="mt-4 inline-flex rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white"
-        >
-          На главную
-        </Link>
-      </div>
+      <PageLayout title="Оплата" className="page--profile-edit">
+        <div className="profile-edit">
+          <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
+            <BackButton onClick={goHome}>Назад</BackButton>
+          </div>
+          <div className="profile-edit__main ev-pay-status ev-pay-status--center">
+            <h1 className="ev-pay-status__title">Точка не найдена</h1>
+            <p className="ev-pay-status__text">
+              {error ?? "Такой точки для оплаты нет."}
+            </p>
+            <div className="ev-pay-status__footer">
+              <button type="button" className="theme-button w-full" onClick={goHome}>
+                На главную
+              </button>
+            </div>
+          </div>
+        </div>
+      </PageLayout>
     );
   }
 
-  return <PaymentPage station={station} />;
+  return <PaymentPage station={station} tariff={tariff} />;
 }

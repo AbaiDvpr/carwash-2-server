@@ -16,6 +16,7 @@ import "./history.css";
 
 type HistoryListProps = {
   title?: string;
+  kind?: "wash" | "charging";
   onBack?: () => void;
 };
 
@@ -65,7 +66,7 @@ function FilterSlidersIcon({ className }: { className?: string }) {
   );
 }
 
-export default function HistoryList({ title, onBack }: HistoryListProps) {
+export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
   const t = useT();
   const requestId = useRef(0);
   const booted = useRef(false);
@@ -87,7 +88,7 @@ export default function HistoryList({ title, onBack }: HistoryListProps) {
     writeHistoryFilters(filters);
   }, [filters, filtersReady]);
 
-  const filterCount = countHistoryFilters(filters);
+  const filterCount = countHistoryFilters(filters, kind);
   const filtersActive = filterCount > 0;
 
   useEffect(() => {
@@ -99,18 +100,27 @@ export default function HistoryList({ title, onBack }: HistoryListProps) {
 
     void (async () => {
       try {
-        const data = await fetchAllSessions({
-          wash: {
-            period: filters.wash.period,
-            status: filters.wash.statuses,
-          },
-          charging: {
-            period: filters.charging.period,
-            status: filters.charging.statuses,
-          },
-        });
+        const washQuery = {
+          period: filters.wash.period,
+          status: filters.wash.statuses,
+        };
+        const chargingQuery = {
+          period: filters.charging.period,
+          status: filters.charging.statuses,
+        };
+        const data = await fetchAllSessions(
+          kind === "wash"
+            ? { wash: washQuery }
+            : kind === "charging"
+              ? { charging: chargingQuery }
+              : { wash: washQuery, charging: chargingQuery },
+        );
         if (id !== requestId.current) return;
-        setSessions(data.sessions);
+        const rows =
+          kind == null
+            ? data.sessions
+            : data.sessions.filter((session) => session.kind === kind);
+        setSessions(rows);
         setError(null);
       } catch (err) {
         if (id !== requestId.current) return;
@@ -134,7 +144,7 @@ export default function HistoryList({ title, onBack }: HistoryListProps) {
         setRefreshing(false);
       }
     })();
-  }, [filters, filtersReady, t]);
+  }, [filters, filtersReady, kind, t]);
 
   return (
     <div className="history-page">
@@ -186,7 +196,11 @@ export default function HistoryList({ title, onBack }: HistoryListProps) {
               <p className="history-card__empty">
                 {filtersActive
                   ? t("history.empty_filtered", "Ничего не найдено по фильтрам")
-                  : t("history.empty", "Пока нет моек и зарядок")}
+                  : kind === "wash"
+                    ? t("history.empty_wash", "Пока нет моек")
+                    : kind === "charging"
+                      ? t("history.empty_charging", "Пока нет зарядок")
+                      : t("history.empty", "Пока нет моек и зарядок")}
               </p>
             </div>
           ) : (
@@ -256,6 +270,7 @@ export default function HistoryList({ title, onBack }: HistoryListProps) {
       {drawerOpen ? (
         <HistoryFilterDrawer
           value={filters}
+          kind={kind}
           onApply={setFilters}
           onClose={() => setDrawerOpen(false)}
         />

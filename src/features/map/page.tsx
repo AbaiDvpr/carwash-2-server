@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/layout/PageLayout";
+import PreloaderOverlay from "@/components/layout/PreloaderOverlay";
 import type { Station, StationKind } from "@/data/stations";
 import {
   CONNECTOR_GROUPS,
@@ -61,7 +62,6 @@ const COST_OPTIONS: {
   labelKey: string;
   labelFallback: string;
 }[] = [
-  { value: "all", labelKey: "map.filter_cost_all", labelFallback: "Все" },
   { value: "lte70", labelKey: "map.filter_price_lte70", labelFallback: "до 70 ₸/кВт·ч" },
   { value: "lte120", labelKey: "map.filter_price_lte120", labelFallback: "70–120 ₸/кВт·ч" },
   { value: "gt120", labelKey: "map.filter_price_gt120", labelFallback: "от 120 ₸/кВт·ч" },
@@ -72,7 +72,6 @@ const WASH_PRICE_OPTIONS: {
   labelKey: string;
   labelFallback: string;
 }[] = [
-  { value: "all", labelKey: "map.filter_cost_all", labelFallback: "Все" },
   { value: "lte1500", labelKey: "map.filter_wash_lte1500", labelFallback: "до 1 500 ₸" },
   { value: "lte3000", labelKey: "map.filter_wash_lte3000", labelFallback: "1 500–3 000 ₸" },
   { value: "gt3000", labelKey: "map.filter_wash_gt3000", labelFallback: "от 3 000 ₸" },
@@ -156,48 +155,68 @@ function KindSwitcher({
   );
 }
 
-function RadioMark({ checked }: { checked: boolean }) {
+function CheckMark({ checked }: { checked: boolean }) {
   return (
     <span
-      className={`theme-radio relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2${
-        checked ? " is-on" : ""
-      }`}
+      className={`map-filter-sheet__check${checked ? " is-on" : ""}`}
       aria-hidden
     >
       {checked ? (
-        <span className="h-2 w-2 rounded-full bg-[var(--app-button-text)]" />
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 5 5L20 7" />
+        </svg>
       ) : null}
     </span>
   );
 }
 
-function FilterRadioGroup({
+function toggleMulti<T>(selected: T[], value: T): T[] {
+  return selected.includes(value)
+    ? selected.filter((item) => item !== value)
+    : [...selected, value];
+}
+
+function FilterCheckGroup<T extends string>({
   label,
-  value,
+  selected,
   options,
   onChange,
 }: {
   label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
+  selected: T[];
+  options: { value: T; label: string }[];
+  onChange: (next: T[]) => void;
 }) {
+  const t = useT();
+  const allValues = options.map((option) => option.value);
+  const allOn = allValues.length > 0 && allValues.every((value) => selected.includes(value));
+
   return (
     <section className="map-filter-section map-filter-section--rows">
       <p className="map-filter-section__label">{label}</p>
-      <div role="radiogroup" aria-label={label}>
+      <div role="group" aria-label={label}>
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={allOn}
+          className="map-filter-row"
+          onClick={() => onChange(allOn ? [] : allValues)}
+        >
+          <CheckMark checked={allOn} />
+          <span>{t("history.filter_all", "Все")}</span>
+        </button>
         {options.map((option) => {
-          const on = value === option.value;
+          const on = selected.includes(option.value);
           return (
             <button
               key={option.value}
               type="button"
-              role="radio"
+              role="checkbox"
               aria-checked={on}
               className="map-filter-row"
-              onClick={() => onChange(option.value)}
+              onClick={() => onChange(toggleMulti(selected, option.value))}
             >
-              <RadioMark checked={on} />
+              <CheckMark checked={on} />
               <span>{option.label}</span>
             </button>
           );
@@ -391,6 +410,13 @@ function MapFilterDrawer({
     filters.wash.enabled || !filters.charging.enabled ? "wash" : "charging",
   );
   const [typePhotos, setTypePhotos] = useState<Partial<Record<ConnectorSlug, string>>>({});
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  const closeAndApply = () => {
+    onChange(draftRef.current);
+    onClose();
+  };
 
   useEffect(() => {
     setPortalReady(true);
@@ -405,11 +431,11 @@ function MapFilterDrawer({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeAndApply();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onChange, onClose]);
 
   useEffect(() => {
     let cancelled = false;
@@ -448,7 +474,7 @@ function MapFilterDrawer({
       <button
         type="button"
         className="map-drawer__backdrop"
-        onClick={onClose}
+        onClick={closeAndApply}
         aria-label={t("common.close", "Закрыть")}
       />
       <div
@@ -465,7 +491,7 @@ function MapFilterDrawer({
             <button
               type="button"
               className="app-drawer-close"
-              onClick={onClose}
+              onClick={closeAndApply}
               aria-label={t("common.close", "Закрыть")}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -494,77 +520,69 @@ function MapFilterDrawer({
         </div>
 
         <div className="map-filter-sheet__body">
-          <div className="map-filter-flat">
-            {activeTab === "wash" ? (
-              <FilterRadioGroup
+          <div className="map-filter-stack">
+            <div
+              className={`map-filter-pane${activeTab === "wash" ? " is-on" : ""}`}
+              aria-hidden={activeTab !== "wash"}
+            >
+              <FilterCheckGroup
                 label={t("map.filter_price_wash", "Цена тарифа")}
-                value={draft.wash.price}
+                selected={draft.wash.prices}
                 options={WASH_PRICE_OPTIONS.map((option) => ({
                   value: option.value,
                   label: t(option.labelKey, option.labelFallback),
                 }))}
-                onChange={(value) =>
+                onChange={(prices) =>
                   setDraft((prev) => ({
                     ...prev,
-                    wash: { ...prev.wash, price: value as WashPriceFilter },
+                    wash: { ...prev.wash, prices },
                   }))
                 }
               />
-            ) : (
-              <>
-                <ChargingConnectorFilters
-                  draft={draft.charging}
-                  onChange={patchCharging}
-                  photoBySlug={photoBySlug}
-                />
-                <FilterRadioGroup
-                  label={t("map.filter_price_ev", "Цена за кВт·ч")}
-                  value={draft.charging.cost}
-                  options={COST_OPTIONS.map((option) => ({
-                    value: option.value,
-                    label: t(option.labelKey, option.labelFallback),
-                  }))}
-                  onChange={(value) =>
-                    patchCharging({
-                      ...draft.charging,
-                      cost: value as ChargingCostFilter,
-                    })
-                  }
-                />
-              </>
-            )}
+            </div>
+            <div
+              className={`map-filter-pane${activeTab === "charging" ? " is-on" : ""}`}
+              aria-hidden={activeTab !== "charging"}
+            >
+              <ChargingConnectorFilters
+                draft={draft.charging}
+                onChange={patchCharging}
+                photoBySlug={photoBySlug}
+              />
+              <FilterCheckGroup
+                label={t("map.filter_price_ev", "Цена за кВт·ч")}
+                selected={draft.charging.costs}
+                options={COST_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.labelKey, option.labelFallback),
+                }))}
+                onChange={(costs) =>
+                  patchCharging({ ...draft.charging, costs })
+                }
+              />
+            </div>
           </div>
-        </div>
 
-        <div className="map-filter-sheet__footer">
-          <button
-            type="button"
-            className="map-filter-sheet__reset"
-            onClick={() =>
-              setDraft((prev) => ({
-                ...prev,
-                [activeTab]:
-                  activeTab === "wash"
-                    ? { ...createDefaultFilters("all").wash, enabled: prev.wash.enabled }
-                    : {
-                        ...createDefaultFilters("all").charging,
-                        enabled: prev.charging.enabled,
-                      },
-              }))
-            }
-          >
-            {t("map.filter_reset_tab", "Сбросить")}
-          </button>
-          <button
-            type="button"
-            className="map-filter-sheet__apply"
-            onClick={() => {
-              onChange(draft);
-              onClose();
-            }}
-          >
-            {t("map.apply_filter", "Применить")}
-          </button>
+          <div className="map-filter-sheet__reset-wrap">
+            <button
+              type="button"
+              className="map-filter-sheet__reset"
+              onClick={() =>
+                setDraft((prev) => ({
+                  ...prev,
+                  [activeTab]:
+                    activeTab === "wash"
+                      ? { ...createDefaultFilters("all").wash, enabled: prev.wash.enabled }
+                      : {
+                          ...createDefaultFilters("all").charging,
+                          enabled: prev.charging.enabled,
+                        },
+                }))
+              }
+            >
+              {t("map.filter_reset_tab", "Сбросить")}
+            </button>
+          </div>
         </div>
       </div>
     </>,
@@ -1052,6 +1070,7 @@ function MapPageInner() {
   const [filters, setFilters] = useState<MapFilters>(() => createDefaultFilters("all"));
   const [filtersHydrated, setFiltersHydrated] = useState(false);
   const [search, setSearch] = useState("");
+  const [mapBusy, setMapBusy] = useState(true);
 
   /** Пока в URL есть ?kind= — прелоадер: пишем фильтр и сразу чистим query */
   const bootReady = filtersHydrated && kindFromQuery === "all";
@@ -1132,8 +1151,8 @@ function MapPageInner() {
   if (!bootReady) {
     return (
       <PageLayout title={t("map.title", "Карта")} className="page--map" bare>
-        <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-          {t("map.loading", "Загрузка карты…")}
+        <div className="map-screen map-screen--boot">
+          <PreloaderOverlay mode="inline" label={t("map.loading", "Загрузка карты")} />
         </div>
       </PageLayout>
     );
@@ -1155,7 +1174,9 @@ function MapPageInner() {
           onFocusConsumed={() => setFocusStationId(null)}
           onOpenList={() => setListOpen(true)}
           markerPrefs={markerPrefs}
+          onBusyChange={setMapBusy}
         />
+        {!mapBusy ? (
         <div className="map-bottom-bar">
           <KindSwitcher filters={filters} onChange={setFilters} />
           <button
@@ -1195,6 +1216,7 @@ function MapPageInner() {
             </button>
           ) : null}
         </div>
+        ) : null}
       </div>
 
       {listOpen ? (

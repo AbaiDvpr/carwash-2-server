@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useAppEnvironment } from "@/hooks/useAppEnvironment";
 import { isAuthDebugEnabled } from "@/lib/authDebug";
 import { hasAccessToken } from "@/lib/authToken";
@@ -20,6 +21,10 @@ const TOKEN_POLL_MS = 100;
 type MobileAccessGateProps = {
   children: ReactNode;
 };
+
+function isOpenDashboardPath(pathname: string | null): boolean {
+  return pathname === "/dashboard";
+}
 
 function AccessDenied() {
   return (
@@ -63,12 +68,17 @@ function AccessDenied() {
 
 export default function MobileAccessGate({ children }: MobileAccessGateProps) {
   const dispatch = useAppDispatch();
+  const pathname = usePathname();
   const { isMobileApp, mounted } = useAppEnvironment();
-  // Всегда "checking" на SSR и первом клиентском рендере — иначе hydration mismatch
+  const openDashboard = isOpenDashboardPath(pathname);
   const [status, setStatus] = useState<"checking" | "granted" | "denied">("checking");
 
   useEffect(() => {
     dispatch(setTestVersion(isAuthDebugEnabled()));
+
+    if (openDashboard) {
+      return;
+    }
 
     let cancelled = false;
     let pollId: number | undefined;
@@ -154,7 +164,11 @@ export default function MobileAccessGate({ children }: MobileAccessGateProps) {
       if (denyTimer != null) window.clearTimeout(denyTimer);
       if (pollId != null) window.clearInterval(pollId);
     };
-  }, [mounted, isMobileApp, dispatch]);
+  }, [mounted, isMobileApp, dispatch, openDashboard]);
+
+  if (openDashboard) {
+    return <div className="app-root">{children}</div>;
+  }
 
   if (status === "denied") {
     return <AccessDenied />;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
 import type { Station } from "@/data/stations";
 import { ApiError } from "@/lib/api";
@@ -9,33 +10,61 @@ import { parseEvStationId } from "@/lib/api/ev";
 import { payCarWash, payEv, payFromBalance } from "@/lib/api/payments";
 import { useT, useLocale } from "@/hooks/useT";
 import { localizeWashTariff } from "@/lib/api/cw";
-import { navigateNavbar } from "@/lib/navbarController";
 import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
-import type { ModalStep } from "../hooks/usePaymentModal";
+import WashPrepareTimer from "@/features/wash/WashPrepareTimer";
+import WashSessionView from "@/features/wash/WashSessionView";
+import "@/features/profile/components/profile.css";
+import "@/features/charging/charging-session-variants.css";
+import "@/features/charging/details-charging.css";
+import "../ev-charge-payment.css";
+import "../car-wash-payment.css";
 
 type CarWashPaymentProps = {
   station: Station;
+  tariff?: string | null;
 };
 
-function SuccessIcon() {
+type PayStep =
+  | "form"
+  | "processing"
+  | "preparing"
+  | "washing"
+  | "success"
+  | "error";
+
+function IconOk() {
   return (
-    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50">
-      <svg
-        className="h-9 w-9 text-emerald-600 dark:text-emerald-400"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.2}
-        aria-hidden
-      >
-        <circle cx="12" cy="12" r="10" className="opacity-20" fill="currentColor" stroke="none" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12.5l2.5 2.5L16 9" />
-      </svg>
-    </div>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m5.5 12.5 4 4 9-9.5" />
+    </svg>
   );
 }
 
-function paymentErrorMessage(err: unknown): string {
+function IconFail() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden>
+      <path strokeLinecap="round" d="M7 7l10 10M17 7 7 17" />
+    </svg>
+  );
+}
+
+function RadioMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={[
+        "theme-radio relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition",
+        checked ? "is-on" : "",
+      ].join(" ")}
+      aria-hidden
+    >
+      {checked ? (
+        <span className="h-2 w-2 rounded-full bg-[var(--app-button-text)]" />
+      ) : null}
+    </span>
+  );
+}
+
+function paymentErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     const body = err.body as {
       message?: string;
@@ -49,17 +78,21 @@ function paymentErrorMessage(err: unknown): string {
     if (body?.message) return body.message;
   }
   if (err instanceof Error) return err.message;
-  return "Не удалось оплатить";
+  return fallback;
 }
 
-export default function CarWashPayment({ station }: CarWashPaymentProps) {
+export default function CarWashPayment({
+  station,
+  tariff = null,
+}: CarWashPaymentProps) {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
   const { balance, loading: balanceLoading, refresh: refreshBalance } = useUserBalance();
-  const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [modalStep, setModalStep] = useState<ModalStep>("confirm");
+  const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(
+    () => tariff,
+  );
+  const [step, setStep] = useState<PayStep>("form");
   const [payError, setPayError] = useState<string | null>(null);
 
   const tariffs = station.tariff.map((tariff) => localizeWashTariff(tariff, locale));
@@ -70,25 +103,40 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
   const balanceValue = balance ?? 0;
   const canAfford =
     selected != null && Number.isFinite(balanceValue) && balanceValue >= selected.price;
+  const locked =
+    step === "processing" ||
+    step === "preparing" ||
+    step === "washing" ||
+    step === "success";
 
-  const closeModal = () => {
-    if (modalStep === "processing") return;
-    setShowConfirm(false);
-    setModalStep("confirm");
-    setPayError(null);
+  const goMap = () => router.push("/");
+  const finishWash = useCallback(() => setStep("success"), []);
+  const startWash = useCallback(() => setStep("washing"), []);
+
+  const handleBack = () => {
+    if (step === "processing") {
+      return;
+    }
+    if (step === "preparing" || step === "washing" || step === "success") {
+      goMap();
+      return;
+    }
+    if (step === "error") {
+      setStep("form");
+      setPayError(null);
+      return;
+    }
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    goMap();
   };
 
-  const handlePayClick = () => {
-    if (!selected) return;
+  const handlePay = async () => {
+    if (!selected || !canAfford) return;
     setPayError(null);
-    setModalStep("confirm");
-    setShowConfirm(true);
-  };
-
-  const handleConfirmPay = async () => {
-    if (!selected) return;
-    setPayError(null);
-    setModalStep("processing");
+    setStep("processing");
 
     try {
       const description = `${station.paymentTitle} · ${selected.title}`;
@@ -108,7 +156,6 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
           description,
         });
       } else {
-        // Старые slug (Sauran и т.п.) — только баланс, под гео
         await payFromBalance({
           amount: selected.price,
           tariff_title: selected.title,
@@ -117,326 +164,222 @@ export default function CarWashPayment({ station }: CarWashPaymentProps) {
       }
 
       await refreshBalance();
-      setModalStep("success");
+      setStep("preparing");
     } catch (err) {
-      setModalStep("confirm");
-      setPayError(paymentErrorMessage(err));
+      setPayError(
+        paymentErrorMessage(err, t("payment.failed", "Не удалось оплатить")),
+      );
+      setStep("error");
     }
   };
 
-  const isModalLocked = modalStep === "processing" || modalStep === "success";
-
-  const handleBack = () => {
-    if (isModalLocked) return;
-    navigateNavbar("map", router);
-  };
-
-  useEffect(() => {
-    if (modalStep !== "success") return;
-
-    const timer = window.setTimeout(() => {
-      navigateNavbar("map");
-    }, 1600);
-
-    return () => window.clearTimeout(timer);
-  }, [modalStep]);
-
-  useEffect(() => {
-    if (!showConfirm) return;
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && modalStep === "confirm") {
-        closeModal();
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [showConfirm, modalStep]);
+  const title = t("payment.title", "Оплата");
 
   return (
-    <div>
-      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/95 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
-        <div className="mx-auto flex w-full max-w-5xl items-center px-4 pt-[max(0.25rem,env(safe-area-inset-top))]">
-          <BackButton onClick={handleBack} disabled={isModalLocked} />
-        </div>
-      </header>
-
-      <section
-        className={`page-content ${isModalLocked ? "pointer-events-none select-none opacity-60" : ""}`}
-        aria-hidden={isModalLocked}
+    <PageLayout title={title} className="page--profile-edit">
+      <div
+        className={`profile-edit cw-payment${
+          step === "preparing" || step === "washing" || step === "success"
+            ? " details-charging"
+            : ""
+        }`}
       >
-        <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="border-b border-zinc-100 px-3 py-3 dark:border-zinc-800">
-            <p className="text-[0.8125rem] font-medium text-zinc-400">
-              {t("payment.title", "Оплата")}
-            </p>
-            <h1 className="mt-0.5 text-base font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
-              {station.paymentTitle}
-            </h1>
-            <p className="mt-0.5 text-xs text-zinc-500">{station.address}</p>
-          </div>
-
-          <div className="border-t border-zinc-100 px-3 py-3 dark:border-zinc-800">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
-                  {t("home.balance", "Баланс")}
-                </p>
-                <p className="mt-0.5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                  {balanceLoading && balance == null ? "…" : formatBalance(balanceValue)}
-                </p>
-              </div>
-              <p className="text-[0.8125rem] text-zinc-400">
-                {t("payment.from_balance", "Списание с баланса")}
-              </p>
-            </div>
-          </div>
-
-          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
-            <p className="mb-1 text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
-              {station.kind === "charging"
-                ? t("payment.charge", "Оплата зарядки")
-                : t("payment.wash", "Оплата мойки")}
-            </p>
-            <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
-              {t(
-                "payment.select_hint",
-                "Выберите тариф — сумма спишется с вашего баланса.",
-              )}
-            </p>
-          </div>
-
-          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
-            <p className="mb-2 text-[0.75rem] font-medium uppercase tracking-wider text-zinc-400">
-              {t("payment.tariffs", "Тарифы")}
-            </p>
-            <div className="space-y-1.5">
-              {tariffs.map((tariff) => {
-                const key = tariff.id != null ? String(tariff.id) : tariff.title;
-                const isSelected = selectedTariffKey === key;
-
-                return (
-                  <label
-                    key={key}
-                    className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-2.5 py-2 transition ${
-                      isSelected
-                        ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40"
-                        : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      name="tariff"
-                      checked={isSelected}
-                      disabled={isModalLocked}
-                      onChange={() => {
-                        if (isModalLocked) return;
-                        setSelectedTariffKey(isSelected ? null : key);
-                        closeModal();
-                      }}
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-zinc-900 dark:text-zinc-50">
-                        {tariff.title}
-                      </p>
-                      {tariff.description ? (
-                        <p className="text-[0.8125rem] text-zinc-500 dark:text-zinc-400">
-                          {tariff.description}
-                        </p>
-                      ) : null}
-                      {tariff.items && tariff.items.length > 0 ? (
-                        <ul className="mt-1 space-y-0.5">
-                          {tariff.items.map((item) => (
-                            <li
-                              key={item}
-                              className="text-[0.8125rem] leading-snug text-zinc-500 dark:text-zinc-400"
-                            >
-                              · {item}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </div>
-                    <p className="shrink-0 text-xs font-medium text-zinc-900 dark:text-zinc-50">
-                      {tariff.price} ₸
-                    </p>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
-            {selected ? (
-              <div className="mb-2 space-y-1 text-center text-xs">
-                <p className="text-zinc-600 dark:text-zinc-300">
-                  Выбрано:{" "}
-                  <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                    {selected.title}
-                  </span>
-                  {" · "}
-                  <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                    {selected.price} ₸
-                  </span>
-                </p>
-                {!canAfford && !balanceLoading ? (
-                  <p className="text-red-600 dark:text-red-400">
-                    {t("payment.insufficient", "Недостаточно средств")}. Нужно{" "}
-                    {selected.price} ₸, на балансе {formatBalance(balanceValue)}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <p className="mb-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
-                {t("payment.select_tariff", "Выберите тариф для оплаты")}
-              </p>
-            )}
-            <button
-              type="button"
-              disabled={!selected || !canAfford || isModalLocked || balanceLoading}
-              onClick={handlePayClick}
-              className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {station.kind === "charging"
-                ? t("payment.pay_charge", "Оплатить зарядку")
-                : t("payment.pay_wash", "Оплатить мойку")}
-            </button>
-          </div>
-        </article>
-      </section>
-
-      {showConfirm && selected ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="presentation"
-          onClick={() => {
-            if (modalStep === "confirm") {
-              closeModal();
-            }
-          }}
-        >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="payment-modal-title"
-            className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
-            onClick={(event) => event.stopPropagation()}
+        <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
+          <BackButton
+            onClick={handleBack}
+            disabled={step === "processing"}
           >
-            {modalStep === "confirm" ? (
-              <>
-                <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-                  <p
-                    id="payment-modal-title"
-                    className="text-center text-lg font-bold text-zinc-900 dark:text-zinc-50"
-                  >
-                    {t("payment.confirm_title", "Вы точно уверены?")}
-                  </p>
-                  <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    {t("payment.confirm_hint", "Сумма спишется с баланса")}
-                  </p>
-                </div>
+            {t("common.back", "Назад")}
+          </BackButton>
+        </div>
 
-                <div className="space-y-3 px-5 py-4 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-zinc-500 dark:text-zinc-400">
-                      {t("common.wash", "Мойка")}
-                    </span>
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                      {station.paymentTitle}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-zinc-500 dark:text-zinc-400">
-                      {t("payment.tariffs", "Тарифы")}
-                    </span>
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                      {selected.title}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-zinc-500 dark:text-zinc-400">
-                      {t("home.balance", "Баланс")}
-                    </span>
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                      {formatBalance(balanceValue)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
-                    <span className="text-zinc-500 dark:text-zinc-400">
-                      {t("payment.to_pay", "К оплате")}
-                    </span>
-                    <span className="text-base font-bold text-blue-600 dark:text-blue-400">
-                      {selected.price} ₸
-                    </span>
-                  </div>
-                  {payError ? (
-                    <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-400">
-                      {payError}
-                    </p>
-                  ) : null}
-                </div>
+        {step === "preparing" ? (
+          <div className="details-charging__stage is-charging">
+            <WashPrepareTimer onDone={startWash} />
+          </div>
+        ) : null}
 
-                <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 p-4 dark:border-zinc-800">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                  >
-                    {t("common.cancel", "Отмена")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleConfirmPay()}
-                    className="flex items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-                  >
-                    {t("payment.yes_pay", "Да, оплатить")}
-                  </button>
-                </div>
-              </>
-            ) : null}
+        {step === "washing" && selected ? (
+          <div className="details-charging__stage is-charging">
+            <WashSessionView
+              stationTitle={station.paymentTitle}
+              tariffTitle={selected.title}
+              price={selected.price}
+              onDone={finishWash}
+            />
+          </div>
+        ) : null}
 
-            {modalStep === "processing" ? (
-              <div className="px-5 py-10 text-center">
-                <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-blue-600 dark:border-zinc-700 dark:border-t-blue-400" />
-                <p className="mt-5 text-lg font-bold text-zinc-900 dark:text-zinc-50">
-                  {t("payment.processing", "Оплата...")}
-                </p>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  {t("payment.deducting", "Списываем с баланса")}
-                </p>
+        {step === "processing" ? (
+          <div className="profile-edit__main ev-pay-status ev-pay-status--center" role="status">
+            <span className="profile-boot__spinner ev-pay-status__spinner" aria-hidden />
+            <h1 className="ev-pay-status__title">
+              {t("payment.processing", "Оплата...")}
+            </h1>
+            <p className="ev-pay-status__text">
+              {t("payment.deducting", "Списываем с баланса")}
+            </p>
+          </div>
+        ) : null}
+
+        {step === "success" && selected ? (
+          <div className="details-charging__stage is-status">
+            <div className="ev-checkout ev-checkout--status ev-pay-status ev-pay-status--center">
+              <div className="ev-pay-status__badge is-ok" aria-hidden>
+                <IconOk />
               </div>
+              <h1 className="ev-pay-status__title">
+                {t("wash.done_title", "Мойка завершена")}
+              </h1>
+              <p className="ev-pay-status__text">
+                {t("payment.success", "Оплата прошла успешно")}. {selected.price} ₸ ·{" "}
+                {selected.title}
+              </p>
+              <div className="ev-pay-status__footer">
+                <button type="button" className="theme-button w-full" onClick={goMap}>
+                  {t("common.done", "Готово")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "error" ? (
+          <div className="profile-edit__main ev-pay-status ev-pay-status--center">
+            <div className="ev-pay-status__badge is-fail" aria-hidden>
+              <IconFail />
+            </div>
+            <h1 className="ev-pay-status__title">
+              {t("ev.pay_error_title", "Ошибка оплаты")}
+            </h1>
+            <p className="ev-pay-status__text">
+              {payError ||
+                t(
+                  "ev.pay_error_text",
+                  "Процесс оплаты был прерван по техническим причинам.",
+                )}
+            </p>
+            <div className="ev-pay-status__footer">
+              <div className="ev-pay-status__actions">
+                <button
+                  type="button"
+                  className="theme-button w-full"
+                  onClick={() => void handlePay()}
+                >
+                  {t("common.retry", "Повторить")}
+                </button>
+                <button
+                  type="button"
+                  className="theme-button-secondary w-full"
+                  onClick={() => {
+                    setStep("form");
+                    setPayError(null);
+                  }}
+                >
+                  {t("ev.to_home_short", "Назад")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "form" ? (
+          <div
+            className={`profile-edit__main ev-pay cw-pay profile-home${
+              locked ? " pointer-events-none opacity-60" : ""
+            }`}
+          >
+            <section className="profile-card">
+              <div className="profile-card__balance">
+                <div className="profile-card__balance-item">
+                  <p className="profile-card__balance-label">
+                    {station.kind === "charging"
+                      ? t("ev.order_station", "Станция")
+                      : t("common.wash", "Мойка")}
+                  </p>
+                  <p className="profile-card__balance-value">{station.paymentTitle}</p>
+                </div>
+                <div className="profile-card__balance-item">
+                  <p className="profile-card__balance-label">
+                    {t("home.balance", "Баланс")}
+                  </p>
+                  <p className="profile-card__balance-value">
+                    {balanceLoading && balance == null
+                      ? "…"
+                      : formatBalance(balanceValue)}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-card">
+              <div className="profile-card__balance">
+                <p className="cw-pay__title">{t("payment.tariffs", "Тарифы")}</p>
+                <div
+                  className="cw-pay__tariffs"
+                  role="radiogroup"
+                  aria-label={t("payment.tariffs", "Тарифы")}
+                >
+                  {tariffs.map((tariff) => {
+                    const key = tariff.id != null ? String(tariff.id) : tariff.title;
+                    const isSelected = selectedTariffKey === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        className={`cw-pay__tariff${isSelected ? " is-on" : ""}`}
+                        disabled={locked}
+                        onClick={() => setSelectedTariffKey(key)}
+                      >
+                        <RadioMark checked={isSelected} />
+                        <span className="cw-pay__tariff-body">
+                          <span className="cw-pay__tariff-title">{tariff.title}</span>
+                          {tariff.description ? (
+                            <span className="cw-pay__tariff-desc">{tariff.description}</span>
+                          ) : null}
+                          {tariff.items && tariff.items.length > 0 ? (
+                            <ul className="cw-pay__tariff-items">
+                              {tariff.items.map((item) => (
+                                <li key={item}>· {item}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </span>
+                        <span className="cw-pay__tariff-price">{tariff.price} ₸</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+
+            {selected && !canAfford && !balanceLoading ? (
+              <p className="cw-pay__hint is-danger">
+                {t("payment.insufficient", "Недостаточно средств")}.{" "}
+                {t("payment.need", "Нужно")} {selected.price} ₸,{" "}
+                {t("home.balance", "баланс")} {formatBalance(balanceValue)}
+              </p>
             ) : null}
 
-            {modalStep === "success" ? (
-              <div className="px-5 py-8 text-center">
-                <SuccessIcon />
-                <p className="mt-5 text-lg font-bold text-zinc-900 dark:text-zinc-50">
-                  {t("payment.success", "Оплата прошла успешно")}
-                </p>
-                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                  С баланса списано {selected.price} ₸
-                </p>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  Остаток: {formatBalance(balanceValue)}
-                </p>
-                {/^\d+$/.test(station.id) || parseEvStationId(station.id) != null ? (
-                  <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                    Запись добавлена в историю
-                  </p>
-                ) : null}
+            {selected ? (
+              <div className="ev-pay__actions">
+                <button
+                  type="button"
+                  className="theme-button w-full"
+                  disabled={!canAfford || locked || balanceLoading}
+                  onClick={() => void handlePay()}
+                >
+                  {station.kind === "charging"
+                    ? t("payment.pay_charge", "Оплатить зарядку")
+                    : t("payment.pay_wash", "Оплатить мойку")}
+                </button>
               </div>
             ) : null}
           </div>
-        </div>
-      ) : null}
-    </div>
+        ) : null}
+      </div>
+    </PageLayout>
   );
 }

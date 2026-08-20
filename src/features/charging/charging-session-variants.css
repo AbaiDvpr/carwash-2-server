@@ -8,6 +8,38 @@
   text-align: center;
 }
 
+.csv--refined {
+  max-width: none;
+  align-items: stretch;
+  text-align: left;
+  gap: var(--app-stack-gap, 0.75rem);
+}
+
+.csv-layout-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.csv-layout-switch__btn {
+  margin: 0;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border: var(--app-border-width) solid var(--app-border);
+  border-radius: var(--app-button-radius);
+  background: var(--app-block);
+  color: var(--app-text);
+  font-size: var(--app-text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.csv-layout-switch__btn.is-on {
+  border-color: var(--app-button);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-button) 22%, transparent);
+}
+
 .csv-ev-badge {
   display: inline-flex;
   align-items: center;
@@ -28,31 +60,6 @@
 
 .csv-ev-badge--inline {
   margin: 0;
-}
-
-.csv-ev-mark {
-  display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 0.85rem;
-  background: var(--map-charging, #facc15);
-  color: #111827;
-}
-
-.csv-ev-mark svg {
-  width: 1.15rem;
-  height: 1.15rem;
-}
-
-.csv-ev-mark--lg {
-  width: 3.25rem;
-  height: 3.25rem;
-}
-
-.csv-ev-mark--lg svg {
-  width: 1.35rem;
-  height: 1.35rem;
 }
 
 .csv-ring {
@@ -84,6 +91,10 @@
   stroke-width: 7;
   stroke-linecap: round;
   transition: stroke-dashoffset 90ms linear;
+}
+
+.csv-ring__value--charging {
+  stroke: var(--map-charging, #facc15);
 }
 
 .csv-ring__pct {
@@ -146,34 +157,17 @@
   margin-top: 0.25rem;
 }
 
-.csv-actions--pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.55rem;
-}
-
-.csv-chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.4rem;
-}
-
-.csv-chip {
-  display: inline-flex;
-  padding: 0.35rem 0.6rem;
-  border-radius: 0.65rem;
-  border: var(--app-border-width) solid
-    color-mix(in oklab, var(--app-border) 85%, transparent);
-  background: var(--app-block);
-  font-size: var(--app-text-xs, 0.75rem);
-  font-weight: 700;
-  color: var(--app-text);
+.csv--refined .csv-actions {
+  margin-top: 0;
 }
 
 .csv-shell {
   width: 100%;
   padding: 0.85rem 0.9rem 1rem;
+}
+
+.csv--refined .csv-shell {
+  padding: var(--app-row-pad-y) var(--app-row-pad-x);
 }
 
 .csv-shell__head {
@@ -194,40 +188,137 @@
 .csv-shell__body {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 0.45rem;
 }
 
-.csv-v3-head {
+.csv--refined .csv-shell__body {
+  align-items: stretch;
+}
+
+.csv-fill-progress {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
   width: 100%;
-  text-align: left;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
 }
 
-.csv-v3-head__text {
-  min-width: 0;
-  flex: 1;
+.csv-fill-progress--wash {
+  --csv-fill-color: var(--map-wash, #38bdf8);
 }
 
-.csv-v3-pct {
+.csv-fill-progress--charging {
+  --csv-fill-color: var(--map-charging, #facc15);
+}
+
+.csv-fill-progress__mark {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 860 / 201;
+}
+
+.csv-fill-progress__shape {
+  position: absolute;
+  inset: 0;
+  display: block;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.csv-fill-progress__shape--empty {
+  background: color-mix(in oklab, var(--app-description) 28%, transparent);
+}
+
+.csv-fill-progress__shape--fill {
+  background: var(--csv-fill-color);
+  clip-path: inset(0 calc(100% - var(--csv-fill, 0%)) 0 0);
+}
+
+.csv-fill-progress__pct {
   margin: 0;
-  font-size: 1.75rem;
+  text-align: center;
+  font-size: 1.15rem;
   font-weight: 750;
   letter-spacing: -0.03em;
   color: var(--app-text);
 }
 
-.csv-bar {
+.csv-fill-progress .csv-scale {
   width: 100%;
-  height: 0.55rem;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--app-description) 16%, transparent);
-  overflow: hidden;
+  max-width: none;
 }
 
-.csv-bar > span {
+.csv-fill-progress .csv-scale__value {
+  background: var(--csv-fill-color);
+}
+
+.csv-logo {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+/* PNG в SVG 1024², сам знак ~860×201 по центру (поля ~40% сверху/снизу). */
+.csv-logo__mark {
+  position: relative;
+  width: min(100%, 16.5rem);
+  aspect-ratio: 860 / 201;
+}
+
+.csv-logo__shape {
+  position: absolute;
+  inset: 0;
+  display: block;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 119.07% 509.45%;
+  mask-size: 119.07% 509.45%;
+}
+
+.csv-logo__shape--empty {
+  background: color-mix(in oklab, var(--app-description) 28%, transparent);
+}
+
+.csv-logo__shape--fill {
+  background: var(--map-charging, #facc15);
+  clip-path: inset(0 calc(100% - var(--csv-fill, 0%)) 0 0);
+}
+
+.csv-logo__pct {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: var(--app-text);
+}
+
+.csv-scale {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  max-width: 16rem;
+  font-size: var(--app-text-xs);
+  font-weight: 700;
+  color: var(--app-description);
+}
+
+.csv-scale__track {
+  height: 0.45rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--app-description) 16%, transparent);
+}
+
+.csv-scale__value {
   display: block;
   height: 100%;
   border-radius: inherit;
@@ -235,142 +326,34 @@
   transition: width 90ms linear;
 }
 
-.csv-v4-hero {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  width: 100%;
+.csv-scale__value--wash {
+  background: var(--map-wash, #38bdf8);
 }
 
-.csv-v4-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2rem;
-  text-align: left;
-}
-
-.csv-v4-side__label {
-  margin: 0.15rem 0 0;
-  font-size: var(--app-text-sm);
-  font-weight: 700;
-  color: var(--app-text);
-}
-
-.csv-v4-side__meta {
-  margin: 0;
-  font-size: var(--app-text-xs);
-  font-weight: 600;
-  color: var(--app-description);
-}
-
-.csv-v5-marker {
-  display: grid;
-  place-items: center;
-  width: 3.4rem;
-  height: 3.4rem;
-  border-radius: 1rem;
+.csv-scale__value--charging {
   background: var(--map-charging, #facc15);
-  color: #111827;
-  box-shadow: 0 0 0 2px #fff;
 }
 
-.csv-v5-marker svg {
-  width: 1.35rem;
-  height: 1.35rem;
-}
-
-.csv-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.55rem;
-  width: 100%;
-}
-
-.csv-grid__cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.7rem 0.75rem;
-  border-radius: var(--app-section-radius);
-  background: var(--app-block);
-  border: var(--app-border-width) solid
-    color-mix(in oklab, var(--app-border) 80%, transparent);
-  text-align: left;
-}
-
-.csv-grid__cell span {
-  font-size: var(--app-text-xs);
-  font-weight: 600;
-  color: var(--app-description);
-}
-
-.csv-grid__cell strong {
-  font-size: var(--app-text-sm);
-  font-weight: 750;
-  color: var(--app-text);
-}
-
-.csv-v6-top {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.csv-v6-port {
+.csv-pass {
   margin: 0;
-  font-size: var(--app-text-xs);
-  font-weight: 650;
-  color: var(--app-description);
-}
-
-.csv-v6-strip {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.45rem;
   width: 100%;
-  padding: 0.65rem 0.75rem;
-  border-radius: var(--app-section-radius);
-  background: var(--app-block);
-  border: var(--app-border-width) solid
-    color-mix(in oklab, var(--app-border) 80%, transparent);
+  padding: 0.45rem var(--app-row-pad-x);
+  border-radius: var(--app-section-radius-sm, 0.75rem);
   font-size: var(--app-text-xs);
   font-weight: 700;
+  text-align: center;
+}
+
+.csv-pass--ok {
+  background: color-mix(in oklab, var(--app-button) 14%, var(--app-block));
   color: var(--app-text);
 }
 
-.csv-v6-strip span + span::before {
-  content: "·";
-  margin-right: 0.45rem;
-  color: var(--app-description);
-  font-weight: 600;
-}
-
-.details-charging__variants {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.55rem;
-}
-
-.details-charging__variant {
-  min-width: 2rem;
-  height: 1.85rem;
-  padding: 0 0.55rem;
-  border-radius: 0.55rem;
-  border: 1px solid color-mix(in oklab, var(--app-description) 28%, transparent);
-  background: var(--app-block, #fff);
-  color: var(--app-text);
-  font-size: 0.7rem;
-  font-weight: 700;
+.csv-pass--buy {
+  border: 0;
+  background: transparent;
+  color: var(--app-button);
   cursor: pointer;
-  touch-action: manipulation;
-}
-
-.details-charging__variant.is-on {
-  background: var(--app-button);
-  border-color: transparent;
-  color: var(--app-button-text, #fff);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }

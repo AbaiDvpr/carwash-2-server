@@ -54,6 +54,8 @@ import ProfileNavRow from "./components/ProfileNavRow";
 import FaqSection from "./components/FaqSection";
 import { resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
 import { pickImage } from "@/lib/pickImage";
+import PreloaderPreview from "./components/PreloaderPreview";
+import PreloaderOverlay from "@/components/layout/PreloaderOverlay";
 import "./components/profile.css";
 import "@/features/history/components/history.css";
 
@@ -86,7 +88,8 @@ type AppearanceSection =
   | "page"
   | "buttons"
   | "shape"
-  | "back";
+  | "back"
+  | "preloader";
 
 const APPEARANCE_MENU: {
   id: Exclude<AppearanceSection, "menu">;
@@ -137,10 +140,16 @@ const APPEARANCE_MENU: {
     hint: "3 варианта",
     description: "Как показывать «Назад» в профиле и разделах",
   },
+  {
+    id: "preloader",
+    label: "Preloader",
+    hint: "30 вариантов",
+    description: "Анимация логотипа при загрузке — градиент и блик",
+  },
 ];
 
 const APPEARANCE_LAYOUT_GROUPS: Record<
-  Exclude<AppearanceSection, "menu" | "theme" | "back">,
+  Exclude<AppearanceSection, "menu" | "theme" | "back" | "preloader">,
   LayoutFieldGroup[]
 > = {
   text: ["text"],
@@ -567,7 +576,7 @@ export default function ProfilePage() {
   const [appearanceSection, setAppearanceSection] =
     useState<AppearanceSection>("menu");
   const { message: toastMessage, showToast } = useToast();
-  const { cityName } = useUserCity();
+  const { cityName, loading: cityLoading } = useUserCity();
 
   const [view, setView] = useState<ProfileView>("home");
   const [copied, setCopied] = useState(false);
@@ -577,7 +586,13 @@ export default function ProfilePage() {
   const [garageCount, setGarageCount] = useState<number | null>(null);
 
   const avatarSrc = resolveMediaUrl(photoUrl);
-  const bootLoading = !mounted || profileLoading;
+  const bootLoading =
+    !mounted ||
+    profileLoading ||
+    balanceLoading ||
+    cityLoading ||
+    pushLoading ||
+    (hasAccessToken() && garageCount == null);
   const heroPhotoLoading = Boolean(avatarSrc) && !avatarReady;
 
   const garageHint =
@@ -697,25 +712,22 @@ export default function ProfilePage() {
     <PageLayout
       title="Profile"
       description="Профиль пользователя CarWash"
-      className={view === "edit" ? "page--profile-edit" : undefined}
+      className={
+        view === "edit"
+          ? "page--profile-edit"
+          : view === "home" && bootLoading
+            ? "page--profile page--profile-boot"
+            : "page--profile"
+      }
     >
       <>
         {view === "home" && bootLoading ? (
-          <div className="profile-boot" role="status" aria-live="polite">
-            <div className="profile-boot__avatar" aria-hidden>
-              <span className="profile-boot__spinner" />
-            </div>
-            <p className="profile-boot__title">
-              {t("common.loading", "Загрузка...")}
-            </p>
-            <p className="profile-boot__hint">
-              {t("profile.loading_hint", "Загружаем профиль")}
-            </p>
-            <div className="profile-boot__cards" aria-hidden>
-              <div className="profile-boot__card" />
-              <div className="profile-boot__card" />
-              <div className="profile-boot__card profile-boot__card--short" />
-            </div>
+          <div className="profile-boot">
+            <PreloaderOverlay
+              mode="inline"
+              className="profile-boot__preloader"
+              label={t("profile.loading_hint", "Загружаем профиль")}
+            />
           </div>
         ) : null}
 
@@ -814,6 +826,15 @@ export default function ProfilePage() {
 
             <section className="profile-card">
               <ProfileNavRow
+                icon={<IconHistory />}
+                label={t("profile.history", "История")}
+                hint={t("profile.history_services_hint", "ЭЗС/Мойка")}
+                href="/profile/history"
+              />
+            </section>
+
+            <section className="profile-card">
+              <ProfileNavRow
                 icon={<IconPin />}
                 label={t("profile.city", "Ваш город")}
                 hint={cityName ?? t("profile.not_selected", "Не выбран")}
@@ -826,27 +847,23 @@ export default function ProfilePage() {
                 onClick={() => setView("garage2")}
               />
               <ProfileNavRow
-                icon={<IconHistory />}
-                label={t("profile.history", "История")}
-                hint={t("profile.history_hint", "Мойки и зарядки")}
-                href="/profile/history"
-              />
-              <ProfileNavRow
                 icon={<IconLang />}
                 label={t("profile.language", "Язык")}
                 hint={languageHint}
                 onClick={() => setView("language")}
               />
-              <ProfileNavRow
-                icon={<IconPalette />}
-                label={t("profile.appearance", "Оформление")}
-                hint="фон / кнопки / текст"
-                onClick={() => {
-                  setEditPaletteMode(theme);
-                  setAppearanceSection("menu");
-                  setView("appearance");
-                }}
-              />
+              {false ? (
+                <ProfileNavRow
+                  icon={<IconPalette />}
+                  label={t("profile.appearance", "Оформление")}
+                  hint="фон / кнопки / текст"
+                  onClick={() => {
+                    setEditPaletteMode(theme);
+                    setAppearanceSection("menu");
+                    setView("appearance");
+                  }}
+                />
+              ) : null}
             </section>
 
             <section className="profile-card">
@@ -1235,9 +1252,27 @@ export default function ProfilePage() {
               </section>
             ) : null}
 
+            {appearanceSection === "preloader" ? (
+              <section className="mb-5">
+                <SectionTitle>Preloader</SectionTitle>
+                <p
+                  className="mb-2 px-0.5 leading-relaxed"
+                  style={{
+                    color: "var(--app-description)",
+                    fontSize: "var(--app-text-sm)",
+                  }}
+                >
+                  Выберите вариант — он сохранится и будет на экране загрузки
+                  при рефреше. Цвета градиента из вашей иконки.
+                </p>
+                <PreloaderPreview />
+              </section>
+            ) : null}
+
             {appearanceSection !== "menu" &&
             appearanceSection !== "theme" &&
-            appearanceSection !== "back" ? (
+            appearanceSection !== "back" &&
+            appearanceSection !== "preloader" ? (
               <section className="mb-5">
                 <SectionTitle>
                   {APPEARANCE_MENU.find((m) => m.id === appearanceSection)?.label}
@@ -1352,7 +1387,7 @@ export default function ProfilePage() {
                   {APPEARANCE_LAYOUT_GROUPS[
                     appearanceSection as Exclude<
                       AppearanceSection,
-                      "menu" | "theme" | "back"
+                      "menu" | "theme" | "back" | "preloader"
                     >
                   ].map((group) => {
                     const fields = LAYOUT_FIELD_META.filter(
@@ -1362,7 +1397,7 @@ export default function ProfilePage() {
                       APPEARANCE_LAYOUT_GROUPS[
                         appearanceSection as Exclude<
                           AppearanceSection,
-                          "menu" | "theme" | "back"
+                          "menu" | "theme" | "back" | "preloader"
                         >
                       ].length > 1;
                     return (

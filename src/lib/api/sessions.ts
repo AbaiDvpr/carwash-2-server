@@ -83,9 +83,20 @@ export async function fetchAllSessions(
   total: number;
   sessions: HistorySession[];
 }> {
+  const wantWash =
+    params.wash !== undefined ||
+    (params.wash === undefined && params.charging === undefined);
+  const wantCharging =
+    params.charging !== undefined ||
+    (params.wash === undefined && params.charging === undefined);
+
   const [cw, ev] = await Promise.all([
-    fetchCwSessions(params.wash ?? {}),
-    fetchEvSessions(params.charging ?? {}),
+    wantWash
+      ? fetchCwSessions(params.wash ?? {})
+      : Promise.resolve({ total: 0, sessions: [] as HistorySession[] }),
+    wantCharging
+      ? fetchEvSessions(params.charging ?? {})
+      : Promise.resolve({ total: 0, sessions: [] as HistorySession[] }),
   ]);
 
   const sessions = [

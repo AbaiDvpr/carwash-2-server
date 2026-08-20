@@ -33,6 +33,7 @@ export default function Header() {
 
   if (
     pathname === "/" ||
+    pathname === "/dashboard" ||
     pathname.startsWith("/payment") ||
     pathname.startsWith("/map")
   ) {

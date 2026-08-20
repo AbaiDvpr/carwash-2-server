@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/hooks/useT";
 import type { HistoryKindFilter, HistoryPeriodFilter } from "@/lib/api/sessions";
@@ -161,7 +161,12 @@ function countKindFilters(filters: HistoryKindFilters): number {
   return count;
 }
 
-export function countHistoryFilters(filters: HistoryFiltersState): number {
+export function countHistoryFilters(
+  filters: HistoryFiltersState,
+  kind?: "wash" | "charging",
+): number {
+  if (kind === "wash") return countKindFilters(filters.wash);
+  if (kind === "charging") return countKindFilters(filters.charging);
   return countKindFilters(filters.wash) + countKindFilters(filters.charging);
 }
 
@@ -229,19 +234,28 @@ function RadioMark({ checked }: { checked: boolean }) {
 
 type HistoryFilterDrawerProps = {
   value: HistoryFiltersState;
+  kind?: "wash" | "charging";
   onApply: (next: HistoryFiltersState) => void;
   onClose: () => void;
 };
 
 export default function HistoryFilterDrawer({
   value,
+  kind,
   onApply,
   onClose,
 }: HistoryFilterDrawerProps) {
   const t = useT();
   const [portalReady, setPortalReady] = useState(false);
   const [draft, setDraft] = useState<HistoryFiltersState>(value);
-  const [activeTab, setActiveTab] = useState<HistoryKindTab>("wash");
+  const [activeTab, setActiveTab] = useState<HistoryKindTab>(kind ?? "wash");
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  const closeAndApply = () => {
+    onApply(draftRef.current);
+    onClose();
+  };
 
   useEffect(() => {
     setPortalReady(true);
@@ -249,18 +263,18 @@ export default function HistoryFilterDrawer({
 
   useEffect(() => {
     setDraft(value);
-  }, [value]);
+    if (kind) setActiveTab(kind);
+  }, [value, kind]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeAndApply();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onApply, onClose]);
 
-  const section = draft[activeTab];
-  const statusOptions = activeTab === "charging" ? CHARGING_STATUSES : WASH_STATUSES;
+  const tabs: HistoryKindTab[] = kind ? [kind] : ["wash", "charging"];
 
   const periodOptions: { value: HistoryPeriodFilter; label: string }[] = [
     { value: "all", label: t("history.filter_all", "Все") },
@@ -270,13 +284,6 @@ export default function HistoryFilterDrawer({
     { value: "30d", label: t("history.filter_30d", "30 дней") },
   ];
 
-  const patchTab = (next: Partial<HistoryKindFilters>) => {
-    setDraft((prev) => ({
-      ...prev,
-      [activeTab]: { ...prev[activeTab], ...next },
-    }));
-  };
-
   if (!portalReady) return null;
 
   return createPortal(
@@ -284,7 +291,7 @@ export default function HistoryFilterDrawer({
       <button
         type="button"
         className="history-drawer__backdrop"
-        onClick={onClose}
+        onClick={closeAndApply}
         aria-label={t("common.close", "Закрыть")}
       />
       <div
@@ -301,7 +308,7 @@ export default function HistoryFilterDrawer({
             <button
               type="button"
               className="app-drawer-close"
-              onClick={onClose}
+              onClick={closeAndApply}
               aria-label={t("common.close", "Закрыть")}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -309,115 +316,136 @@ export default function HistoryFilterDrawer({
               </svg>
             </button>
           </div>
-          <div
-            className="history-kind"
-            role="tablist"
-            aria-label={t("history.filter_type", "Тип")}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "wash"}
-              className={`history-kind__btn${activeTab === "wash" ? " is-on" : ""}`}
-              onClick={() => setActiveTab("wash")}
+          {!kind ? (
+            <div
+              className="history-kind"
+              role="tablist"
+              aria-label={t("history.filter_type", "Тип")}
             >
-              {t("common.wash", "Мойка")}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "charging"}
-              className={`history-kind__btn${activeTab === "charging" ? " is-on" : ""}`}
-              onClick={() => setActiveTab("charging")}
-            >
-              {t("common.charging", "ЭЗС")}
-            </button>
-          </div>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "wash"}
+                className={`history-kind__btn${activeTab === "wash" ? " is-on" : ""}`}
+                onClick={() => setActiveTab("wash")}
+              >
+                {t("common.wash", "Мойка")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "charging"}
+                className={`history-kind__btn${activeTab === "charging" ? " is-on" : ""}`}
+                onClick={() => setActiveTab("charging")}
+              >
+                {t("common.charging", "ЭЗС")}
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div className="history-drawer__body">
-          <section className="history-filter-section history-filter-section--rows">
-            <p className="history-filter-section__label">
-              {t("history.filter_period", "Период")}
-            </p>
-            <div role="radiogroup" aria-label={t("history.filter_period", "Период")}>
-              {periodOptions.map((option) => {
-                const on = section.period === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    className="history-filter-row"
-                    onClick={() => patchTab({ period: option.value })}
-                  >
-                    <RadioMark checked={on} />
-                    <span>{option.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          <div className="history-filter-stack">
+            {tabs.map((tab) => {
+              const tabSection = draft[tab];
+              const statusOptions = tab === "charging" ? CHARGING_STATUSES : WASH_STATUSES;
+              return (
+                <div
+                  key={tab}
+                  className={`history-filter-pane${activeTab === tab ? " is-on" : ""}`}
+                  aria-hidden={activeTab !== tab}
+                >
+                  <section className="history-filter-section history-filter-section--rows">
+                    <p className="history-filter-section__label">
+                      {t("history.filter_period", "Период")}
+                    </p>
+                    <div role="radiogroup" aria-label={t("history.filter_period", "Период")}>
+                      {periodOptions.map((option) => {
+                        const on = tabSection.period === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={on}
+                            className="history-filter-row"
+                            onClick={() =>
+                              setDraft((prev) => ({
+                                ...prev,
+                                [tab]: { ...prev[tab], period: option.value },
+                              }))
+                            }
+                          >
+                            <RadioMark checked={on} />
+                            <span>{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
 
-          <section className="history-filter-section history-filter-section--rows">
-            <p className="history-filter-section__label">
-              {t("history.filter_status", "Статус")}
-            </p>
-            <div role="radiogroup" aria-label={t("history.filter_status", "Статус")}>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={section.statuses.length === 0}
-                className="history-filter-row"
-                onClick={() => patchTab({ statuses: [] })}
-              >
-                <RadioMark checked={section.statuses.length === 0} />
-                <span>{t("history.filter_all", "Все")}</span>
-              </button>
-              {statusOptions.map((status) => {
-                const on = section.statuses[0] === status;
-                return (
-                  <button
-                    key={status}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    className="history-filter-row"
-                    onClick={() => patchTab({ statuses: [status] })}
-                  >
-                    <RadioMark checked={on} />
-                    <span>{historyStatusLabel(status, t)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        </div>
+                  <section className="history-filter-section history-filter-section--rows">
+                    <p className="history-filter-section__label">
+                      {t("history.filter_status", "Статус")}
+                    </p>
+                    <div role="radiogroup" aria-label={t("history.filter_status", "Статус")}>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={tabSection.statuses.length === 0}
+                        className="history-filter-row"
+                        onClick={() =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            [tab]: { ...prev[tab], statuses: [] },
+                          }))
+                        }
+                      >
+                        <RadioMark checked={tabSection.statuses.length === 0} />
+                        <span>{t("history.filter_all", "Все")}</span>
+                      </button>
+                      {statusOptions.map((status) => {
+                        const on = tabSection.statuses[0] === status;
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            role="radio"
+                            aria-checked={on}
+                            className="history-filter-row"
+                            onClick={() =>
+                              setDraft((prev) => ({
+                                ...prev,
+                                [tab]: { ...prev[tab], statuses: [status] },
+                              }))
+                            }
+                          >
+                            <RadioMark checked={on} />
+                            <span>{historyStatusLabel(status, t)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
+              );
+            })}
+          </div>
 
-        <div className="history-drawer__footer">
-          <button
-            type="button"
-            className="history-drawer__reset"
-            onClick={() =>
-              setDraft((prev) => ({
-                ...prev,
-                [activeTab]: createDefaultKindFilters(),
-              }))
-            }
-          >
-            {t("history.filter_reset", "Сбросить")}
-          </button>
-          <button
-            type="button"
-            className="history-drawer__apply"
-            onClick={() => {
-              onApply(draft);
-              onClose();
-            }}
-          >
-            {t("history.filter_apply", "Применить")}
-          </button>
+          <div className="history-drawer__reset-wrap">
+            <button
+              type="button"
+              className="history-drawer__reset"
+              onClick={() =>
+                setDraft((prev) => ({
+                  ...prev,
+                  [activeTab]: createDefaultKindFilters(),
+                }))
+              }
+            >
+              {t("history.filter_reset", "Сбросить")}
+            </button>
+          </div>
         </div>
       </div>
     </>,
