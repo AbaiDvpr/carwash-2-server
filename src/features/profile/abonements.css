@@ -2,6 +2,52 @@
   margin: var(--app-stack-gap, 1rem) 0 0.85rem;
 }
 
+.abonements-buy-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: auto;
+  margin-inline: calc(-1 * var(--app-page-pad-x, 1rem));
+  padding: 0.85rem var(--app-page-pad-x, 1rem)
+    calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  background: var(--background);
+}
+
+.abonements-buy-bar .abonements-buy-btn {
+  margin: 0;
+}
+
+.abonements-buy-bar .abonements-buy-note {
+  margin: 0;
+}
+
+.abonements-buy-bar .cw-pay__hint {
+  margin: 0;
+}
+
+.abonements-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 0 0.25rem;
+  /* место под фиксированную кнопку */
+  padding-bottom: 0.25rem;
+}
+
+.abonements-stack__item {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.abonements-stack__item:active .abonement-plastic--list {
+  transform: scale(0.985);
+}
+
 .abonements-buy-note {
   margin: 0 0 0.75rem;
   padding: 0 0.15rem;
@@ -9,6 +55,132 @@
   font-weight: 600;
   line-height: 1.4;
   color: var(--app-button);
+}
+
+.abonements-slider {
+  position: relative;
+  margin: 0 calc(-1 * var(--app-page-pad-x, 1rem)) 0.55rem;
+  padding: 0.15rem 0 0.35rem;
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: grab;
+}
+
+.abonements-slider:active {
+  cursor: grabbing;
+}
+
+.abonements-slider__track {
+  display: flex;
+  gap: 0.75rem;
+  will-change: transform;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.abonements-slider__track.is-dragging,
+.abonements-slider__track.is-instant {
+  transition: none;
+}
+
+.abonements-slider__slide {
+  flex: 0 0 min(86vw, 22rem);
+  background: transparent;
+  box-shadow: none;
+}
+
+
+.abonements-slider .abonement-plastic--slide {
+  justify-content: flex-start;
+  gap: 0.25rem;
+}
+
+.abonements-slider .abonement-plastic--slide .abonement-plastic__logo {
+  width: 4.25rem;
+  height: 2.5rem;
+}
+
+.abonement-plastic__hero {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.55rem;
+}
+
+.abonement-plastic__hero-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--abonement-ink-muted);
+}
+
+.abonement-plastic__hero-value {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.45rem, 5.8vw, 1.8rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.abonement-plastic__hero-unit {
+  font-size: 0.58em;
+  font-weight: 700;
+  letter-spacing: 0;
+  opacity: 0.88;
+}
+
+.abonements-slider .abonement-plastic--slide .abonement-plastic__bars {
+  margin-top: 0.45rem;
+}
+
+.abonements-slider .abonement-plastic--slide .abonement-plastic__number {
+  margin-top: 0.5rem;
+  font-size: clamp(0.85rem, 3.6vw, 1rem);
+}
+
+.abonement-plastic__meta--slide {
+  margin-top: auto;
+  padding-top: 0.45rem;
+}
+
+.abonement-plastic__meta-value--price {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.abonements-slider__dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0 0 0.85rem;
+}
+
+.abonements-slider__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--app-description) 35%, transparent);
+  cursor: pointer;
+  transition:
+    width 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.abonements-slider__dot.is-active {
+  width: 1.1rem;
+  background: var(--app-button);
+}
+
+.abonements-slider__footer {
+  display: flex;
+  flex-direction: column;
 }
 
 .abonements-kind-dot {
@@ -79,7 +251,7 @@
   overflow: hidden;
   border-radius: 1.05rem;
   color: var(--abonement-ink);
-  box-shadow: 0 12px 28px rgb(15 23 42 / 0.22);
+  box-shadow: none;
 }
 
 /* ЭЗС — жёлтый */
@@ -106,28 +278,19 @@
   );
 }
 
-.abonement-plastic::before {
-  content: "";
-  position: absolute;
-  right: -18%;
-  top: -25%;
-  width: 62%;
-  height: 90%;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.14);
-  pointer-events: none;
+.abonement-plastic::before,
+.abonement-plastic::after {
+  content: none;
+  display: none;
 }
 
-.abonement-plastic::after {
-  content: "";
-  position: absolute;
-  left: -12%;
-  bottom: -35%;
-  width: 55%;
-  height: 70%;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.1);
-  pointer-events: none;
+/* List / slide overrides */
+.abonement-plastic.abonement-plastic--list,
+.abonement-plastic.abonement-plastic--slide {
+  width: 100%;
+  margin: 0;
+  min-height: 12.5rem;
+  transition: transform 0.15s ease;
 }
 
 .abonement-plastic__top {

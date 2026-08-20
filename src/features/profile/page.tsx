@@ -840,26 +840,15 @@ export default function ProfilePage() {
                     </span>
                   </button>
                 </div>
-                <div className="profile-card__balance-item">
-                  <Link
-                    href="/profile/abonements"
-                    className="profile-card__balance-link"
-                    aria-label={t("profile.abonements", "Абонементы")}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <p className="profile-card__balance-label">
-                        {t("profile.abonement", "Абонемент")}
-                      </p>
-                      <p className="profile-card__balance-value">
-                        {abonementHint}
-                      </p>
-                    </span>
-                    <span className="profile-card__balance-action">
-                      {t("profile.open", "Открыть")}
-                    </span>
-                  </Link>
-                </div>
               </div>
+            </section>
+
+            <section className="profile-card">
+              <ProfileNavRow
+                label={t("profile.abonement", "Абонемент")}
+                hint={abonementHint}
+                href="/profile/abonements"
+              />
             </section>
 
             <section className="profile-card">
