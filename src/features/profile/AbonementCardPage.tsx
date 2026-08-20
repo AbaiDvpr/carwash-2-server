@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
@@ -9,12 +9,13 @@ import {
   abonementKindClass,
   abonementKindSuffix,
   abonementProgress,
+  fetchAbonementCard,
   formatAbonementDeadline,
   formatAbonementDeadlineShort,
   formatAbonementMoney,
   formatKwh,
-  getAbonementById,
   isAbonementExpired,
+  type AbonementCard,
 } from "./abonements";
 import brandIcon from "@/img/image_1787059580707.svg";
 import "./components/profile.css";
@@ -60,9 +61,57 @@ export default function AbonementCardPage() {
   const t = useT();
   const params = useParams<{ card_id: string }>();
   const cardId = typeof params?.card_id === "string" ? params.card_id : "";
-  const card = useMemo(() => getAbonementById(cardId), [cardId]);
+  const [card, setCard] = useState<AbonementCard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!card) {
+  useEffect(() => {
+    if (!cardId) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchAbonementCard(cardId);
+        if (!cancelled) {
+          setCard(data);
+          setNotFound(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setCard(null);
+          setNotFound(true);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId]);
+
+  if (loading) {
+    return (
+      <PageLayout
+        title={t("profile.abonements", "Абонементы")}
+        className="page--profile-edit"
+      >
+        <div className="profile-edit">
+          <div className="app-back-bar">
+            <BackButton iconOnly href="/profile/abonements" />
+          </div>
+          <section className="profile-card">
+            <p className="profile-garage-empty">{t("common.loading", "Загрузка…")}</p>
+          </section>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!card || notFound) {
     return (
       <PageLayout
         title={t("profile.abonements", "Абонементы")}
@@ -115,14 +164,14 @@ export default function AbonementCardPage() {
           <p className="abonement-plastic__label">{card.subtitle}</p>
 
           <div className="abonement-plastic__bars">
-            {card.kind === "ev" || card.kind === "combo" ? (
+            {card.kind === "ev" ? (
               <ProgressRow
                 label={t("profile.abonement_kwh_left", "Осталось кВт·ч")}
                 valueLabel={`${formatKwh(card.remainingKwh ?? 0)} / ${formatKwh(card.totalKwh ?? 0)}`}
                 ratio={kwhRatio}
               />
             ) : null}
-            {card.kind === "wash" || card.kind === "combo" ? (
+            {card.kind === "wash" ? (
               <ProgressRow
                 label={t("profile.abonement_wash_left", "Осталось моек")}
                 valueLabel={`${card.remainingWashes ?? 0} / ${card.totalWashes ?? 0}`}
@@ -169,7 +218,7 @@ export default function AbonementCardPage() {
               </p>
             </div>
 
-            {card.kind === "ev" || card.kind === "combo" ? (
+            {card.kind === "ev" ? (
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
                   {t("profile.abonement_kwh_left", "Осталось кВт·ч")}
@@ -184,7 +233,7 @@ export default function AbonementCardPage() {
               </div>
             ) : null}
 
-            {card.kind === "wash" || card.kind === "combo" ? (
+            {card.kind === "wash" ? (
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
                   {t("profile.abonement_wash_left", "Осталось моек")}

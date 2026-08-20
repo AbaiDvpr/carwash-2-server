@@ -1,17 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
+import { ApiError } from "@/lib/api";
 import { useT } from "@/hooks/useT";
 import {
   abonementKindClass,
   abonementKindSuffix,
+  buyAbonementOffer,
+  fetchAbonementOffers,
   formatAbonementMoney,
   formatKwh,
   formatValidityDays,
-  getAbonementOfferById,
+  type AbonementOffer,
 } from "./abonements";
 import brandIcon from "@/img/image_1787059580707.svg";
 import "./components/profile.css";
@@ -22,11 +25,50 @@ const BRAND_ICON_SRC =
 
 export default function AbonementBuyOfferPage() {
   const t = useT();
+  const router = useRouter();
   const params = useParams<{ offer_id: string }>();
   const offerId = typeof params?.offer_id === "string" ? params.offer_id : "";
-  const offer = useMemo(() => getAbonementOfferById(offerId), [offerId]);
+  const [offer, setOffer] = useState<AbonementOffer | null>(null);
+  const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
   const [bought, setBought] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const offers = await fetchAbonementOffers();
+        if (cancelled) return;
+        setOffer(offers.find((item) => item.id === offerId) ?? null);
+      } catch {
+        if (!cancelled) setOffer(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [offerId]);
+
+  if (loading) {
+    return (
+      <PageLayout
+        title={t("profile.buy_abonement", "Купить абонемент")}
+        className="page--profile-edit"
+      >
+        <div className="profile-edit">
+          <div className="app-back-bar">
+            <BackButton iconOnly href="/profile/abonements/buy" />
+          </div>
+          <section className="profile-card">
+            <p className="profile-garage-empty">{t("common.loading", "Загрузка…")}</p>
+          </section>
+        </div>
+      </PageLayout>
+    );
+  }
 
   if (!offer) {
     return (
@@ -48,14 +90,30 @@ export default function AbonementBuyOfferPage() {
     );
   }
 
-  const handleBuy = () => {
+  const handleBuy = async () => {
     if (buying || bought) return;
     setBuying(true);
-    // Mock фронт — API ещё нет
-    window.setTimeout(() => {
-      setBuying(false);
+    setError(null);
+    try {
+      const res = await buyAbonementOffer(offer.id);
       setBought(true);
-    }, 700);
+      window.setTimeout(() => {
+        router.push(`/profile/abonements/${res.card.id}`);
+      }, 600);
+    } catch (err) {
+      const body =
+        err instanceof ApiError
+          ? (err.body as { message?: string; errors?: Record<string, string[]> })
+          : null;
+      setError(
+        body?.errors?.amount?.[0] ??
+          body?.errors?.offer_id?.[0] ??
+          body?.message ??
+          t("payment.failed", "Не удалось оплатить"),
+      );
+    } finally {
+      setBuying(false);
+    }
   };
 
   return (
@@ -177,19 +235,22 @@ export default function AbonementBuyOfferPage() {
           </div>
         </section>
 
+        {error ? (
+          <p className="cw-pay__hint is-danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+
         {bought ? (
           <p className="abonements-buy-note theme-description" role="status">
-            {t(
-              "profile.abonement_buy_mock_ok",
-              "Покупка пока на фронте — API подключим позже.",
-            )}
+            {t("profile.abonement_bought", "Куплено")}
           </p>
         ) : null}
 
         <button
           type="button"
           className="theme-button w-full abonements-buy-btn"
-          onClick={handleBuy}
+          onClick={() => void handleBuy()}
           disabled={buying || bought}
         >
           {bought

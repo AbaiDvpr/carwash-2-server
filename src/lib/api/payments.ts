@@ -32,6 +32,7 @@ export async function payCarWash(input: {
   tariff_id: number;
   description?: string;
   car_id?: number;
+  abonement_id?: number;
 }): Promise<BalancePaymentResponse> {
   const data = await apiFetch<BalancePaymentResponse>("/api/payments/car-wash", {
     method: "POST",
@@ -48,6 +49,7 @@ export async function payEv(input: {
   session_id?: number;
   description?: string;
   car_id?: number;
+  abonement_id?: number;
 }): Promise<BalancePaymentResponse> {
   const data = await apiFetch<BalancePaymentResponse>("/api/payments/ev", {
     method: "POST",

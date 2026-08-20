@@ -44,6 +44,7 @@ import { usePromoCode } from "./hooks/usePromoCode";
 import { hasAccessToken } from "@/lib/authToken";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { useUserBalance, formatBalance } from "./hooks/useUserBalance";
+import { fetchAbonementCards } from "./abonements";
 import BalanceTopUp from "./components/BalanceTopUp";
 import AvatarCropper from "./components/AvatarCropper";
 import IconActionButton, {
@@ -584,6 +585,7 @@ export default function ProfilePage() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [avatarReady, setAvatarReady] = useState(false);
   const [garageCount, setGarageCount] = useState<number | null>(null);
+  const [abonementCount, setAbonementCount] = useState<number | null>(null);
 
   const avatarSrc = resolveMediaUrl(photoUrl);
   const bootLoading =
@@ -612,10 +614,27 @@ export default function ProfilePage() {
       .catch(() => {
         if (!cancelled) setGarageCount(0);
       });
+    void fetchAbonementCards()
+      .then((list) => {
+        if (!cancelled) setAbonementCount(list.length);
+      })
+      .catch(() => {
+        if (!cancelled) setAbonementCount(0);
+      });
     return () => {
       cancelled = true;
     };
   }, [view]);
+
+  const abonementHint =
+    abonementCount == null
+      ? "…"
+      : abonementCount === 0
+        ? t("profile.abonements_empty_short", "Нет карт")
+        : t("profile.abonement_cards_n", "{{n}} карты").replace(
+            "{{n}}",
+            String(abonementCount),
+          );
 
   useEffect(() => {
     if (!avatarSrc) {
@@ -832,7 +851,7 @@ export default function ProfilePage() {
                         {t("profile.abonement", "Абонемент")}
                       </p>
                       <p className="profile-card__balance-value">
-                        {t("profile.abonement_cards", "3 карты")}
+                        {abonementHint}
                       </p>
                     </span>
                     <span className="profile-card__balance-action">

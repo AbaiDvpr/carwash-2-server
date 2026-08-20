@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
@@ -11,6 +11,11 @@ import { payCarWash, payEv, payFromBalance } from "@/lib/api/payments";
 import { useT, useLocale } from "@/hooks/useT";
 import { localizeWashTariff } from "@/lib/api/cw";
 import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
+import {
+  fetchAbonementCards,
+  washAbonements,
+  type AbonementCard,
+} from "@/features/profile/abonements";
 import WashPrepareTimer from "@/features/wash/WashPrepareTimer";
 import WashSessionView from "@/features/wash/WashSessionView";
 import "@/features/profile/components/profile.css";
@@ -73,7 +78,8 @@ function paymentErrorMessage(err: unknown, fallback: string): string {
     const fieldError =
       body?.errors?.amount?.[0] ??
       body?.errors?.tariff_id?.[0] ??
-      body?.errors?.location_id?.[0];
+      body?.errors?.location_id?.[0] ??
+      body?.errors?.abonement_id?.[0];
     if (fieldError) return fieldError;
     if (body?.message) return body.message;
   }
@@ -92,8 +98,25 @@ export default function CarWashPayment({
   const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(
     () => tariff,
   );
+  const [paySource, setPaySource] = useState<"balance" | string>("balance");
+  const [abonCards, setAbonCards] = useState<AbonementCard[]>([]);
   const [step, setStep] = useState<PayStep>("form");
   const [payError, setPayError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cards = await fetchAbonementCards();
+        if (!cancelled) setAbonCards(washAbonements(cards));
+      } catch {
+        if (!cancelled) setAbonCards([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const tariffs = station.tariff.map((tariff) => localizeWashTariff(tariff, locale));
   const selected = tariffs.find((tariff) => {
@@ -101,8 +124,11 @@ export default function CarWashPayment({
     return key === selectedTariffKey;
   });
   const balanceValue = balance ?? 0;
-  const canAfford =
+  const payWithAbonement = paySource !== "balance";
+  const canAffordBalance =
     selected != null && Number.isFinite(balanceValue) && balanceValue >= selected.price;
+  const canAfford =
+    selected != null && (payWithAbonement || canAffordBalance);
   const locked =
     step === "processing" ||
     step === "preparing" ||
@@ -142,25 +168,35 @@ export default function CarWashPayment({
       const description = `${station.paymentTitle} · ${selected.title}`;
       const evId = parseEvStationId(station.id);
       const cwId = /^\d+$/.test(station.id) ? Number.parseInt(station.id, 10) : null;
+      const abonementId =
+        paySource !== "balance" ? Number.parseInt(paySource, 10) : undefined;
+      const abonPayload =
+        abonementId != null && Number.isFinite(abonementId)
+          ? { abonement_id: abonementId }
+          : {};
 
       if (evId != null && selected.id != null) {
         await payEv({
           location_id: evId,
           tariff_id: selected.id,
           description,
+          ...abonPayload,
         });
       } else if (cwId != null && Number.isFinite(cwId) && selected.id != null) {
         await payCarWash({
           location_id: cwId,
           tariff_id: selected.id,
           description,
+          ...abonPayload,
         });
-      } else {
+      } else if (!payWithAbonement) {
         await payFromBalance({
           amount: selected.price,
           tariff_title: selected.title,
           description,
         });
+      } else {
+        throw new Error(t("payment.failed", "Не удалось оплатить"));
       }
 
       await refreshBalance();
@@ -314,6 +350,60 @@ export default function CarWashPayment({
 
             <section className="profile-card">
               <div className="profile-card__balance">
+                <p className="cw-pay__title">{t("payment.pay_method", "Способ оплаты")}</p>
+                <div
+                  className="cw-pay__tariffs"
+                  role="radiogroup"
+                  aria-label={t("payment.pay_method", "Способ оплаты")}
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={paySource === "balance"}
+                    className={`cw-pay__tariff${paySource === "balance" ? " is-on" : ""}`}
+                    disabled={locked}
+                    onClick={() => setPaySource("balance")}
+                  >
+                    <RadioMark checked={paySource === "balance"} />
+                    <span className="cw-pay__tariff-body">
+                      <span className="cw-pay__tariff-title">
+                        {t("home.balance", "Баланс")}
+                      </span>
+                      <span className="cw-pay__tariff-desc">
+                        {balanceLoading && balance == null
+                          ? "…"
+                          : formatBalance(balanceValue)}
+                      </span>
+                    </span>
+                  </button>
+                  {abonCards.map((card) => {
+                    const checked = paySource === card.id;
+                    return (
+                      <button
+                        key={card.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        className={`cw-pay__tariff${checked ? " is-on" : ""}`}
+                        disabled={locked}
+                        onClick={() => setPaySource(card.id)}
+                      >
+                        <RadioMark checked={checked} />
+                        <span className="cw-pay__tariff-body">
+                          <span className="cw-pay__tariff-title">{card.title}</span>
+                          <span className="cw-pay__tariff-desc">
+                            {`${card.remainingWashes ?? 0} моек`}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-card">
+              <div className="profile-card__balance">
                 <p className="cw-pay__title">{t("payment.tariffs", "Тарифы")}</p>
                 <div
                   className="cw-pay__tariffs"
@@ -355,7 +445,7 @@ export default function CarWashPayment({
               </div>
             </section>
 
-            {selected && !canAfford && !balanceLoading ? (
+            {selected && !canAfford && !balanceLoading && !payWithAbonement ? (
               <p className="cw-pay__hint is-danger">
                 {t("payment.insufficient", "Недостаточно средств")}.{" "}
                 {t("payment.need", "Нужно")} {selected.price} ₸,{" "}

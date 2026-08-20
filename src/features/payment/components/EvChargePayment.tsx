@@ -6,6 +6,12 @@ import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
 import { useT } from "@/hooks/useT";
 import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
+import {
+  evAbonements,
+  fetchAbonementCards,
+  formatKwh,
+  type AbonementCard,
+} from "@/features/profile/abonements";
 import { ApiError } from "@/lib/api";
 import { payEv } from "@/lib/api/payments";
 import {
@@ -17,6 +23,7 @@ import {
 } from "@/lib/api/evSessions";
 import "@/features/profile/components/profile.css";
 import "../ev-charge-payment.css";
+import "../car-wash-payment.css";
 
 function IconOk() {
   return (
@@ -31,6 +38,22 @@ function IconFail() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden>
       <path strokeLinecap="round" d="M7 7l10 10M17 7 7 17" />
     </svg>
+  );
+}
+
+function RadioMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={[
+        "theme-radio relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition",
+        checked ? "is-on" : "",
+      ].join(" ")}
+      aria-hidden
+    >
+      {checked ? (
+        <span className="h-2 w-2 rounded-full bg-[var(--app-button-text)]" />
+      ) : null}
+    </span>
   );
 }
 
@@ -49,7 +72,24 @@ export default function EvChargePayment() {
   const [paying, setPaying] = useState(false);
   const [payResult, setPayResult] = useState<"success" | "error" | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  const [paySource, setPaySource] = useState<"balance" | string>("balance");
+  const [abonCards, setAbonCards] = useState<AbonementCard[]>([]);
   const payTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cards = await fetchAbonementCards();
+        if (!cancelled) setAbonCards(evAbonements(cards));
+      } catch {
+        if (!cancelled) setAbonCards([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,9 +192,14 @@ export default function EvChargePayment() {
     setPayError(null);
 
     try {
+      const abonementId =
+        paySource !== "balance" ? Number.parseInt(paySource, 10) : undefined;
       await payEv({
         session_id: session.id,
         description: `${address} · ${portLabel}/${standTitle} · ${limitLabel}`,
+        ...(abonementId != null && Number.isFinite(abonementId)
+          ? { abonement_id: abonementId }
+          : {}),
       });
       setPayResult("success");
     } catch (err) {
@@ -165,6 +210,7 @@ export default function EvChargePayment() {
       const message =
         body?.errors?.amount?.[0] ??
         body?.errors?.session_id?.[0] ??
+        body?.errors?.abonement_id?.[0] ??
         body?.message ??
         t("ev.pay_failed", "Не удалось оплатить");
       setPayError(message);
@@ -316,7 +362,10 @@ export default function EvChargePayment() {
   }
 
   const balanceValue = balance ?? 0;
-  const canPay = balanceValue >= amount && !session.payment_id;
+  const payWithAbonement = paySource !== "balance";
+  const canPay =
+    !session.payment_id &&
+    (payWithAbonement || balanceValue >= amount);
 
   return (
     <PageLayout title={t("payment.title", "Оплата")} className="page--profile-edit">
@@ -325,7 +374,7 @@ export default function EvChargePayment() {
           <PayBack />
         </div>
 
-        <div className="profile-edit__main ev-pay profile-home">
+        <div className="profile-edit__main ev-pay cw-pay profile-home">
           <section className="profile-card">
             <div className="profile-card__balance ev-pay__order">
               <div className="profile-card__balance-item">
@@ -361,21 +410,71 @@ export default function EvChargePayment() {
 
           <section className="profile-card">
             <div className="profile-card__balance">
+              <p className="cw-pay__title">{t("payment.pay_method", "Способ оплаты")}</p>
+              <div
+                className="cw-pay__tariffs"
+                role="radiogroup"
+                aria-label={t("payment.pay_method", "Способ оплаты")}
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={paySource === "balance"}
+                  className={`cw-pay__tariff${paySource === "balance" ? " is-on" : ""}`}
+                  disabled={paying}
+                  onClick={() => setPaySource("balance")}
+                >
+                  <RadioMark checked={paySource === "balance"} />
+                  <span className="cw-pay__tariff-body">
+                    <span className="cw-pay__tariff-title">
+                      {t("home.balance", "Баланс")}
+                    </span>
+                    <span className="cw-pay__tariff-desc">
+                      {balanceLoading && balance == null
+                        ? "…"
+                        : formatBalance(balanceValue)}
+                    </span>
+                  </span>
+                </button>
+                {abonCards.map((card) => {
+                  const checked = paySource === card.id;
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={checked}
+                      className={`cw-pay__tariff${checked ? " is-on" : ""}`}
+                      disabled={paying}
+                      onClick={() => setPaySource(card.id)}
+                    >
+                      <RadioMark checked={checked} />
+                      <span className="cw-pay__tariff-body">
+                        <span className="cw-pay__tariff-title">{card.title}</span>
+                        <span className="cw-pay__tariff-desc">
+                          {formatKwh(card.remainingKwh ?? 0)}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          <section className="profile-card">
+            <div className="profile-card__balance">
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
-                  {t("home.balance", "Баланс")}
+                  {payWithAbonement
+                    ? t("profile.abonement", "Абонемент")
+                    : t("ev.from_balance", "С баланса")}
                 </p>
                 <p className="profile-card__balance-value">
-                  {balanceLoading && balance == null
-                    ? "…"
-                    : formatBalance(balanceValue)}
+                  {payWithAbonement
+                    ? t("payment.by_abonement", "Списание с карты")
+                    : `${amountLabel} ₸`}
                 </p>
-              </div>
-              <div className="profile-card__balance-item">
-                <p className="profile-card__balance-label">
-                  {t("ev.from_balance", "С баланса")}
-                </p>
-                <p className="profile-card__balance-value">{amountLabel} ₸</p>
               </div>
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
@@ -388,7 +487,9 @@ export default function EvChargePayment() {
                   {t("ev.total", "Итого")}
                 </p>
                 <p className="profile-card__balance-value ev-pay__total-value">
-                  {amountLabel} ₸
+                  {payWithAbonement
+                    ? t("payment.abonement_cover", "По абонементу")
+                    : `${amountLabel} ₸`}
                 </p>
               </div>
             </div>
@@ -403,7 +504,9 @@ export default function EvChargePayment() {
             >
               {paying
                 ? t("common.loading", "Загрузка…")
-                : `${t("ev.pay", "Оплатить")} · ${amountLabel} ₸`}
+                : payWithAbonement
+                  ? t("ev.pay_abonement", "Оплатить абонементом")
+                  : `${t("ev.pay", "Оплатить")} · ${amountLabel} ₸`}
             </button>
           </div>
         </div>
