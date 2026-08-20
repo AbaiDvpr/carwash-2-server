@@ -641,13 +641,11 @@ export default function StationMapDrawer({
   const isCharging = station.kind === "charging";
 
   const toggleRoute = () => {
-    setHoursOpen(false);
-    setRouteOpen(true);
+    setRouteOpen((open) => !open);
   };
 
   const toggleHours = () => {
-    setRouteOpen(false);
-    setHoursOpen(true);
+    setHoursOpen((open) => !open);
   };
 
   const closeRoute = () => setRouteOpen(false);
@@ -938,18 +936,9 @@ export default function StationMapDrawer({
         className={`map-station-sheet is-peek has-photo-static${loading ? " is-refreshing" : ""}`}
         role="dialog"
         aria-labelledby={
-          hoursOpen || routeOpen
-            ? undefined
-            : selectedStand
-              ? "map-station-sheet-title"
-              : "map-station-photo-title"
-        }
-        aria-label={
-          hoursOpen
-            ? t("map.hours_schedule", "График работы")
-            : routeOpen
-              ? t("map.build_route", "Проложить маршрут")
-              : undefined
+          selectedStand
+            ? "map-station-sheet-title"
+            : "map-station-photo-title"
         }
         aria-busy={loading}
         style={sheetStyle}
@@ -965,11 +954,12 @@ export default function StationMapDrawer({
             <BackButton
               className="map-station-sheet__back"
               onClick={
-                hoursOpen
-                  ? closeHours
-                  : routeOpen
-                    ? closeRoute
-                    : selectedPort
+                hoursOpen || routeOpen
+                  ? () => {
+                      setHoursOpen(false);
+                      setRouteOpen(false);
+                    }
+                  : selectedPort
                       ? isLiveStep
                         ? dismissAll
                         : closePortFlow
@@ -980,15 +970,15 @@ export default function StationMapDrawer({
             />
             <div className="map-station-sheet__toolbar-spacer" aria-hidden />
           </div>
-          {!hoursOpen && !routeOpen ? (
+          {!selectedStand && !selectedPort ? (
             <div className="map-station-sheet__toolbar-actions">
-              {!selectedStand && !selectedPort ? (
-                <>
-                  <HoursButton onClick={toggleHours} active={hoursOpen} />
-                  <RouteButton onClick={toggleRoute} active={routeOpen} />
-                </>
-              ) : null}
-              {!selectedPort ? <ScanQrButton /> : null}
+              <HoursButton onClick={toggleHours} active={hoursOpen} />
+              <RouteButton onClick={toggleRoute} active={routeOpen} />
+              <ScanQrButton />
+            </div>
+          ) : !selectedPort ? (
+            <div className="map-station-sheet__toolbar-actions">
+              <ScanQrButton />
             </div>
           ) : null}
           <SheetCloseButton onClick={dismissAll} />
@@ -1006,20 +996,6 @@ export default function StationMapDrawer({
             >
               {t("common.retry", "Повторить")}
             </button>
-          </div>
-        ) : hoursOpen ? (
-          <div className="map-station-sheet__body" {...scrollProps}>
-            <HoursScheduleList rows={weekHours} />
-          </div>
-        ) : routeOpen ? (
-          <div className="map-station-sheet__body" {...scrollProps}>
-            <RouteAppsList
-              latitude={station.latitude}
-              longitude={station.longitude}
-              mapYandex={station.map_yandex}
-              map2gis={station.map_2gis}
-              onPicked={closeRoute}
-            />
           </div>
         ) : selectedStand && selectedPort ? (
           <div className="map-station-sheet__body" {...scrollProps}>
@@ -1073,6 +1049,35 @@ export default function StationMapDrawer({
           </div>
         ) : (
           <div className="map-station-sheet__body map-station-sheet__body--compact" {...scrollProps}>
+            {hoursOpen || routeOpen ? (
+              <div className="map-station-sheet__drops">
+                {hoursOpen ? (
+                  <div
+                    className="map-station-sheet__drop"
+                    role="region"
+                    aria-label={t("map.hours_schedule", "График работы")}
+                  >
+                    <HoursScheduleList rows={weekHours} />
+                  </div>
+                ) : null}
+                {routeOpen ? (
+                  <div
+                    className="map-station-sheet__drop"
+                    role="region"
+                    aria-label={t("map.build_route", "Проложить маршрут")}
+                  >
+                    <RouteAppsList
+                      latitude={station.latitude}
+                      longitude={station.longitude}
+                      mapYandex={station.map_yandex}
+                      map2gis={station.map_2gis}
+                      onPicked={closeRoute}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {!isCharging ? (
               <WashPostsGrid washers={station.washers} />
             ) : null}

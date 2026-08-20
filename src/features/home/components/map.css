@@ -4062,7 +4062,7 @@ html.is-mobile-app .map-station-photo-layer__title-bar {
 }
 
 .map-station-sheet.is-peek .map-station-sheet__body {
-  overscroll-behavior: none;
+  overscroll-behavior: contain;
 }
 
 /* Без фото — та же фиксированная высота */
@@ -5448,17 +5448,71 @@ html[data-theme="dark"] .map-conn-card__offline {
 }
 
 .map-station-sheet__toolbar-actions .map-station-sheet__btn--route {
+  border-color: color-mix(in oklab, var(--app-description) 40%, transparent);
   background: transparent;
+  color: var(--app-description);
 }
 
 .map-station-sheet__toolbar-actions .map-station-sheet__btn--route.is-active {
-  background: transparent;
+  border-color: var(--app-button);
+  background: color-mix(in oklab, var(--app-button) 12%, transparent);
+  color: var(--app-button);
 }
 
 .map-station-sheet__btn--route {
   border: 1.5px solid var(--app-button);
   background: transparent;
   color: var(--app-button);
+}
+
+/* Выпадающие панели часов / маршрута — внутри скролла, высота drawer не прыгает */
+.map-station-sheet__drops {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0 0 0.65rem;
+}
+
+.map-station-sheet__drop {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--app-border-width) solid var(--app-border);
+  border-radius: var(--app-section-radius-sm);
+  background: var(--app-block);
+  animation: map-station-drop-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  transform-origin: top center;
+}
+
+.map-station-sheet__drop .map-hours-schedule__list,
+.map-station-sheet__drop .map-route-sheet__list {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.map-station-sheet__drop .map-hours-schedule__row {
+  padding: 0.45rem 0.75rem;
+  min-height: 2rem;
+}
+
+.map-station-sheet__drop .map-route-sheet__item {
+  padding: 0.7rem 0.75rem;
+  background: transparent;
+}
+
+@keyframes map-station-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.65rem) scaleY(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
 }
 
 .map-station-sheet__btn--pay {
