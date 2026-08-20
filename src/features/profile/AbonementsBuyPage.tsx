@@ -5,69 +5,66 @@ import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
 import { useT } from "@/hooks/useT";
 import {
-  ABONEMENT_CARDS,
-  formatAbonementDeadline,
+  ABONEMENT_OFFERS,
   formatAbonementMoney,
   formatKwh,
-  type AbonementCard,
+  formatValidityDays,
+  type AbonementOffer,
 } from "./abonements";
 import "./components/profile.css";
 import "./abonements.css";
 
-function cardSummary(card: AbonementCard): string {
-  if (card.kind === "ev") {
-    return formatKwh(card.remainingKwh ?? 0);
+function offerSummary(offer: AbonementOffer): string {
+  if (offer.kind === "ev") {
+    return formatKwh(offer.totalKwh ?? 0);
   }
-  if (card.kind === "wash") {
-    return `${card.remainingWashes ?? 0} моек`;
+  if (offer.kind === "wash") {
+    return `${offer.totalWashes ?? 0} моек`;
   }
-  return `${formatKwh(card.remainingKwh ?? 0)} · ${card.remainingWashes ?? 0} моек`;
+  return `${formatKwh(offer.totalKwh ?? 0)} · ${offer.totalWashes ?? 0} моек`;
 }
 
-export default function AbonementsPage() {
+export default function AbonementsBuyPage() {
   const t = useT();
 
   return (
     <PageLayout
-      title={t("profile.abonements", "Абонементы")}
+      title={t("profile.buy_abonement", "Купить абонемент")}
       className="page--profile-edit"
     >
       <div className="profile-edit">
         <div className="app-back-bar">
-          <BackButton iconOnly href="/profile" />
+          <BackButton iconOnly href="/profile/abonements" />
         </div>
 
         <p className="abonements-lead theme-description">
           {t(
-            "profile.abonements_hint",
-            "Ваши онлайн-карты. Нажмите, чтобы посмотреть остаток.",
+            "profile.buy_abonement_hint",
+            "Выберите карту — откроется превью и оплата.",
           )}
         </p>
 
-        <Link
-          href="/profile/abonements/buy"
-          className="theme-button w-full abonements-buy-btn"
-        >
-          {t("profile.buy_abonement", "Купить абонемент")}
-        </Link>
-
         <section className="profile-card">
-          {ABONEMENT_CARDS.map((card) => (
+          {ABONEMENT_OFFERS.map((offer) => (
             <Link
-              key={card.id}
-              href={`/profile/abonements/${card.id}`}
+              key={offer.id}
+              href={`/profile/abonements/buy/${offer.id}`}
               className="profile-nav-row theme-hover"
             >
+              <span
+                className={`abonements-kind-dot abonements-kind-dot--${offer.kind}`}
+                aria-hidden
+              />
               <span className="profile-nav-row__main">
-                <span className="profile-nav-row__label">{card.title}</span>
-                <span className="profile-nav-row__hint">{cardSummary(card)}</span>
+                <span className="profile-nav-row__label">{offer.title}</span>
+                <span className="profile-nav-row__hint">{offerSummary(offer)}</span>
                 <span className="abonements-list__deadline">
-                  {t("profile.abonement_until", "до")}{" "}
-                  {formatAbonementDeadline(card.deadline)}
+                  {t("profile.abonement_valid", "срок")}{" "}
+                  {formatValidityDays(offer.validityDays)}
                 </span>
               </span>
               <span className="abonements-list__spent">
-                {formatAbonementMoney(card.spentAmount)}
+                {formatAbonementMoney(offer.price)}
               </span>
               <svg
                 className="profile-nav-row__chevron"

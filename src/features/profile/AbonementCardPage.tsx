@@ -6,6 +6,8 @@ import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
 import { useT } from "@/hooks/useT";
 import {
+  abonementKindClass,
+  abonementKindSuffix,
   abonementProgress,
   formatAbonementDeadline,
   formatAbonementDeadlineShort,
@@ -13,7 +15,6 @@ import {
   formatKwh,
   getAbonementById,
   isAbonementExpired,
-  type AbonementKind,
 } from "./abonements";
 import brandIcon from "@/img/image_1787059580707.svg";
 import "./components/profile.css";
@@ -21,18 +22,6 @@ import "./abonements.css";
 
 const BRAND_ICON_SRC =
   typeof brandIcon === "string" ? brandIcon : brandIcon.src;
-
-function kindClass(kind: AbonementKind): string {
-  if (kind === "ev") return "abonement-plastic--ev";
-  if (kind === "wash") return "abonement-plastic--wash";
-  return "abonement-plastic--combo";
-}
-
-function kindSuffix(kind: AbonementKind): string {
-  if (kind === "ev") return "EV";
-  if (kind === "wash") return "WASH";
-  return "PLUS";
-}
 
 function ProgressRow({
   label,
@@ -108,7 +97,7 @@ export default function AbonementCardPage() {
         </div>
 
         <article
-          className={`abonement-plastic ${kindClass(card.kind)}${expired ? " is-expired" : ""}`}
+          className={`abonement-plastic ${abonementKindClass(card.kind)}${expired ? " is-expired" : ""}`}
         >
           <div className="abonement-plastic__top">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -119,7 +108,7 @@ export default function AbonementCardPage() {
               aria-hidden
             />
             <div className="abonement-plastic__brand">
-              <strong>{kindSuffix(card.kind)}</strong>
+              <strong>{abonementKindSuffix(card.kind)}</strong>
             </div>
           </div>
 

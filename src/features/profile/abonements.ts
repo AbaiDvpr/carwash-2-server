@@ -21,6 +21,20 @@ export type AbonementCard = {
   deadline: string;
 };
 
+/** Оффер в каталоге покупки (mock) */
+export type AbonementOffer = {
+  id: string;
+  kind: AbonementKind;
+  title: string;
+  subtitle: string;
+  totalKwh?: number;
+  totalWashes?: number;
+  /** Цена покупки, ₸ */
+  price: number;
+  /** Срок действия в днях */
+  validityDays: number;
+};
+
 /** Пока mock UI — без API */
 export const ABONEMENT_CARDS: AbonementCard[] = [
   {
@@ -60,8 +74,62 @@ export const ABONEMENT_CARDS: AbonementCard[] = [
   },
 ];
 
+/** Каталог для покупки — фронт-заглушка */
+export const ABONEMENT_OFFERS: AbonementOffer[] = [
+  {
+    id: "offer-ev-100",
+    kind: "ev",
+    title: "ЭЗС 100",
+    subtitle: "100 кВт·ч на зарядку",
+    totalKwh: 100,
+    price: 18_000,
+    validityDays: 90,
+  },
+  {
+    id: "offer-ev-200",
+    kind: "ev",
+    title: "ЭЗС 200",
+    subtitle: "200 кВт·ч на зарядку",
+    totalKwh: 200,
+    price: 32_000,
+    validityDays: 180,
+  },
+  {
+    id: "offer-wash-10",
+    kind: "wash",
+    title: "Мойка 10",
+    subtitle: "10 моек",
+    totalWashes: 10,
+    price: 12_000,
+    validityDays: 90,
+  },
+  {
+    id: "offer-wash-20",
+    kind: "wash",
+    title: "Мойка 20",
+    subtitle: "20 моек",
+    totalWashes: 20,
+    price: 21_000,
+    validityDays: 180,
+  },
+  {
+    id: "offer-combo",
+    kind: "combo",
+    title: "Мойка + ЭЗС",
+    subtitle: "150 кВт·ч и 15 моек",
+    totalKwh: 150,
+    totalWashes: 15,
+    price: 48_000,
+    validityDays: 365,
+  },
+];
+
 export function getAbonementById(id: string): AbonementCard | null {
   return ABONEMENT_CARDS.find((card) => card.id === id) ?? null;
+}
+
+export function getAbonementOfferById(id: string): AbonementOffer | null {
+  return ABONEMENT_OFFERS.find((offer) => offer.id === id) ?? null;
 }
 
 export function formatAbonementMoney(value: number): string {
@@ -94,6 +162,18 @@ export function formatAbonementDeadlineShort(isoDate: string): string {
   return `${mm}/${yy}`;
 }
 
+export function formatValidityDays(days: number): string {
+  if (days % 365 === 0) {
+    const y = days / 365;
+    return y === 1 ? "1 год" : `${y} года`;
+  }
+  if (days % 30 === 0) {
+    const m = days / 30;
+    return `${m} мес.`;
+  }
+  return `${days} дн.`;
+}
+
 export function isAbonementExpired(isoDate: string): boolean {
   const date = new Date(`${isoDate}T23:59:59`);
   if (Number.isNaN(date.getTime())) return false;
@@ -104,4 +184,16 @@ export function isAbonementExpired(isoDate: string): boolean {
 export function abonementProgress(remaining: number, total: number): number {
   if (!(total > 0)) return 0;
   return Math.min(1, Math.max(0, remaining / total));
+}
+
+export function abonementKindClass(kind: AbonementKind): string {
+  if (kind === "ev") return "abonement-plastic--ev";
+  if (kind === "wash") return "abonement-plastic--wash";
+  return "abonement-plastic--combo";
+}
+
+export function abonementKindSuffix(kind: AbonementKind): string {
+  if (kind === "ev") return "EV";
+  if (kind === "wash") return "WASH";
+  return "PLUS";
 }

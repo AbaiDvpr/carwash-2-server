@@ -6,6 +6,43 @@
   line-height: 1.4;
 }
 
+.abonements-buy-btn {
+  margin: var(--app-stack-gap, 1rem) 0 0.85rem;
+}
+
+.abonements-buy-note {
+  margin: 0 0 0.75rem;
+  padding: 0 0.15rem;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--app-button);
+}
+
+.abonements-kind-dot {
+  flex-shrink: 0;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  margin-right: 0.15rem;
+}
+
+.abonements-kind-dot--ev {
+  background: var(--map-charging, #facc15);
+}
+
+.abonements-kind-dot--wash {
+  background: var(--map-wash, #38bdf8);
+}
+
+.abonements-kind-dot--combo {
+  background: linear-gradient(
+    135deg,
+    var(--map-charging, #facc15) 0%,
+    var(--map-wash, #38bdf8) 100%
+  );
+}
+
 .abonements-list__spent {
   flex-shrink: 0;
   font-size: var(--app-text-sm);
