@@ -1,11 +1,3 @@
-.abonements-lead {
-  margin: 0 0 0.85rem;
-  padding: 0 0.15rem;
-  font-size: var(--app-text-sm);
-  font-weight: 500;
-  line-height: 1.4;
-}
-
 .abonements-buy-btn {
   margin: var(--app-stack-gap, 1rem) 0 0.85rem;
 }

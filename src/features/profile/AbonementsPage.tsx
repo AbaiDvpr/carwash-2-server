@@ -60,13 +60,6 @@ export default function AbonementsPage() {
           <BackButton iconOnly href="/profile" />
         </div>
 
-        <p className="abonements-lead theme-description">
-          {t(
-            "profile.abonements_hint",
-            "Ваши онлайн-карты. Нажмите, чтобы посмотреть остаток.",
-          )}
-        </p>
-
         <Link
           href="/profile/abonements/buy"
           className="theme-button w-full abonements-buy-btn"

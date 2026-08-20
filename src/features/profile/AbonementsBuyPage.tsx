@@ -60,13 +60,6 @@ export default function AbonementsBuyPage() {
           <BackButton iconOnly href="/profile/abonements" />
         </div>
 
-        <p className="abonements-lead theme-description">
-          {t(
-            "profile.buy_abonement_hint",
-            "Выберите карту — откроется превью и оплата.",
-          )}
-        </p>
-
         <section className="profile-card">
           {loading ? (
             <p className="profile-garage-empty">{t("common.loading", "Загрузка…")}</p>
