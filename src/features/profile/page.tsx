@@ -801,27 +801,29 @@ export default function ProfilePage() {
 
             <section className="profile-card">
               <div className="profile-card__balance">
-                <div className="profile-card__balance-item">
-                  <Link
-                    href="/profile/top-up"
-                    className="profile-card__balance-link"
-                    aria-label={t("profile.top_up", "Пополнить баланс")}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <p className="profile-card__balance-label">
-                        {t("home.balance", "Баланс")}
-                      </p>
-                      <p className="profile-card__balance-value">
-                        {balanceLoading && balance == null
-                          ? "…"
-                          : formatBalance(balance ?? 0)}
-                      </p>
-                    </span>
-                    <span className="profile-card__balance-action">
-                      {t("profile.top_up_short", "Пополнить")}
-                    </span>
-                  </Link>
-                </div>
+                {false ? (
+                  <div className="profile-card__balance-item">
+                    <Link
+                      href="/profile/top-up"
+                      className="profile-card__balance-link"
+                      aria-label={t("profile.top_up", "Пополнить баланс")}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <p className="profile-card__balance-label">
+                          {t("home.balance", "Баланс")}
+                        </p>
+                        <p className="profile-card__balance-value">
+                          {balanceLoading && balance == null
+                            ? "…"
+                            : formatBalance(balance ?? 0)}
+                        </p>
+                      </span>
+                      <span className="profile-card__balance-action">
+                        {t("profile.top_up_short", "Пополнить")}
+                      </span>
+                    </Link>
+                  </div>
+                ) : null}
                 <div className="profile-card__balance-item">
                   <button
                     type="button"
@@ -843,13 +845,15 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            <section className="profile-card">
-              <ProfileNavRow
-                label={t("profile.abonement", "Абонемент")}
-                hint={abonementHint}
-                href="/profile/abonements"
-              />
-            </section>
+            {false ? (
+              <section className="profile-card">
+                <ProfileNavRow
+                  label={t("profile.abonement", "Абонемент")}
+                  hint={abonementHint}
+                  href="/profile/abonements"
+                />
+              </section>
+            ) : null}
 
             <section className="profile-card">
               <ProfileNavRow
