@@ -1,4 +1,4 @@
-import PaymentRoute from "@/features/payment/PaymentRoute";
+import PaymentRoute from "@/features/map/payment/PaymentRoute";
 
 type PageProps = {
   params: Promise<{ slug: string }>;

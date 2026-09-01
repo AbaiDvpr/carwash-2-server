@@ -9,9 +9,9 @@ import { useT } from "@/hooks/useT";
 import EvChargeCheckout, {
   CHARGE_MS,
   type EvCheckoutLimits,
-} from "@/features/home/components/EvChargeCheckout";
-import type { EvChargeStep } from "@/features/home/components/EvChargeFlow";
-import ChargingSessionView from "@/features/charging/ChargingSessionView";
+} from "@/features/map/home/components/EvChargeCheckout";
+import type { EvChargeStep } from "@/features/map/home/components/EvChargeFlow";
+import ChargingSessionView from "@/features/map/charging/ChargingSessionView";
 import {
   fetchEvSession,
   plannedEndAtMs,
@@ -20,9 +20,9 @@ import {
   type EvSession,
 } from "@/lib/api/evSessions";
 import { ApiError } from "@/lib/api";
-import "@/features/home/components/map.css";
+import "@/features/map/home/components/map.css";
 import "@/features/profile/components/profile.css";
-import "@/features/payment/ev-charge-payment.css";
+import "@/features/map/payment/ev-charge-payment.css";
 import "./details-charging.css";
 import "./charging-session-variants.css";
 

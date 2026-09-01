@@ -16,7 +16,7 @@ import { ApiError } from "@/lib/api";
 import { payEv } from "@/lib/api/payments";
 import {
   detailsChargingPath,
-} from "@/features/home/mapLiveSession";
+} from "@/features/map/home/mapLiveSession";
 import {
   fetchEvSession,
   type EvSession,
@@ -187,6 +187,9 @@ export default function EvChargePayment() {
 
   async function onPay() {
     if (paying || !session || session.payment_id) return;
+    const payWithAbonement = paySource !== "balance";
+    const balanceValue = balance ?? 0;
+    if (!payWithAbonement && (balanceLoading || balanceValue < amount)) return;
     setPaying(true);
     setPayResult(null);
     setPayError(null);
@@ -363,9 +366,12 @@ export default function EvChargePayment() {
 
   const balanceValue = balance ?? 0;
   const payWithAbonement = paySource !== "balance";
+  const canAffordBalance =
+    Number.isFinite(balanceValue) && balanceValue >= amount;
   const canPay =
     !session.payment_id &&
-    (payWithAbonement || balanceValue >= amount);
+    !balanceLoading &&
+    (payWithAbonement || canAffordBalance);
 
   return (
     <PageLayout title={t("payment.title", "Оплата")} className="page--profile-edit">

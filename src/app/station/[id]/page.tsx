@@ -1,4 +1,4 @@
-import StationPage from "@/features/station/page";
+import StationPage from "@/features/map/station/page";
 
 type StationRouteProps = {
   params: Promise<{ id: string }>;

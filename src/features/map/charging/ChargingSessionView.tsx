@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { Station, StationChargerStand, StationConnectorPort } from "@/data/stations";
 import { formatPowerKw, formatPricePerKwh } from "@/features/map/evConnectors";
 import { useT } from "@/hooks/useT";
+import { navigateProfilePath } from "@/lib/navbarController";
 import {
   CHARGE_MS,
   type EvCheckoutLimits,
-} from "@/features/home/components/EvChargeCheckout";
-import type { EvChargeStep } from "@/features/home/components/EvChargeFlow";
+} from "@/features/map/home/components/EvChargeCheckout";
+import type { EvChargeStep } from "@/features/map/home/components/EvChargeFlow";
 import ServiceFillProgress from "./ServiceFillProgress";
 import "./charging-session-variants.css";
 
@@ -162,16 +163,18 @@ function PassPlaque({
   remainingKwh: number | null;
   onBuy?: () => void;
 }) {
+  const t = useT();
   if (remainingKwh != null && remainingKwh > 0) {
     return (
       <p className="csv-pass csv-pass--ok">
-        Абонемент · осталось {remainingKwh.toLocaleString("ru-RU")} кВт·ч
+        {t("profile.abonement", "Абонемент")} ·{" "}
+        {remainingKwh.toLocaleString("ru-RU")} кВт·ч
       </p>
     );
   }
   return (
     <button type="button" className="csv-pass csv-pass--buy" onClick={onBuy}>
-      Купить абонемент
+      {t("profile.buy_abonement", "Купить абонемент")}
     </button>
   );
 }
@@ -240,7 +243,10 @@ export default function ChargingSessionView({
         </div>
       </section>
 
-      <PassPlaque remainingKwh={passRemainingKwh} />
+      <PassPlaque
+        remainingKwh={passRemainingKwh}
+        onBuy={() => navigateProfilePath("/profile/abonements")}
+      />
 
       <ParamsCard
         stats={stats}

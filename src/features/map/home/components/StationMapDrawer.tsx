@@ -38,7 +38,7 @@ import EvChargeFlow, {
 import {
   detailsChargingPath,
   type MapLiveSession,
-} from "@/features/home/mapLiveSession";
+} from "@/features/map/home/mapLiveSession";
 
 export type { MapLiveSession };
 

@@ -1,4 +1,4 @@
-import DetailsChargingPage from "@/features/charging/DetailsChargingPage";
+import DetailsChargingPage from "@/features/map/charging/DetailsChargingPage";
 
 type DetailsChargingRouteProps = {
   params: Promise<{ id: string }>;

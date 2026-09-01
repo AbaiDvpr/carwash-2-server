@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import ServiceFillProgress from "@/features/charging/ServiceFillProgress";
+import ServiceFillProgress from "@/features/map/charging/ServiceFillProgress";
 import { useT } from "@/hooks/useT";
-import "@/features/charging/charging-session-variants.css";
+import "@/features/map/charging/charging-session-variants.css";
 import "./wash-session.css";
 
 export const WASH_MS = 60_000;

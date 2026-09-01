@@ -1,4 +1,4 @@
-import type { EvChargeStep } from "@/features/home/components/EvChargeFlow";
+import type { EvChargeStep } from "@/features/map/home/components/EvChargeFlow";
 import {
   evStationIdFromLocation,
   plannedEndAtMs,

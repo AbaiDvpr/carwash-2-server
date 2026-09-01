@@ -19,7 +19,7 @@ import {
 } from "@/lib/api/garage";
 import { ApiError } from "@/lib/api";
 import { useT } from "@/hooks/useT";
-import "@/features/history/components/history.css";
+import "@/features/profile/history/components/history.css";
 import "./profile.css";
 import IconActionButton, { IconEdit, IconTrash } from "./IconActionButton";
 

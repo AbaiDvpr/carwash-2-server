@@ -58,7 +58,7 @@ import { pickImage } from "@/lib/pickImage";
 import PreloaderPreview from "./components/PreloaderPreview";
 import PreloaderOverlay from "@/components/layout/PreloaderOverlay";
 import "./components/profile.css";
-import "@/features/history/components/history.css";
+import "@/features/profile/history/components/history.css";
 
 type ProfileView =
   | "home"
@@ -801,7 +801,7 @@ export default function ProfilePage() {
 
             <section className="profile-card">
               <div className="profile-card__balance">
-                {false ? (
+                {true ? (
                   <div className="profile-card__balance-item">
                     <Link
                       href="/profile/top-up"
@@ -845,7 +845,7 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            {false ? (
+            {true ? (
               <section className="profile-card">
                 <ProfileNavRow
                   label={t("profile.abonement", "Абонемент")}

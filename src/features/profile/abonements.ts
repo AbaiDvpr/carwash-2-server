@@ -93,22 +93,29 @@ export function formatAbonementMoney(value: number): string {
   return `${new Intl.NumberFormat("ru-RU").format(value)} ₸`;
 }
 
+export function formatKwhAmount(value: number): string {
+  if (Number.isInteger(value) || Math.abs(value - Math.round(value)) < 0.05) {
+    return String(Math.round(value));
+  }
+  return value.toFixed(1).replace(".", ",");
+}
+
 export function formatKwh(value: number): string {
-  const text =
-    Number.isInteger(value) || Math.abs(value - Math.round(value)) < 0.05
-      ? String(Math.round(value))
-      : value.toFixed(1).replace(".", ",");
-  return `${text} кВт·ч`;
+  return `${formatKwhAmount(value)} кВт·ч`;
+}
+
+/** Единый формат: «100 / 200 кВт·ч» — единица один раз */
+export function formatKwhRange(remaining: number, total: number): string {
+  return `${formatKwhAmount(remaining)} / ${formatKwhAmount(total)} кВт·ч`;
 }
 
 export function formatAbonementDeadline(isoDate: string): string {
   const date = new Date(`${isoDate}T12:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
-  return date.toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(date.getFullYear());
+  return `${dd}.${mm}.${yyyy}`;
 }
 
 export function formatAbonementDeadlineShort(isoDate: string): string {

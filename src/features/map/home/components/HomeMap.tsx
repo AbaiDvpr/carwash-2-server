@@ -9,13 +9,13 @@ import Supercluster from "supercluster";
 import type { Station, StationKind } from "@/data/stations";
 import Toast from "@/components/ui/Toast";
 import PreloaderOverlay from "@/components/layout/PreloaderOverlay";
-import StationMapDrawer from "@/features/home/components/StationMapDrawer";
-import MyServicesIcon from "@/features/home/components/MyServicesIcon";
+import StationMapDrawer from "@/features/map/home/components/StationMapDrawer";
+import MyServicesIcon from "@/features/map/home/components/MyServicesIcon";
 import {
   detailsChargingPath,
   mapActiveEvSessions,
   type MapLiveSession,
-} from "@/features/home/mapLiveSession";
+} from "@/features/map/home/mapLiveSession";
 import { fetchActiveEvSessions } from "@/lib/api/evSessions";
 import { useToast } from "@/hooks/useToast";
 import { useT } from "@/hooks/useT";

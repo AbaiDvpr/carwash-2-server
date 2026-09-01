@@ -20,6 +20,11 @@ export type NavigateOptions = {
   /** true — полный переход с перезагрузкой, false — SPA без refresh */
   refresh?: boolean;
   router?: RouterLike;
+  /**
+   * URL внутри WebView вкладки (например /profile/abonements).
+   * Flutter: вместе со screen открывает этот path.
+   */
+  path?: string;
 };
 
 function resolveOptions(options?: NavigateOptions | RouterLike): NavigateOptions {
@@ -49,14 +54,15 @@ function navigateWeb(href: string, { refresh = false, router }: NavigateOptions)
 }
 
 /**
- * Flutter: action "navigate", screen, refresh (optional)
+ * Flutter: action "navigate", screen, refresh (optional), path (optional)
  *
  * screen: map | history | qr | chatbot | profile
+ * path: подпуть WebView, напр. "/profile/abonements"
  * qr — только нативный экран во Flutter
  *
  * В приложении (есть bridge): только postMessage — Flutter сам переключает вкладку navbar.
  * Не делаем router.push внутри текущей вкладки (иначе профиль откроется «на main»).
- * В браузере без bridge — обычный переход по URL.
+ * В браузере без bridge — обычный переход по URL (path или маршрут screen).
  */
 export function navigateNavbar(
   screen: NavbarScreen,
@@ -64,18 +70,47 @@ export function navigateNavbar(
 ): boolean {
   const resolved = resolveOptions(options);
   const refresh = resolved.refresh ?? false;
+  const path = resolved.path?.trim() || undefined;
 
   const sent = postToNative({
     action: "navigate",
     screen,
     refresh,
+    ...(path ? { path } : {}),
   });
 
   if (!sent && isWebScreen(screen)) {
-    navigateWeb(NAVBAR_ROUTES[screen], resolved);
+    navigateWeb(path ?? NAVBAR_ROUTES[screen], resolved);
   }
 
   return sent;
+}
+
+/**
+ * Открыть страницу внутри вкладки профиля через Flutter (или SPA в браузере).
+ * Пример: navigateProfilePath("/profile/abonements/buy")
+ */
+export function navigateProfilePath(
+  path: string,
+  options?: Omit<NavigateOptions, "path"> | RouterLike,
+): boolean {
+  const resolved = resolveOptions(options);
+  return navigateNavbar("profile", { ...resolved, path });
+}
+
+/**
+ * Переключить Flutter navbar на карту (и опционально открыть path).
+ * Пример: navigateMapPath("/?id=3&type=ev")
+ */
+export function navigateMapPath(
+  path?: string,
+  options?: Omit<NavigateOptions, "path"> | RouterLike,
+): boolean {
+  const resolved = resolveOptions(options);
+  return navigateNavbar("map", {
+    ...resolved,
+    ...(path?.trim() ? { path: path.trim() } : {}),
+  });
 }
 
 /**

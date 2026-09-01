@@ -16,11 +16,11 @@ import {
   washAbonements,
   type AbonementCard,
 } from "@/features/profile/abonements";
-import WashPrepareTimer from "@/features/wash/WashPrepareTimer";
-import WashSessionView from "@/features/wash/WashSessionView";
+import WashPrepareTimer from "@/features/map/wash/WashPrepareTimer";
+import WashSessionView from "@/features/map/wash/WashSessionView";
 import "@/features/profile/components/profile.css";
-import "@/features/charging/charging-session-variants.css";
-import "@/features/charging/details-charging.css";
+import "@/features/map/charging/charging-session-variants.css";
+import "@/features/map/charging/details-charging.css";
 import "../ev-charge-payment.css";
 import "../car-wash-payment.css";
 
@@ -444,14 +444,6 @@ export default function CarWashPayment({
                 </div>
               </div>
             </section>
-
-            {selected && !canAfford && !balanceLoading && !payWithAbonement ? (
-              <p className="cw-pay__hint is-danger">
-                {t("payment.insufficient", "Недостаточно средств")}.{" "}
-                {t("payment.need", "Нужно")} {selected.price} ₸,{" "}
-                {t("home.balance", "баланс")} {formatBalance(balanceValue)}
-              </p>
-            ) : null}
 
             {selected ? (
               <div className="ev-pay__actions">

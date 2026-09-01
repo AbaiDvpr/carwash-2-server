@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import PreloaderStage from "@/features/profile/components/PreloaderStage";
 import { usePreloaderVariant } from "@/hooks/usePreloaderVariant";
 import { useT } from "@/hooks/useT";
-import "@/features/charging/charging-session-variants.css";
+import "@/features/map/charging/charging-session-variants.css";
 import "@/features/profile/components/preloader-preview.css";
 import "./wash-session.css";
 import "./wash-prepare-timer.css";

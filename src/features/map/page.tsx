@@ -35,11 +35,13 @@ import { useT } from "@/hooks/useT";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { distanceKm } from "@/lib/api/geos";
 import { compactHoursLabel } from "@/lib/openHours";
-import HomeMap from "@/features/home/components/HomeMap";
+import { hasNativeBridge } from "@/lib/nativeBridge";
+import { navigateMapPath } from "@/lib/navbarController";
+import HomeMap from "@/features/map/home/components/HomeMap";
 import MapMarkerStyleDrawer, {
   useMapMarkerStylePrefs,
 } from "@/features/map/MapMarkerStyleDrawer";
-import "@/features/home/components/map.css";
+import "@/features/map/home/components/map.css";
 
 /** Ближайшие в списке: 0–2 км */
 const NEARBY_MAX_KM = 2;
@@ -86,6 +88,36 @@ function formatDistanceLabel(km: number): string {
 function parseKind(raw: string | null): StationKind | "all" {
   if (raw === "wash" || raw === "charging") return raw;
   return "all";
+}
+
+/** Deep link: ?type=ev|cw (или charging|wash) */
+function parseDeepLinkType(raw: string | null): StationKind | null {
+  if (!raw) return null;
+  const v = raw.trim().toLowerCase();
+  if (v === "ev" || v === "charging") return "charging";
+  if (v === "cw" || v === "wash") return "wash";
+  return null;
+}
+
+/**
+ * На карте ЭЗС имеют id `ev-6`, мойки — `6`.
+ * Deep link обычно даёт сырой location id: ?id=6&type=ev
+ */
+function findDeepLinkStation(
+  stations: Station[],
+  rawId: string,
+  type: StationKind | null,
+): Station | null {
+  const numeric = rawId.replace(/^ev-/i, "");
+  return (
+    stations.find((station) => {
+      if (type && station.kind !== type) return false;
+      if (station.kind === "charging") {
+        return station.id === `ev-${numeric}` || station.id === rawId;
+      }
+      return station.id === numeric || station.id === rawId;
+    }) ?? null
+  );
 }
 
 function matchesSearch(station: Station, query: string): boolean {
@@ -1059,10 +1091,14 @@ function MapPageInner() {
   const { location: userLocation } = useUserLocation();
 
   const kindFromQuery = parseKind(searchParams.get("kind"));
-  const focusFromQuery = searchParams.get("station");
+  const deepLinkId =
+    searchParams.get("id")?.trim() ||
+    searchParams.get("station")?.trim() ||
+    null;
+  const deepLinkType = parseDeepLinkType(searchParams.get("type"));
   const mapBasePath = pathname.startsWith("/map") ? "/map" : "/";
 
-  const [focusStationId, setFocusStationId] = useState<string | null>(focusFromQuery);
+  const [focusStationId, setFocusStationId] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
@@ -1071,14 +1107,47 @@ function MapPageInner() {
   const [filtersHydrated, setFiltersHydrated] = useState(false);
   const [search, setSearch] = useState("");
   const [mapBusy, setMapBusy] = useState(true);
+  /** Чтобы один раз кикнуть Flutter navbar на map для данного deep link */
+  const mapNavKickRef = useRef<string | null>(null);
 
   /** Пока в URL есть ?kind= — прелоадер: пишем фильтр и сразу чистим query */
   const bootReady = filtersHydrated && kindFromQuery === "all";
   const filterCount = useMemo(() => countActiveFilters(filters), [filters]);
 
+  const clearDeepLinkQuery = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    let changed = false;
+    for (const key of ["id", "type", "station"] as const) {
+      if (params.has(key)) {
+        params.delete(key);
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    const qs = params.toString();
+    router.replace(qs ? `${mapBasePath}?${qs}` : mapBasePath, { scroll: false });
+  };
+
+  // Deep link: ?id=3&type=ev|cw → Flutter: вкладка map + тот же path
   useEffect(() => {
-    if (focusFromQuery) setFocusStationId(focusFromQuery);
-  }, [focusFromQuery]);
+    if (!deepLinkId || !deepLinkType) return;
+    if (!hasNativeBridge()) return;
+
+    const typeParam = deepLinkType === "charging" ? "ev" : "cw";
+    const path = `/?id=${encodeURIComponent(deepLinkId)}&type=${typeParam}`;
+    if (mapNavKickRef.current === path) return;
+    mapNavKickRef.current = path;
+
+    navigateMapPath(path);
+  }, [deepLinkId, deepLinkType]);
+
+  // Deep link: ?id=5&type=ev|cw → открыть drawer станции
+  useEffect(() => {
+    if (!deepLinkId || stations.length === 0) return;
+    const found = findDeepLinkStation(stations, deepLinkId, deepLinkType);
+    if (!found) return;
+    setFocusStationId(found.id);
+  }, [deepLinkId, deepLinkType, stations]);
 
   useEffect(() => {
     if (kindFromQuery !== "all") {
@@ -1107,6 +1176,16 @@ function MapPageInner() {
     () => stations.filter((station) => matchesFilters(station, filters)),
     [stations, filters],
   );
+
+  /** Deep-link станция остаётся в списке маркеров, даже если фильтр её скрывает */
+  const mapStations = useMemo(() => {
+    if (!focusStationId) return filteredStations;
+    if (filteredStations.some((s) => s.id === focusStationId)) {
+      return filteredStations;
+    }
+    const focused = stations.find((s) => s.id === focusStationId);
+    return focused ? [...filteredStations, focused] : filteredStations;
+  }, [filteredStations, focusStationId, stations]);
 
   const sortedList = useMemo(() => {
     const withDistance = filteredStations.map((station) => {
@@ -1167,11 +1246,14 @@ function MapPageInner() {
     >
       <div className="map-screen">
         <HomeMap
-          stations={filteredStations}
+          stations={mapStations}
           loading={loading}
           error={error}
           focusStationId={focusStationId}
-          onFocusConsumed={() => setFocusStationId(null)}
+          onFocusConsumed={() => {
+            setFocusStationId(null);
+            clearDeepLinkQuery();
+          }}
           onOpenList={() => setListOpen(true)}
           markerPrefs={markerPrefs}
           onBusyChange={setMapBusy}

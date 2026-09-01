@@ -12,7 +12,7 @@ import {
   formatPowerKw,
   formatPricePerKwh,
 } from "@/features/map/evConnectors";
-import "@/features/home/components/map.css";
+import "@/features/map/home/components/map.css";
 import { useT, useLocale } from "@/hooks/useT";
 import { localizeWashTariff } from "@/lib/api/cw";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";

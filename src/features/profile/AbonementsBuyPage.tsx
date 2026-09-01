@@ -23,9 +23,11 @@ import {
   formatValidityDays,
   type AbonementOffer,
 } from "./abonements";
+import { useUserBalance } from "./hooks/useUserBalance";
 import brandIcon from "@/img/image_1787059580707.svg";
 import "./components/profile.css";
 import "./abonements.css";
+import "@/features/map/payment/car-wash-payment.css";
 
 const BRAND_ICON_SRC =
   typeof brandIcon === "string" ? brandIcon : brandIcon.src;
@@ -150,11 +152,18 @@ export default function AbonementsBuyPage() {
   const [buying, setBuying] = useState(false);
   const [bought, setBought] = useState(false);
   const [buyError, setBuyError] = useState<string | null>(null);
+  const { balance, loading: balanceLoading } = useUserBalance();
 
   const loop = offers.length > 1;
   const slides = loop ? [...offers, ...offers, ...offers] : offers;
   const activeIndex = wrapIndex(pos, offers.length);
   const active = offers[activeIndex] ?? null;
+  const balanceValue = balance ?? 0;
+  const canAfford =
+    active != null &&
+    !balanceLoading &&
+    Number.isFinite(balanceValue) &&
+    balanceValue >= active.price;
 
   useEffect(() => {
     let cancelled = false;
@@ -274,7 +283,7 @@ export default function AbonementsBuyPage() {
   }, [activeIndex]);
 
   const handleBuy = async () => {
-    if (!active || buying || bought) return;
+    if (!active || buying || bought || !canAfford) return;
     setBuying(true);
     setBuyError(null);
     try {
@@ -459,7 +468,7 @@ export default function AbonementsBuyPage() {
                     type="button"
                     className="theme-button w-full abonements-buy-btn"
                     onClick={() => void handleBuy()}
-                    disabled={buying || bought}
+                    disabled={buying || bought || !canAfford || balanceLoading}
                   >
                     {bought
                       ? t("profile.abonement_bought", "Куплено")
