@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
-import { getStationByPaymentSlug, type Station } from "@/data/stations";
+import type { Station } from "@/data/stations";
 import { ApiError } from "@/lib/api";
 import { fetchCwStation } from "@/lib/api/cw";
 import { fetchEvStation, parseEvStationId } from "@/lib/api/ev";
@@ -20,25 +20,18 @@ type PaymentRouteProps = {
 export default function PaymentRoute({ slug, tariff = null }: PaymentRouteProps) {
   const router = useRouter();
   const evId = parseEvStationId(slug);
-  const isCwLocationId = /^\d+$/.test(slug);
-  const isApiStation = isCwLocationId || evId != null;
 
-  const [station, setStation] = useState<Station | null>(
-    isApiStation ? null : (getStationByPaymentSlug(slug) ?? null),
-  );
-  const [loading, setLoading] = useState(isApiStation);
+  const [station, setStation] = useState<Station | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(
-    !isApiStation && !getStationByPaymentSlug(slug),
-  );
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!isApiStation) return;
-
     let cancelled = false;
     setLoading(true);
     setError(null);
     setNotFound(false);
+    setStation(null);
 
     const load =
       evId != null ? fetchEvStation(evId) : fetchCwStation(slug);
@@ -64,7 +57,7 @@ export default function PaymentRoute({ slug, tariff = null }: PaymentRouteProps)
     return () => {
       cancelled = true;
     };
-  }, [isApiStation, slug, evId]);
+  }, [slug, evId]);
 
   const goHome = () => router.push("/");
 
