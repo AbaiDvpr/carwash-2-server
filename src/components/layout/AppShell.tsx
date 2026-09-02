@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import AuthDebugBoot from "@/components/auth/AuthDebugBoot";
 import ProfileCompleteGate from "@/components/auth/ProfileCompleteGate";
 import I18nBoot from "@/components/i18n/I18nBoot";
-import LocationPoller from "@/components/location/LocationPoller";
 import AuthErrorBlock from "./AuthErrorBlock";
 import Header from "./Header/header";
 import MobileAccessGate from "./MobileAccessGate";
@@ -21,7 +20,6 @@ export default function AppShell({ children }: AppShellProps) {
       <AuthDebugBoot />
       <MobileAccessGate>
         <I18nBoot />
-        <LocationPoller />
         <div className="app-layout">
           <PagePreloader />
           <Header />

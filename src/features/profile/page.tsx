@@ -60,7 +60,7 @@ import PreloaderOverlay from "@/components/layout/PreloaderOverlay";
 import "./components/profile.css";
 import "@/features/profile/history/components/history.css";
 
-type ProfileView =
+ type ProfileView =
   | "home"
   | "balance"
   | "edit"
@@ -516,7 +516,7 @@ function LayoutSpacingRow({
     </div>
   );
 }
-
+ 
 export default function ProfilePage() {
   const {
     name,
@@ -525,6 +525,8 @@ export default function ProfilePage() {
     loading: profileLoading,
     mounted,
   } = useAuthUser();
+
+  const testUi = useAppSelector((s) => s.app.test_ui_version);
   const support = useAppSelector((state) => state.variables.support);
   const documents = useAppSelector((state) => state.variables.documents);
   const [referralUser, setReferralUser] = useState<AuthUser | null>(null);
@@ -801,7 +803,7 @@ export default function ProfilePage() {
 
             <section className="profile-card">
               <div className="profile-card__balance">
-                {true ? (
+                {testUi ? (
                   <div className="profile-card__balance-item">
                     <Link
                       href="/profile/top-up"
@@ -845,7 +847,7 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            {true ? (
+            {testUi ? (
               <section className="profile-card">
                 <ProfileNavRow
                   label={t("profile.abonement", "Абонемент")}
@@ -883,7 +885,7 @@ export default function ProfilePage() {
                 hint={languageHint}
                 onClick={() => setView("language")}
               />
-              {false ? (
+              {testUi ? (
                 <ProfileNavRow
                   icon={<IconPalette />}
                   label={t("profile.appearance", "Оформление")}

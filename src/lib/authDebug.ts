@@ -2,10 +2,10 @@
  * Auth debug: перед logout показывается модалка с причиной, выход — после «ОК».
  * Включи вручную: `true`. На прод для пользователей оставь `false`.
  */
-export const AUTH_DEBUG = true;
+export const AUTH_DEBUG: boolean = false;
 
 export function isAuthDebugEnabled(): boolean {
-  return AUTH_DEBUG === true;
+  return AUTH_DEBUG;
 }
 
 /** Снимок сессии — что есть / чего нет в момент логаута. */

@@ -20,6 +20,7 @@ type AppState = {
    * Тестовая сборка: при auth-сбое не логаутим сразу,
    * а показываем error-блок с причиной и кнопкой «Выйти».
    */
+  test_ui_version: boolean;
   test_version: boolean;
   authError: AuthErrorPayload | null;
 };
@@ -29,11 +30,11 @@ const initialState: AppState = {
   showHeaderNav: false,
   test_version: false,
   authError: null,
+  test_ui_version: true,
 };
 
-const appSlice = createSlice({
-  name: "app",
-  initialState,
+
+const appSlice = createSlice({ name: "app", initialState,
   reducers: {
     toggleHeaderNav(state) {
       state.showHeaderNav = !state.showHeaderNav;
@@ -50,6 +51,9 @@ const appSlice = createSlice({
     clearAuthError(state) {
       state.authError = null;
     },
+    setTestUiVersion(state, action: PayloadAction<boolean>) {
+      state.test_ui_version = action.payload;
+    },
   },
 });
 
@@ -59,5 +63,6 @@ export const {
   setTestVersion,
   setAuthError,
   clearAuthError,
+  setTestUiVersion,
 } = appSlice.actions;
 export default appSlice.reducer;

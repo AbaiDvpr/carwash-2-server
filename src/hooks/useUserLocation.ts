@@ -17,7 +17,7 @@ export type UseUserLocationState = {
   loading: boolean;
 };
 
-/** Подписка на кэш геопозиции (обновляется polling’ом раз в 5 мин). */
+/** Подписка на кэш геопозиции (обновляется только после явного запроса). */
 export function useUserLocation(): UseUserLocationState {
   const [location, setLocation] = useState<UserLocation | null>(() =>
     getCachedUserLocation(),
@@ -36,6 +36,7 @@ export function useUserLocation(): UseUserLocationState {
   return {
     location,
     status,
-    loading: status === "idle" || status === "loading",
+    /** true только пока идёт запрос после явного действия пользователя */
+    loading: status === "loading",
   };
 }

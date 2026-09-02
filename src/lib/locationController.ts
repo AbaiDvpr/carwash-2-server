@@ -13,7 +13,6 @@ export type UserLocation = {
 export const LOCATION_TTL_MS = 5 * 60 * 1000;
 
 const LOCATION_TIMEOUT_MS = 20_000;
-const LOCATION_POLL_MS = LOCATION_TTL_MS;
 const LOCATION_CHANGE_EVENT = "carwash-user-location";
 
 type CachedLocation = {
@@ -23,8 +22,6 @@ type CachedLocation = {
 
 let cached: CachedLocation | null = null;
 let inflight: Promise<UserLocation> | null = null;
-let pollTimer: number | null = null;
-let pollingStarted = false;
 
 export type LocationStatus = "idle" | "loading" | "ready" | "unavailable";
 
@@ -226,47 +223,6 @@ export function getUserLocation(
     });
 
   return inflight;
-}
-
-async function pollOnce(): Promise<void> {
-  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-    return;
-  }
-
-  try {
-    await getUserLocation({ force: true });
-  } catch {
-    // тихо: кэш остаётся прежним
-  }
-}
-
-/**
- * Фоновый опрос раз в 5 минут, пока вкладка/WebView видимы.
- * Вызвать один раз при старте приложения.
- */
-export function ensureLocationPolling(): void {
-  if (typeof window === "undefined" || pollingStarted) return;
-  pollingStarted = true;
-
-  if (isCacheFresh()) {
-    emitStatus("ready");
-  } else {
-    emitStatus("loading");
-  }
-
-  void pollOnce();
-
-  pollTimer = window.setInterval(() => {
-    void pollOnce();
-  }, LOCATION_POLL_MS);
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      if (!isCacheFresh()) {
-        void pollOnce();
-      }
-    }
-  });
 }
 
 /** @deprecated */
