@@ -67,9 +67,11 @@ export default function EvChargeCheckout({
 
   const limitLabel = useMemo(() => {
     if (limits.tab === "price") return `${amount.toLocaleString("ru-RU")} ₸`;
-    if (limits.tab === "time") return `${limits.minutes} мин`;
+    if (limits.tab === "time") {
+      return `${limits.minutes} ${t("ev.minutes_short", "мин")}`;
+    }
     return `${limits.chargeTo}%`;
-  }, [limits, amount]);
+  }, [limits, amount, t]);
 
   const modeLabel = useMemo(() => {
     if (limits.tab === "price") return t("ev.tab_price", "Цена");

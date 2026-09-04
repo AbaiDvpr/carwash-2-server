@@ -2,6 +2,7 @@
 
 import PreloaderStage from "@/features/profile/components/PreloaderStage";
 import { usePreloaderVariant } from "@/hooks/usePreloaderVariant";
+import { useT } from "@/hooks/useT";
 import "@/features/profile/components/preloader-preview.css";
 
 type PreloaderOverlayProps = {
@@ -14,9 +15,11 @@ type PreloaderOverlayProps = {
 export default function PreloaderOverlay({
   mode = "fullscreen",
   size,
-  label = "Загрузка",
+  label,
   className = "",
 }: PreloaderOverlayProps) {
+  const t = useT();
+  const resolvedLabel = label ?? t("common.loading", "Загрузка...");
   const { variant, mounted, isDefault } = usePreloaderVariant();
   const markSize = size ?? (mode === "fullscreen" ? 176 : 148);
   const showCircleIcon = !(isDefault && variant.startsWith("circle-"));
@@ -28,7 +31,7 @@ export default function PreloaderOverlay({
   if (!mounted) return null;
 
   return (
-    <div className={rootClass} role="status" aria-live="polite" aria-label={label}>
+    <div className={rootClass} role="status" aria-live="polite" aria-label={resolvedLabel}>
       <PreloaderStage
         variant={variant}
         size={markSize}

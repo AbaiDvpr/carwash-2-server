@@ -16,6 +16,7 @@ import "@/features/map/home/components/map.css";
 import { useT, useLocale } from "@/hooks/useT";
 import { localizeWashTariff } from "@/lib/api/cw";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
+import { formatStandTitle } from "@/lib/standTitle";
 
 const YANDEX_LOGO = "/img/yandex_logo.svg";
 const GIS_LOGO = "/img/gis_logo.svg";
@@ -80,13 +81,14 @@ function MetaIcons({
   pricePerKwh: number | null | undefined;
   powerKw: number | null | undefined;
 }) {
+  const t = useT();
   return (
     <span className="map-ev-meta">
       <span className="map-ev-meta__item">
-        {formatPricePerKwh(pricePerKwh ?? null)}
+        {formatPricePerKwh(pricePerKwh ?? null, t)}
       </span>
       <span className="map-ev-meta__item">
-        {powerKw != null ? formatPowerKw(powerKw) : "—"}
+        {powerKw != null ? formatPowerKw(powerKw, t) : "—"}
       </span>
     </span>
   );
@@ -276,9 +278,9 @@ export default function StationDetail({ station }: { station: Station }) {
                       {t("map.pick_connector", "Выберите коннектор")}
                     </h2>
                     <p className="map-conn-step__parent">
-                      {selectedStand.title}
+                      {formatStandTitle(selectedStand.index, t)}
                       {selectedStand.powerKw != null
-                        ? ` · ${formatPowerKw(selectedStand.powerKw)}`
+                        ? ` · ${formatPowerKw(selectedStand.powerKw, t)}`
                         : ""}
                     </p>
                   </div>
@@ -369,7 +371,9 @@ export default function StationDetail({ station }: { station: Station }) {
                         }}
                       >
                         <span className="map-stand-pick__main">
-                          <span className="map-stand-pick__title">{stand.title}</span>
+                          <span className="map-stand-pick__title">
+                            {formatStandTitle(stand.index, t)}
+                          </span>
                           <MetaIcons
                             pricePerKwh={stand.pricePerKwh}
                             powerKw={stand.powerKw}
@@ -393,9 +397,9 @@ export default function StationDetail({ station }: { station: Station }) {
                 {isCharging && chargerStands.length === 0 ? (
                   <p className="text-xs text-zinc-500">
                     {t("map.max_power", "Макс. мощность")}:{" "}
-                    {formatPowerKw(station.maxPowerKw)}
+                    {formatPowerKw(station.maxPowerKw, t)}
                     {station.pricePerKwh != null
-                      ? ` · ${formatPricePerKwh(station.pricePerKwh)}`
+                      ? ` · ${formatPricePerKwh(station.pricePerKwh, t)}`
                       : ""}
                   </p>
                 ) : null}

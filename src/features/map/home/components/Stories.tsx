@@ -272,7 +272,7 @@ function StoryViewer({
                   }
                 />
                 <div className="story-viewer__content">
-                  <p className="story-viewer__eyebrow">История</p>
+                  <p className="story-viewer__eyebrow">{t("stories.eyebrow", "История")}</p>
                   <h2 className="story-viewer__title">{slideTitle}</h2>
                   <p className="story-viewer__text">{slideText}</p>
                 </div>
@@ -285,7 +285,7 @@ function StoryViewer({
       <button
         type="button"
         className="story-viewer__tap story-viewer__tap--prev"
-        aria-label="Предыдущий"
+        aria-label={t("stories.prev", "Предыдущий")}
         tabIndex={tapNavReady ? 0 : -1}
         disabled={!tapNavReady}
         onPointerDown={onTapPointerDown}
@@ -296,7 +296,7 @@ function StoryViewer({
       <button
         type="button"
         className="story-viewer__tap story-viewer__tap--next"
-        aria-label="Следующий"
+        aria-label={t("stories.next", "Следующий")}
         tabIndex={tapNavReady ? 0 : -1}
         disabled={!tapNavReady}
         onPointerDown={onTapPointerDown}
@@ -349,6 +349,7 @@ function StoryViewer({
 
 export default function Stories() {
   const lang = useLocale();
+  const t = useT();
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -394,7 +395,7 @@ export default function Stories() {
   }
 
   return (
-    <section className="stories" aria-label="Истории">
+    <section className="stories" aria-label={t("stories.label", "Истории")}>
       <div className="stories__scroller">
         {stories.map((story, index) => {
           const cover = pickStoryPhoto(story, lang);

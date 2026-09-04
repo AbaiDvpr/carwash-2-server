@@ -19,6 +19,7 @@ import {
 } from "@/lib/api/garage";
 import { ApiError } from "@/lib/api";
 import { useT } from "@/hooks/useT";
+import { countryLabel } from "@/lib/countryLabels";
 import "@/features/profile/history/components/history.css";
 import "./profile.css";
 import IconActionButton, { IconEdit, IconTrash } from "./IconActionButton";
@@ -191,7 +192,7 @@ function CountryDrawer({
                       {item.flag}
                     </span>
                     <span className="min-w-0 flex-1 text-sm font-medium text-[var(--app-text)]">
-                      {item.label}
+                      {countryLabel(item.code, t)}
                     </span>
                     <RadioMark checked={selected} />
                   </button>
@@ -213,12 +214,13 @@ type FlagButtonProps = {
 };
 
 function FlagButton({ country, disabled, onClick }: FlagButtonProps) {
+  const t = useT();
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      aria-label={country.label}
+      aria-label={countryLabel(country.code, t)}
       className="flex h-11 items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900"
     >
       <span className="text-xl leading-none" aria-hidden>
@@ -465,7 +467,7 @@ export default function GaragePanel() {
                     <div className="flex items-center gap-2 px-3 py-2.5">
                       <span
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-50 text-xl leading-none dark:bg-zinc-900"
-                        title={country.label}
+                        title={countryLabel(country.code, t)}
                         aria-hidden
                       >
                         {country.flag}
@@ -475,7 +477,7 @@ export default function GaragePanel() {
                           {garage.car_plate}
                         </p>
                         <p className="truncate text-[0.8125rem] text-zinc-400">
-                          {country.label}
+                          {countryLabel(country.code, t)}
                         </p>
                       </div>
                       <IconActionButton

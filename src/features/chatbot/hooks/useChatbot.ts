@@ -5,13 +5,11 @@ import {
   sendChatbotMessage,
   type HotQuestion,
 } from "@/lib/api/chatbot";
+import { useLocale, useT } from "@/hooks/useT";
 import type { ChatMessage } from "./useChatbot.types";
 import { formatTime } from "./useChatbot.constants";
 
 export type { ChatMessage } from "./useChatbot.types";
-
-const FALLBACK_WELCOME =
-  "Здравствуйте! Я помощник CarWash. Помогу с оплатой, мойками и промокодами.";
 
 const FALLBACK_HOT: HotQuestion[] = [
   { id: 1, question: "Как оплатить мойку?" },
@@ -20,18 +18,20 @@ const FALLBACK_HOT: HotQuestion[] = [
   { id: 4, question: "Связаться с оператором" },
 ];
 
-function errorText(err: unknown): string {
-  if (err instanceof ApiError) {
-    const body = err.body as { message?: string } | null;
-    if (body?.message) return body.message;
-  }
-  if (err instanceof Error) return err.message;
-  return "Не удалось получить ответ. Попробуйте ещё раз.";
-}
-
 export function useChatbot() {
+  const t = useT();
+  const locale = useLocale();
+  const welcomeText = t(
+    "chatbot.welcome",
+    "Здравствуйте! Я помощник CarWash. Помогу с оплатой, мойками и промокодами.",
+  );
+  const errorFallback = t(
+    "chatbot.error",
+    "Не удалось получить ответ. Попробуйте ещё раз.",
+  );
+
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: "welcome", role: "bot", text: FALLBACK_WELCOME, time: "" },
+    { id: "welcome", role: "bot", text: welcomeText, time: "" },
   ]);
   const [hotQuestions, setHotQuestions] = useState<HotQuestion[]>(FALLBACK_HOT);
   const [input, setInput] = useState("");
@@ -41,12 +41,12 @@ export function useChatbot() {
   useEffect(() => {
     setMessages((prev) =>
       prev.map((message) =>
-        message.id === "welcome" && !message.time
-          ? { ...message, time: formatTime() }
+        message.id === "welcome"
+          ? { ...message, text: welcomeText, time: message.time || formatTime() }
           : message,
       ),
     );
-  }, []);
+  }, [welcomeText]);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +62,7 @@ export function useChatbot() {
             message.id === "welcome"
               ? {
                   ...message,
-                  text: data.welcome_message || FALLBACK_WELCOME,
+                  text: welcomeText,
                   time: message.time || formatTime(),
                 }
               : message,
@@ -75,7 +75,7 @@ export function useChatbot() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [welcomeText]);
 
   useEffect(() => {
     const el = messagesRef.current;
@@ -83,7 +83,10 @@ export function useChatbot() {
     el.scrollTop = el.scrollHeight;
   }, [messages, isTyping]);
 
-  const sendMessage = (text: string) => {
+  const sendMessage = (
+    text: string,
+    options?: { localReply?: string },
+  ) => {
     const trimmed = text.trim();
     if (!trimmed || isTyping) return;
 
@@ -96,6 +99,20 @@ export function useChatbot() {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+
+    if (options?.localReply) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-${Date.now()}`,
+          role: "bot",
+          text: options.localReply!,
+          time: formatTime(),
+        },
+      ]);
+      return;
+    }
+
     setIsTyping(true);
 
     void (async () => {
@@ -116,6 +133,7 @@ export function useChatbot() {
         const { reply } = await sendChatbotMessage({
           message: trimmed,
           history: historyWithoutLast,
+          locale: locale === "kz" ? "kk" : locale,
         });
 
         setMessages((prev) => [
@@ -128,12 +146,19 @@ export function useChatbot() {
           },
         ]);
       } catch (err) {
+        let replyText = errorFallback;
+        if (err instanceof ApiError) {
+          const body = err.body as { message?: string } | null;
+          if (body?.message) replyText = body.message;
+        } else if (err instanceof Error && err.message) {
+          replyText = err.message;
+        }
         setMessages((prev) => [
           ...prev,
           {
             id: `bot-err-${Date.now()}`,
             role: "bot",
-            text: errorText(err),
+            text: replyText,
             time: formatTime(),
           },
         ]);

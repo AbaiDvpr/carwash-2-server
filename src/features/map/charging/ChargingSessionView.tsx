@@ -5,6 +5,8 @@ import type { Station, StationChargerStand, StationConnectorPort } from "@/data/
 import { formatPowerKw, formatPricePerKwh } from "@/features/map/evConnectors";
 import { useT } from "@/hooks/useT";
 import { navigateProfilePath } from "@/lib/navbarController";
+import { formatStandTitle } from "@/lib/standTitle";
+import { formatKwh } from "@/features/profile/abonements";
 import {
   CHARGE_MS,
   type EvCheckoutLimits,
@@ -88,8 +90,10 @@ function buildStats(input: {
   limits: EvCheckoutLimits;
   port: StationConnectorPort;
   stand: StationChargerStand;
+  standLabel: string;
+  t: (key: string, fallback?: string) => string;
 }): LiveStats {
-  const { progress, elapsedMs, limits, port, stand } = input;
+  const { progress, elapsedMs, limits, port, stand, standLabel, t } = input;
   const targetPercent = limits.tab === "charge" ? limits.chargeTo : 100;
   const displayPercent = Math.min(
     targetPercent,
@@ -104,20 +108,20 @@ function buildStats(input: {
     limits.tab === "price"
       ? `${limits.priceLimit.toLocaleString("ru-RU")} ₸`
       : limits.tab === "time"
-        ? `${limits.minutes} мин`
+        ? `${limits.minutes} ${t("ev.minutes_short", "мин")}`
         : `${limits.chargeTo} %`;
 
   return {
     progress,
     displayPercent,
     targetPercent,
-    powerLabel: power ? formatPowerKw(power) : "—",
+    powerLabel: power ? formatPowerKw(power, t) : "—",
     durationMin: Math.floor(elapsedMs / 60_000),
     orderLabel,
     chargedKwh,
     costTg,
-    priceLabel: formatPricePerKwh(Number(price)),
-    portStand: `${port.label}/${stand.title}`,
+    priceLabel: formatPricePerKwh(Number(price), t),
+    portStand: `${port.label}/${standLabel}`,
   };
 }
 
@@ -137,7 +141,7 @@ function ParamsCard({
     { label: t("ev.order_address", "Адрес"), value: address },
     { label: t("ev.order_station", "Станция"), value: portStand },
     { label: t("ev.order_for", "Заказ на"), value: stats.orderLabel },
-    { label: t("ev.charged", "Заряжено"), value: `${stats.chargedKwh.toFixed(2)} кВт·ч` },
+    { label: t("ev.charged", "Заряжено"), value: formatKwh(stats.chargedKwh, t) },
     { label: t("payment.tariff", "Тариф"), value: stats.priceLabel },
     { label: t("payment.to_pay", "Стоимость"), value: `${stats.costTg.toLocaleString("ru-RU")} ₸` },
   ];
@@ -167,8 +171,7 @@ function PassPlaque({
   if (remainingKwh != null && remainingKwh > 0) {
     return (
       <p className="csv-pass csv-pass--ok">
-        {t("profile.abonement", "Абонемент")} ·{" "}
-        {remainingKwh.toLocaleString("ru-RU")} кВт·ч
+        {t("profile.abonement", "Абонемент")} · {formatKwh(remainingKwh, t)}
       </p>
     );
   }
@@ -216,8 +219,17 @@ export default function ChargingSessionView({
   );
 
   const stats = useMemo(
-    () => buildStats({ progress, elapsedMs, limits, port, stand }),
-    [progress, elapsedMs, limits, port, stand],
+    () =>
+      buildStats({
+        progress,
+        elapsedMs,
+        limits,
+        port,
+        stand,
+        standLabel: formatStandTitle(stand.index, t),
+        t,
+      }),
+    [progress, elapsedMs, limits, port, stand, t],
   );
 
   const note = cancelNote ? (

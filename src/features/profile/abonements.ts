@@ -100,13 +100,30 @@ export function formatKwhAmount(value: number): string {
   return value.toFixed(1).replace(".", ",");
 }
 
-export function formatKwh(value: number): string {
-  return `${formatKwhAmount(value)} кВт·ч`;
+type TFn = (key: string, fallback?: string) => string;
+
+export function formatKwh(value: number, t?: TFn): string {
+  const amount = formatKwhAmount(value);
+  if (t) {
+    return t("units.kwh_amount", "{n} кВт·ч").replace("{n}", amount);
+  }
+  return `${amount} кВт·ч`;
 }
 
 /** Единый формат: «100 / 200 кВт·ч» — единица один раз */
-export function formatKwhRange(remaining: number, total: number): string {
-  return `${formatKwhAmount(remaining)} / ${formatKwhAmount(total)} кВт·ч`;
+export function formatKwhRange(
+  remaining: number,
+  total: number,
+  t?: TFn,
+): string {
+  const left = formatKwhAmount(remaining);
+  const right = formatKwhAmount(total);
+  if (t) {
+    return t("units.kwh_range", "{a} / {b} кВт·ч")
+      .replace("{a}", left)
+      .replace("{b}", right);
+  }
+  return `${left} / ${right} кВт·ч`;
 }
 
 export function formatAbonementDeadline(isoDate: string): string {
@@ -126,16 +143,69 @@ export function formatAbonementDeadlineShort(isoDate: string): string {
   return `${mm}/${yy}`;
 }
 
-export function formatValidityDays(days: number): string {
+export function formatValidityDays(days: number, t?: TFn): string {
   if (days % 365 === 0) {
     const y = days / 365;
+    if (t) {
+      return y === 1
+        ? t("profile.validity_year", "1 год")
+        : t("profile.validity_years", "{n} года").replace("{n}", String(y));
+    }
     return y === 1 ? "1 год" : `${y} года`;
   }
   if (days % 30 === 0) {
     const m = days / 30;
+    if (t) {
+      return t("profile.validity_months", "{n} мес.").replace("{n}", String(m));
+    }
     return `${m} мес.`;
   }
+  if (t) {
+    return t("profile.validity_days", "{n} дн.").replace("{n}", String(days));
+  }
   return `${days} дн.`;
+}
+
+/** Подзаголовок пакета по kind + объёму (не сырой subtitle с бэка). */
+export function formatAbonementSubtitle(
+  item: {
+    kind: AbonementKind;
+    totalKwh?: number | null;
+    totalWashes?: number | null;
+  },
+  t: TFn,
+): string {
+  if (item.kind === "ev") {
+    return t("profile.abonement_subtitle_ev", "{n} кВт·ч на зарядку").replace(
+      "{n}",
+      formatKwhAmount(item.totalKwh ?? 0),
+    );
+  }
+  return t("profile.abonement_subtitle_wash", "{n} моек").replace(
+    "{n}",
+    String(item.totalWashes ?? 0),
+  );
+}
+
+export function usedAbonementVolume(card: AbonementCard): number {
+  if (card.kind === "ev") {
+    const used = (card.totalKwh ?? 0) - (card.remainingKwh ?? 0);
+    return Math.max(0, Math.round(used * 100) / 100);
+  }
+  const used = (card.totalWashes ?? 0) - (card.remainingWashes ?? 0);
+  return Math.max(0, Math.round(used));
+}
+
+/** Сколько уже использовано с карты: кВт·ч или мойки, без тенге. */
+export function formatAbonementUsed(card: AbonementCard, t: TFn): string {
+  const used = usedAbonementVolume(card);
+  if (card.kind === "ev") {
+    return formatKwh(used, t);
+  }
+  return t("profile.abonement_subtitle_wash", "{n} моек").replace(
+    "{n}",
+    String(used),
+  );
 }
 
 export function isAbonementExpired(isoDate: string): boolean {

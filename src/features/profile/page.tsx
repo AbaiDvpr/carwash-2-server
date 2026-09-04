@@ -24,7 +24,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { useThemePalette } from "@/hooks/useThemePalette";
 import { useThemeLayout } from "@/hooks/useThemeLayout";
 import { useToast } from "@/hooks/useToast";
-import type { AppTheme } from "@/lib/theme";
 import type { ThemeMode } from "@/lib/themeColors";
 import { isHexColor, PALETTE_FIELD_META } from "@/lib/themeColors";
 import {
@@ -70,11 +69,6 @@ import "@/features/profile/history/components/history.css";
   | "promo"
   | "support"
   | "appearance";
-
-const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
-  { id: "light", label: "Тема", hint: "Светлая" },
-  { id: "dark", label: "Тема", hint: "Тёмная" },
-];
 
 function SectionCard({ children }: { children: ReactNode }) {
   return <section className="profile-card">{children}</section>;
@@ -938,7 +932,11 @@ export default function ProfilePage() {
                     {t("profile.theme", "Тема")}
                   </span>
                   <span className="profile-nav-row__hint">
-                    {themeMounted ? (isDark ? "Тёмная" : "Светлая") : "…"}
+                    {themeMounted
+                      ? isDark
+                        ? t("profile.theme_dark", "Тёмная")
+                        : t("profile.theme_light", "Светлая")
+                      : "…"}
                   </span>
                 </span>
                 <span
@@ -1060,9 +1058,20 @@ export default function ProfilePage() {
             {appearanceSection === "theme" ? (
               <>
                 <section className="mb-5">
-                  <SectionTitle>Тема</SectionTitle>
+                  <SectionTitle>{t("profile.theme", "Тема")}</SectionTitle>
                   <SectionCard>
-                    {THEME_OPTIONS.map((option) => (
+                    {(
+                      [
+                        {
+                          id: "light" as const,
+                          hint: t("profile.theme_light", "Светлая"),
+                        },
+                        {
+                          id: "dark" as const,
+                          hint: t("profile.theme_dark", "Тёмная"),
+                        },
+                      ] as const
+                    ).map((option) => (
                       <button
                         key={option.id}
                         type="button"
@@ -1077,7 +1086,7 @@ export default function ProfilePage() {
                         <RadioMark checked={theme === option.id} />
                         <span className="profile-nav-row__main">
                           <span className="profile-nav-row__label">
-                            {option.label}
+                            {t("profile.theme", "Тема")}
                           </span>
                           <span className="profile-nav-row__hint">
                             {option.hint}
@@ -1089,16 +1098,22 @@ export default function ProfilePage() {
                 </section>
 
                 <section className="mb-5">
-                  <SectionTitle>Цвета</SectionTitle>
+                  <SectionTitle>{t("profile.theme_colors", "Цвета")}</SectionTitle>
                   <div
                     className="history-kind profile-theme-tabs"
                     role="tablist"
-                    aria-label="Палитра темы"
+                    aria-label={t("profile.theme_palette", "Палитра темы")}
                   >
                     {(
                       [
-                        { id: "light" as const, label: "Светлая" },
-                        { id: "dark" as const, label: "Тёмная" },
+                        {
+                          id: "light" as const,
+                          label: t("profile.theme_light", "Светлая"),
+                        },
+                        {
+                          id: "dark" as const,
+                          label: t("profile.theme_dark", "Тёмная"),
+                        },
                       ] as const
                     ).map((tab) => {
                       const active = editPaletteMode === tab.id;
@@ -1661,7 +1676,16 @@ export default function ProfilePage() {
                       }}
                     >
                       <span className="profile-nav-row__main">
-                        <span className="profile-nav-row__hint">{doc.title}</span>
+                        <span className="profile-nav-row__hint">
+                          {doc.id === "privacy"
+                            ? t(
+                                "profile.doc_privacy",
+                                "Политика конфиденциальности",
+                              )
+                            : doc.id === "offer"
+                              ? t("profile.doc_offer", "Публичная оферта")
+                              : doc.title}
+                        </span>
                       </span>
                       <svg
                         className="profile-nav-row__chevron"

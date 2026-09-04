@@ -5,8 +5,8 @@ import {
 
 export const PRELOADER_VARIANT_KEY = "hipoint.preloaderVariant";
 
-/** По умолчанию — круглый спиннер без иконки */
-export const DEFAULT_PRELOADER_VARIANT: PreloaderVariant = "circle-rotate";
+/** По умолчанию — общий прелоадер №31 (горизонтальный градиент + двойное кольцо) */
+export const DEFAULT_PRELOADER_VARIANT: PreloaderVariant = "combo-grad-h-double";
 
 const VARIANT_IDS = new Set(PRELOADER_VARIANTS.map((item) => item.id));
 

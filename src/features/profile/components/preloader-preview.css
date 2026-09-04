@@ -113,7 +113,7 @@
   z-index: 100;
   display: grid;
   place-items: center;
-  background: color-mix(in oklab, var(--app-background, #fff) 92%, transparent);
+  background: var(--background, #f4f4f5);
   backdrop-filter: blur(4px);
 }
 

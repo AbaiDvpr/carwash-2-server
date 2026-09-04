@@ -114,10 +114,11 @@
 }
 
 .cw-pay__hint {
-  margin: 0;
+  margin: 0.75rem 0 0;
   color: var(--app-description);
   font-size: var(--app-text-sm);
   font-weight: 500;
+  line-height: 1.4;
 }
 
 .cw-pay__hint.is-danger {

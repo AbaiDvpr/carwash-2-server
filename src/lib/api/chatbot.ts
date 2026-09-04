@@ -22,6 +22,7 @@ export function fetchChatbotBootstrap(): Promise<ChatbotBootstrap> {
 export function sendChatbotMessage(input: {
   message: string;
   history?: ChatHistoryItem[];
+  locale?: string;
 }): Promise<{ reply: string }> {
   return apiFetch<{ reply: string }>("/api/chatbot/chat", {
     method: "POST",

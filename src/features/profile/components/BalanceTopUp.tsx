@@ -25,7 +25,10 @@ type BalanceTopUpProps = {
   onSuccess?: () => void;
 };
 
-function topUpErrorMessage(err: unknown): string {
+function topUpErrorMessage(
+  err: unknown,
+  fallback: string,
+): string {
   if (err instanceof ApiError) {
     const body = err.body as {
       message?: string;
@@ -36,7 +39,7 @@ function topUpErrorMessage(err: unknown): string {
     if (body?.message) return body.message;
   }
   if (err instanceof Error) return err.message;
-  return "Не удалось пополнить баланс";
+  return fallback;
 }
 
 function RadioMark({ checked }: { checked: boolean }) {
@@ -83,13 +86,16 @@ export default function BalanceTopUp({
     setMessage(null);
 
     try {
-      const result = await topUpBalance(parsed, method);
-      setMessage(
-        `Зачислено ${formatBalance(parsed)}. Баланс: ${formatBalance(result.balance)}`,
-      );
+      await topUpBalance(parsed, method);
+      setMessage(t("payment.top_up_success", "Успешно пополнено"));
       onSuccess?.();
     } catch (err) {
-      setError(topUpErrorMessage(err));
+      setError(
+        topUpErrorMessage(
+          err,
+          t("payment.top_up_error", "Не удалось пополнить баланс"),
+        ),
+      );
     } finally {
       setSaving(false);
     }

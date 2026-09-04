@@ -1,11 +1,13 @@
 "use client";
 
+import { useT } from "@/hooks/useT";
 import {
   abonementKindClass,
   abonementKindSuffix,
   abonementProgress,
   formatAbonementDeadlineShort,
-  formatAbonementMoney,
+  formatAbonementSubtitle,
+  formatAbonementUsed,
   formatKwhRange,
   isAbonementExpired,
   type AbonementCard,
@@ -64,6 +66,7 @@ export default function AbonementPlasticCard({
   deadlineLabel,
   spentLabel,
 }: AbonementPlasticCardProps) {
+  const t = useT();
   const expired = isAbonementExpired(card.deadline);
   const kwhRatio = abonementProgress(card.remainingKwh ?? 0, card.totalKwh ?? 0);
   const washRatio = abonementProgress(
@@ -88,7 +91,9 @@ export default function AbonementPlasticCard({
         </div>
       </div>
 
-      <p className="abonement-plastic__label">{card.subtitle}</p>
+      <p className="abonement-plastic__label">
+        {formatAbonementSubtitle(card, t)}
+      </p>
 
       <div className="abonement-plastic__bars">
         {card.kind === "ev" ? (
@@ -97,6 +102,7 @@ export default function AbonementPlasticCard({
             valueLabel={formatKwhRange(
               card.remainingKwh ?? 0,
               card.totalKwh ?? 0,
+              t,
             )}
             ratio={kwhRatio}
           />
@@ -122,7 +128,7 @@ export default function AbonementPlasticCard({
         <div className="abonement-plastic__meta-right">
           <span className="abonement-plastic__meta-label">{spentLabel}</span>
           <span className="abonement-plastic__meta-value">
-            {formatAbonementMoney(card.spentAmount)}
+            {formatAbonementUsed(card, t)}
           </span>
         </div>
       </div>

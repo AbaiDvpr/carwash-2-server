@@ -12,6 +12,7 @@ import {
   buyAbonementOffer,
   fetchAbonementOffers,
   formatAbonementMoney,
+  formatAbonementSubtitle,
   formatKwh,
   formatValidityDays,
   type AbonementOffer,
@@ -148,14 +149,16 @@ export default function AbonementBuyOfferPage() {
             </div>
           </div>
 
-          <p className="abonement-plastic__label">{offer.subtitle}</p>
+          <p className="abonement-plastic__label">
+            {formatAbonementSubtitle(offer, t)}
+          </p>
 
           <div className="abonement-plastic__bars">
             {offer.totalKwh != null ? (
               <div className="abonement-plastic__progress">
                 <div className="abonement-plastic__progress-head">
                   <span>{t("profile.abonement_kwh_pack", "Пакет кВт·ч")}</span>
-                  <strong>{formatKwh(offer.totalKwh)}</strong>
+                  <strong>{formatKwh(offer.totalKwh, t)}</strong>
                 </div>
                 <div className="abonement-plastic__progress-track">
                   <span
@@ -189,7 +192,7 @@ export default function AbonementBuyOfferPage() {
                 {t("profile.abonement_valid", "Срок")}
               </span>
               <span className="abonement-plastic__meta-value">
-                {formatValidityDays(offer.validityDays)}
+                {formatValidityDays(offer.validityDays, t)}
               </span>
             </div>
             <div className="abonement-plastic__meta-right">
@@ -218,7 +221,7 @@ export default function AbonementBuyOfferPage() {
                 {t("profile.abonement_valid", "Срок действия")}
               </p>
               <p className="profile-card__balance-value">
-                {formatValidityDays(offer.validityDays)}
+                {formatValidityDays(offer.validityDays, t)}
               </p>
             </div>
             {offer.totalKwh != null ? (
@@ -227,7 +230,7 @@ export default function AbonementBuyOfferPage() {
                   {t("profile.abonement_kwh_pack", "КВт·ч в пакете")}
                 </p>
                 <p className="profile-card__balance-value">
-                  {formatKwh(offer.totalKwh)}
+                  {formatKwh(offer.totalKwh, t)}
                 </p>
               </div>
             ) : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useT } from "@/hooks/useT";
 import { fetchUserInfo, updateUserSettings } from "@/lib/api/auth";
 import { hasAccessToken } from "@/lib/authToken";
 
@@ -12,6 +13,7 @@ function toBool(value: unknown, fallback = true): boolean {
 }
 
 export function usePushNotifications() {
+  const t = useT();
   const [pushEnabled, setPushEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,6 +60,10 @@ export function usePushNotifications() {
     loading,
     saving,
     togglePush,
-    hint: loading ? "…" : pushEnabled ? "Включены" : "Выключены",
+    hint: loading
+      ? "…"
+      : pushEnabled
+        ? t("profile.enabled", "Включены")
+        : t("profile.disabled", "Выключены"),
   };
 }

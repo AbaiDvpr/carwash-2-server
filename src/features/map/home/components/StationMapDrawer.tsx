@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   getPaymentPath,
@@ -23,6 +24,11 @@ import { useMapSheetDrag } from "@/features/map/useMapSheetDrag";
 import { useStation } from "@/hooks/useStation";
 import { useLocale, useT } from "@/hooks/useT";
 import { localizeWashTariff } from "@/lib/api/cw";
+import {
+  fetchActiveEvSessions,
+  findUnpaidEvSession,
+  type EvSession,
+} from "@/lib/api/evSessions";
 import { distanceKm } from "@/lib/api/geos";
 import { open2GisMap, openYandexMap } from "@/lib/mapController";
 import { navigateNavbar } from "@/lib/navbarController";
@@ -30,6 +36,7 @@ import {
   buildWeeklyHoursSchedule,
   type WeekHoursRow,
 } from "@/lib/openHours";
+import { formatStandTitle } from "@/lib/standTitle";
 import BackButton from "@/components/ui/BackButton";
 import EvChargeFlow, {
   type EvChargeStep,
@@ -181,20 +188,33 @@ function ScanQrButton() {
   );
 }
 
-function formatDistanceLabel(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} м`;
-  if (km < 10) return `${km.toFixed(1).replace(".", ",")} км`;
-  return `${Math.round(km)} км`;
+function formatDistanceLabel(
+  km: number,
+  t: (key: string, fallback?: string) => string,
+): string {
+  if (km < 1) {
+    return `${Math.round(km * 1000)} ${t("map.unit_m", "м")}`;
+  }
+  if (km < 10) {
+    return `${km.toFixed(1).replace(".", ",")} ${t("map.unit_km", "км")}`;
+  }
+  return `${Math.round(km)} ${t("map.unit_km", "км")}`;
 }
 
 /** «сегодня с 09:00 до 22:00» → «09:00 – 22:00» */
-function compactHoursLabel(hoursLabel: string): string {
+function compactHoursLabel(
+  hoursLabel: string,
+  t: (key: string, fallback?: string) => string,
+): string {
   const raw = hoursLabel.trim();
-  if (!raw) return "Часы уточняйте";
-  if (/круглосут/i.test(raw)) return "Круглосуточно";
+  if (!raw) return t("station.hours_unknown", "Часы уточняйте");
+  if (/круглосут|24\s*\/\s*7/i.test(raw)) return t("hours.24h", "Круглосуточно");
   const range = raw.match(/(\d{1,2}:\d{2}).*?(\d{1,2}:\d{2})/);
   if (range) return `${range[1]} – ${range[2]}`;
-  return raw.replace(/^сегодня\s+/i, "") || "Часы уточняйте";
+  return (
+    raw.replace(/^сегодня\s+/i, "").replace(/^today\s+/i, "") ||
+    t("station.hours_unknown", "Часы уточняйте")
+  );
 }
 
 type StatusTone = "free" | "busy" | "charging" | "offline";
@@ -243,9 +263,10 @@ function WashPostsGrid({
 }
 
 function NoPhotoThumb({ compact = false }: { compact?: boolean }) {
+  const t = useT();
   return (
     <span className={`map-no-photo${compact ? " is-compact" : ""}`} aria-hidden>
-      Нет фото
+      {t("map.no_photo", "Нет фото")}
     </span>
   );
 }
@@ -279,13 +300,14 @@ function MetaIcons({
   pricePerKwh: number | null | undefined;
   powerKw: number | null | undefined;
 }) {
+  const t = useT();
   return (
     <span className="map-ev-meta">
       <span className="map-ev-meta__item">
-        {formatPricePerKwh(pricePerKwh ?? null)}
+        {formatPricePerKwh(pricePerKwh ?? null, t)}
       </span>
       <span className="map-ev-meta__item">
-        {powerKw != null ? formatPowerKw(powerKw) : "—"}
+        {powerKw != null ? formatPowerKw(powerKw, t) : "—"}
       </span>
     </span>
   );
@@ -369,7 +391,9 @@ function StandPickButton({
     >
       <span className="map-stand-pick__main">
         <MetaIcons pricePerKwh={stand.pricePerKwh} powerKw={stand.powerKw} />
-        <span className="map-stand-pick__title">{stand.title}</span>
+        <span className="map-stand-pick__title">
+          {formatStandTitle(stand.index, t)}
+        </span>
       </span>
       <span className="map-stand-pick__aside map-stand-pick__aside--ports">
         {stand.ports.length > 0 ? (
@@ -397,6 +421,7 @@ function StandPickButton({
 
 /** Тот же маркер, что на карте — иконка + свободно/всего */
 function StationSheetMarker({ station }: { station: Station }) {
+  const t = useT();
   const { prefs } = useMapMarkerStylePrefs();
   const isCharging = station.kind === "charging";
   const kindPrefs = isCharging ? prefs.charging : prefs.wash;
@@ -408,7 +433,9 @@ function StationSheetMarker({ station }: { station: Station }) {
     <div
       className="map-station-sheet__marker"
       title={`${free}/${total}`}
-      aria-label={`${free} из ${total} свободно`}
+      aria-label={t("map.free_of_total", "{free} из {total} свободно")
+        .replace("{free}", String(free))
+        .replace("{total}", String(total))}
     >
       <span
         className={`${markerStyleClass(isCharging ? "charging" : "wash", kindPrefs.shapeId)} map-marker--sheet map-marker--no-tip`}
@@ -444,6 +471,34 @@ function HoursScheduleList({ rows }: { rows: WeekHoursRow[] }) {
     );
   }
 
+  const dayKey = (dayIndex: number) => {
+    const keys = [
+      "hours.sun",
+      "hours.mon",
+      "hours.tue",
+      "hours.wed",
+      "hours.thu",
+      "hours.fri",
+      "hours.sat",
+    ] as const;
+    const fallbacks = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+    return t(keys[dayIndex] ?? "hours.sun", fallbacks[dayIndex] ?? "—");
+  };
+
+  const hoursLabel = (hours: string) => {
+    if (!hours || hours === "—" || hours === "-") return "—";
+    if (/выходн|closed|day\s*off/i.test(hours) || hours === "Выходной") {
+      return t("hours.closed", "Выходной");
+    }
+    if (/круглосут|24\s*\/\s*7/i.test(hours)) {
+      return t("hours.24h", "Круглосуточно");
+    }
+    if (hours === "Часы уточняйте") {
+      return t("station.hours_unknown", "Часы уточняйте");
+    }
+    return hours;
+  };
+
   return (
     <ul className="map-hours-schedule__list">
       {rows.map((row) => (
@@ -452,14 +507,16 @@ function HoursScheduleList({ rows }: { rows: WeekHoursRow[] }) {
           className={`map-hours-schedule__row${row.isToday ? " is-today" : ""}`}
         >
           <span className="map-hours-schedule__day">
-            {row.shortLabel}
+            {dayKey(row.dayIndex)}
             {row.isToday ? (
               <span className="map-hours-schedule__today">
                 {t("map.today", "сегодня")}
               </span>
             ) : null}
           </span>
-          <span className="map-hours-schedule__hours">{row.hours}</span>
+          <span className="map-hours-schedule__hours">
+            {hoursLabel(row.hours)}
+          </span>
         </li>
       ))}
     </ul>
@@ -509,7 +566,7 @@ function RouteAppsList({
           <span className="map-route-sheet__icon">
             <img src={GIS_LOGO} alt="" width={18} height={18} />
           </span>
-          2ГИС
+          {t("map.nav_2gis", "2ГИС")}
         </button>
       </li>
     </ul>
@@ -522,6 +579,91 @@ function DrawerLoading({ label }: { label: string }) {
       <span className="map-station-sheet__spinner" aria-hidden />
       <p>{label}</p>
     </div>
+  );
+}
+
+function formatDebtAmount(amount: number | null | undefined): string | null {
+  if (amount == null || !Number.isFinite(amount) || amount <= 0) return null;
+  return `${amount.toLocaleString("ru-RU")} ₸`;
+}
+
+function UnpaidDebtSheet({
+  session,
+  onClose,
+  onPay,
+}: {
+  session: EvSession;
+  onClose: () => void;
+  onPay: () => void;
+}) {
+  const t = useT();
+  const [portalReady, setPortalReady] = useState(false);
+  const amountLabel = formatDebtAmount(session.amount);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (!portalReady) return null;
+
+  return createPortal(
+    <>
+      <button
+        type="button"
+        className="app-bottom-sheet-backdrop"
+        onClick={onClose}
+        aria-label={t("common.close", "Закрыть")}
+      />
+      <div
+        className="app-bottom-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ev-unpaid-title"
+      >
+        <div className="app-bottom-sheet__toolbar">
+          <button
+            type="button"
+            className="app-drawer-close"
+            onClick={onClose}
+            aria-label={t("common.close", "Закрыть")}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+        <div className="app-bottom-sheet__body">
+          <h2 id="ev-unpaid-title" className="app-bottom-sheet__title">
+            {t("ev.unpaid_title", "Есть неоплаченная зарядка")}
+          </h2>
+          <p className="app-bottom-sheet__subtitle">
+            {t(
+              "ev.unpaid_text",
+              "Сначала оплатите предыдущую зарядку — без этого новую начать нельзя.",
+            )}
+          </p>
+          {amountLabel ? (
+            <p className="theme-description" style={{ marginTop: "0.75rem" }}>
+              {t("ev.unpaid_amount", "Сумма: {n}").replace("{n}", amountLabel)}
+            </p>
+          ) : null}
+        </div>
+        <div className="app-bottom-sheet__footer">
+          <button type="button" className="theme-button w-full" onClick={onPay}>
+            {t("ev.unpaid_pay", "Оплатить долг")}
+          </button>
+        </div>
+      </div>
+    </>,
+    document.body,
   );
 }
 
@@ -560,6 +702,8 @@ export default function StationMapDrawer({
   const [selectedWashTariffKey, setSelectedWashTariffKey] = useState<string | null>(
     null,
   );
+  const [unpaidDebt, setUnpaidDebt] = useState<EvSession | null>(null);
+  const [debtChecking, setDebtChecking] = useState(false);
   const {
     station: freshStation,
     loading,
@@ -673,18 +817,43 @@ export default function StationMapDrawer({
   };
 
   const openFreePort = (port: StationConnectorPort) => {
-    if (port.status !== "free") return;
-    setSelectedPortId(port.id);
-    setEvChargeStep("init");
-    setChargeEndsAt(null);
-    setHideStationPhoto(false);
-    setPhotoHeader(null);
-    setRouteOpen(false);
-    setHoursOpen(false);
+    if (port.status !== "free" || debtChecking) return;
+
+    void (async () => {
+      setDebtChecking(true);
+      try {
+        const sessions = await fetchActiveEvSessions();
+        const unpaid = findUnpaidEvSession(sessions);
+        if (unpaid) {
+          setUnpaidDebt(unpaid);
+          setSelectedPortId(port.id);
+          setEvChargeStep("init");
+          setChargeEndsAt(null);
+          setHideStationPhoto(false);
+          setPhotoHeader(null);
+          setRouteOpen(false);
+          setHoursOpen(false);
+          return;
+        }
+      } catch {
+        /* сеть / 401 — пусть бэкенд отловит при старте */
+      } finally {
+        setDebtChecking(false);
+      }
+
+      setSelectedPortId(port.id);
+      setEvChargeStep("init");
+      setChargeEndsAt(null);
+      setHideStationPhoto(false);
+      setPhotoHeader(null);
+      setRouteOpen(false);
+      setHoursOpen(false);
+    })();
   };
 
   const closePortFlow = () => {
     setSelectedPortId(null);
+    setUnpaidDebt(null);
     setEvChargeStep("init");
     setChargeEndsAt(null);
     setHideStationPhoto(false);
@@ -705,6 +874,7 @@ export default function StationMapDrawer({
     setHoursOpen(false);
     setRouteOpen(false);
     setSelectedPortId(null);
+    setUnpaidDebt(null);
     setEvChargeStep("init");
     setChargeEndsAt(null);
     setHideStationPhoto(false);
@@ -716,6 +886,7 @@ export default function StationMapDrawer({
     if (resumeSession) return;
     setSelectedStandId(null);
     setSelectedPortId(null);
+    setUnpaidDebt(null);
     setEvChargeStep("init");
     setChargeEndsAt(null);
     setRouteOpen(false);
@@ -778,6 +949,7 @@ export default function StationMapDrawer({
 
   const hoursText = compactHoursLabel(
     station.hoursLabel || t("station.hours_unknown", "Часы уточняйте"),
+    t,
   );
 
   const weekHours = useMemo(
@@ -921,7 +1093,7 @@ export default function StationMapDrawer({
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" />
                         <circle cx="12" cy="10" r="2.5" />
                       </svg>
-                      {formatDistanceLabel(km)}
+                      {formatDistanceLabel(km, t)}
                     </span>
                   ) : null}
                 </div>
@@ -999,25 +1171,73 @@ export default function StationMapDrawer({
           </div>
         ) : selectedStand && selectedPort ? (
           <div className="map-station-sheet__body" {...scrollProps}>
-            <EvChargeFlow
-              port={selectedPort}
-              stand={selectedStand}
-              station={station}
-              step={evChargeStep}
-              onStepChange={setEvChargeStep}
-              onRestartInit={() => {
-                setChargeEndsAt(null);
-                setDbSessionId(null);
-                setEvChargeStep("init");
-              }}
-              onHidePhoto={setHideStationPhoto}
-              onPhotoHeader={setPhotoHeader}
-              chargeEndsAt={chargeEndsAt}
-              onChargeEndsAt={setChargeEndsAt}
-              onPayNavigate={onPayNavigate}
-              dbSessionId={dbSessionId}
-              onDbSessionId={setDbSessionId}
-            />
+            {unpaidDebt ? (
+              <div
+                className="map-station-sheet__loading-panel"
+                role="alert"
+                aria-live="polite"
+              >
+                <p className="map-station-sheet__hint">
+                  {t("ev.unpaid_title", "Есть неоплаченная зарядка")}
+                </p>
+                <p
+                  className="theme-description"
+                  style={{ marginTop: "0.5rem" }}
+                >
+                  {t(
+                    "ev.unpaid_text",
+                    "Сначала оплатите предыдущую зарядку — без этого новую начать нельзя.",
+                  )}
+                </p>
+
+                {formatDebtAmount(unpaidDebt.amount) ? (
+                  <p
+                    className="theme-description"
+                    style={{ marginTop: "0.75rem" }}
+                  >
+                    {t("ev.unpaid_amount", "Сумма: {n}").replace(
+                      "{n}",
+                      formatDebtAmount(unpaidDebt.amount)!,
+                    )}
+                  </p>
+                ) : null}
+
+                <button
+                  type="button"
+                  className="theme-button w-full"
+                  style={{ marginTop: "1rem" }}
+                  onClick={() => {
+                    const sessionId = unpaidDebt.id;
+                    setUnpaidDebt(null);
+                    onPayNavigate?.();
+                    router.push(`/payment/ev-charge?session=${sessionId}`);
+                  }}
+                >
+                  {t("ev.unpaid_pay", "Оплатить долг")}
+                </button>
+              </div>
+            ) : (
+              <EvChargeFlow
+                port={selectedPort}
+                stand={selectedStand}
+                station={station}
+                step={evChargeStep}
+                onStepChange={setEvChargeStep}
+                onRestartInit={() => {
+                  setChargeEndsAt(null);
+                  setDbSessionId(null);
+                  setEvChargeStep("init");
+                }}
+                onHidePhoto={setHideStationPhoto}
+                onPhotoHeader={setPhotoHeader}
+                chargeEndsAt={chargeEndsAt}
+                onChargeEndsAt={setChargeEndsAt}
+                onPayNavigate={onPayNavigate}
+                dbSessionId={dbSessionId}
+                onDbSessionId={setDbSessionId}
+                onUnpaidDebt={(session) => setUnpaidDebt(session)}
+              />
+            )}
           </div>
         ) : selectedStand ? (
           <div className="map-station-sheet__body" {...scrollProps}>
@@ -1028,7 +1248,9 @@ export default function StationMapDrawer({
                   powerKw={selectedStand.powerKw}
                 />
               </h2>
-              <p className="map-conn-step__parent">{selectedStand.title}</p>
+              <p className="map-conn-step__parent">
+                {formatStandTitle(selectedStand.index, t)}
+              </p>
             </div>
 
             <div className="map-conn-step__list">
@@ -1108,9 +1330,9 @@ export default function StationMapDrawer({
             {isCharging && !loading && chargerStands.length === 0 ? (
               <p className="map-station-sheet__hint">
                 {t("map.max_power", "Макс. мощность")}:{" "}
-                {formatPowerKw(station.maxPowerKw)}
+                {formatPowerKw(station.maxPowerKw, t)}
                 {station.pricePerKwh != null
-                  ? ` · ${formatPricePerKwh(station.pricePerKwh)}`
+                  ? ` · ${formatPricePerKwh(station.pricePerKwh, t)}`
                   : ""}
               </p>
             ) : null}
@@ -1195,6 +1417,7 @@ export default function StationMapDrawer({
           </div>
         )}
       </div>
+
     </>
   );
 }

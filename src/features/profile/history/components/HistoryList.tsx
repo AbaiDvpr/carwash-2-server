@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useT } from "@/hooks/useT";
+import { useT, useLocale } from "@/hooks/useT";
 import AppBackButton from "@/components/ui/AppBackButton";
 import { ApiError } from "@/lib/api";
 import { fetchAllSessions, type HistorySession } from "@/lib/api/sessions";
 import HistoryFilterDrawer, {
   countHistoryFilters,
   DEFAULT_HISTORY_FILTERS,
+  historyStatusLabel,
+  HISTORY_STATUS_VALUES,
   readHistoryFilters,
   writeHistoryFilters,
   type HistoryFiltersState,
+  type HistoryStatusValue,
 } from "./HistoryFilterDrawer";
 import "./history.css";
 
@@ -20,17 +23,27 @@ type HistoryListProps = {
   onBack?: () => void;
 };
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(value: string | null, locale: string): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ru-RU", {
+  const loc = locale === "en" ? "en-GB" : locale === "kz" ? "kk-KZ" : "ru-RU";
+  return date.toLocaleString(loc, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function resolveHistoryStatus(
+  status: string | null,
+): HistoryStatusValue | null {
+  if (!status) return null;
+  return (HISTORY_STATUS_VALUES as readonly string[]).includes(status)
+    ? (status as HistoryStatusValue)
+    : null;
 }
 
 function statusClass(status: string | null): string {
@@ -68,6 +81,7 @@ function FilterSlidersIcon({ className }: { className?: string }) {
 
 export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
   const t = useT();
+  const locale = useLocale();
   const requestId = useRef(0);
   const booted = useRef(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -214,6 +228,10 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
                   session.duration_minutes == null
                     ? "—"
                     : `${session.duration_minutes} ${t("history.min", "мин")}`;
+                const statusCode = resolveHistoryStatus(session.status);
+                const statusLabel = statusCode
+                  ? historyStatusLabel(statusCode, t)
+                  : (session.status ?? "—");
 
                 return (
                   <article key={sessionKey(session)} className="history-session">
@@ -228,7 +246,7 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
                         <span
                           className={`history-session__status ${statusClass(session.status)}`}
                         >
-                          {session.status_ru ?? session.status ?? "—"}
+                          {statusLabel}
                         </span>
                       </div>
 
@@ -238,7 +256,10 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
                             {t("history.start", "Начало")}
                           </p>
                           <p className="history-session__time-value">
-                            {formatDateTime(session.entered_at ?? session.start_at)}
+                            {formatDateTime(
+                              session.entered_at ?? session.start_at,
+                              locale,
+                            )}
                           </p>
                         </div>
                         <div className="history-session__time">
@@ -246,7 +267,10 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
                             {t("history.end", "Конец")}
                           </p>
                           <p className="history-session__time-value">
-                            {formatDateTime(session.exited_at ?? session.end_at)}
+                            {formatDateTime(
+                              session.exited_at ?? session.end_at,
+                              locale,
+                            )}
                           </p>
                         </div>
                         <div className="history-session__time">

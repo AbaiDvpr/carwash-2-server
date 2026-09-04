@@ -10,7 +10,8 @@ import { formatPowerKw, formatPricePerKwh } from "@/features/map/evConnectors";
 import { useT } from "@/hooks/useT";
 import { ApiError } from "@/lib/api";
 import { parseEvStationId } from "@/lib/api/ev";
-import { startEvSession } from "@/lib/api/evSessions";
+import { startEvSession, type EvSession } from "@/lib/api/evSessions";
+import { formatStandTitle } from "@/lib/standTitle";
 import EvChargeCheckout, {
   CHARGE_MS,
   type EvCheckoutLimits,
@@ -36,10 +37,26 @@ const MAX_PRICE_TG = 20_000;
 const MAX_MINUTES = 120;
 
 const CONNECT_CHECKS = [
-  "Убедитесь, что электромобиль в режиме парковки и отключен",
-  "Плотно подключите коннектор до характерного щелчка блокировки",
-  "Не используйте станцию при обнаружении повреждений кабеля либо коннектора",
-  "Избегайте наезда колесами электромобиля на кабель зарядной станции",
+  {
+    key: "ev.connect_check_park",
+    fallback:
+      "Убедитесь, что электромобиль в режиме парковки и отключен",
+  },
+  {
+    key: "ev.connect_check_click",
+    fallback:
+      "Плотно подключите коннектор до характерного щелчка блокировки",
+  },
+  {
+    key: "ev.connect_check_damage",
+    fallback:
+      "Не используйте станцию при обнаружении повреждений кабеля либо коннектора",
+  },
+  {
+    key: "ev.connect_check_cable",
+    fallback:
+      "Избегайте наезда колесами электромобиля на кабель зарядной станции",
+  },
 ] as const;
 
 function IconCheck() {
@@ -81,6 +98,7 @@ type EvChargeFlowProps = {
   onPayNavigate?: () => void;
   dbSessionId?: number | null;
   onDbSessionId?: (id: number) => void;
+  onUnpaidDebt?: (session: EvSession) => void;
 };
 
 export default function EvChargeFlow({
@@ -97,6 +115,7 @@ export default function EvChargeFlow({
   onPayNavigate,
   dbSessionId = null,
   onDbSessionId,
+  onUnpaidDebt,
 }: EvChargeFlowProps) {
   const t = useT();
   const [progress, setProgress] = useState(0);
@@ -211,21 +230,22 @@ export default function EvChargeFlow({
 
   const priceHint = useMemo(() => {
     const price = port.pricePerKwh ?? stand.pricePerKwh;
-    return price != null ? formatPricePerKwh(price) : "—";
-  }, [port.pricePerKwh, stand.pricePerKwh]);
+    return price != null ? formatPricePerKwh(price, t) : "—";
+  }, [port.pricePerKwh, stand.pricePerKwh, t]);
 
   const powerHint = useMemo(() => {
     const power = port.powerKw ?? stand.powerKw;
-    return power != null ? formatPowerKw(power) : "—";
-  }, [port.powerKw, stand.powerKw]);
+    return power != null ? formatPowerKw(power, t) : "—";
+  }, [port.powerKw, stand.powerKw, t]);
 
   useEffect(() => {
+    const standLabel = formatStandTitle(stand.index, t);
     if (step === "connect") {
       onPhotoHeader?.({ mode: "connect" });
     } else if (step === "setup") {
       onPhotoHeader?.({
         mode: "setup",
-        title: `${port.label}/${stand.title}`,
+        title: `${port.label}/${standLabel}`,
         meta: `${priceHint} · ${powerHint}`,
       });
     } else if (step === "charging" || step === "charged_ok") {
@@ -239,12 +259,12 @@ export default function EvChargeFlow({
         setupTab === "price"
           ? formatTg(priceLimit)
           : setupTab === "time"
-            ? `${minutes} мин`
+            ? `${minutes} ${t("ev.minutes_short", "мин")}`
             : `${chargeTo}%`;
       onPhotoHeader?.({
         mode: "setup",
         title: station.address || station.name,
-        meta: `${port.label}/${stand.title} · ${modeLabel} ${limit}`,
+        meta: `${port.label}/${standLabel} · ${modeLabel} ${limit}`,
       });
     } else {
       onPhotoHeader?.(null);
@@ -253,7 +273,7 @@ export default function EvChargeFlow({
   }, [
     step,
     port.label,
-    stand.title,
+    stand.index,
     priceHint,
     powerHint,
     setupTab,
@@ -271,7 +291,7 @@ export default function EvChargeFlow({
       setupTab === "price"
         ? formatTg(priceLimit)
         : setupTab === "time"
-          ? `${minutes} мин`
+          ? `${minutes} ${t("ev.minutes_short", "мин")}`
           : `${chargeTo}%`;
     return t("ev.confirm_charge_on", "Зарядить на {{value}}").replace(
       "{{value}}",
@@ -315,7 +335,8 @@ export default function EvChargeFlow({
         amount: plannedAmount,
         duration_seconds: Math.round(CHARGE_MS / 1000),
         meta: {
-          stand_title: stand.title,
+          stand_title: formatStandTitle(stand.index, t),
+          stand_index: stand.index,
           port_label: port.label,
           power_kw: port.powerKw ?? stand.powerKw,
           price_per_kwh: port.pricePerKwh ?? stand.pricePerKwh,
@@ -329,8 +350,40 @@ export default function EvChargeFlow({
     } catch (err) {
       const body =
         err instanceof ApiError
-          ? (err.body as { message?: string; errors?: Record<string, string[]> })
+          ? (err.body as {
+              message?: string;
+              code?: string;
+              session_id?: number;
+              amount?: number | null;
+              errors?: Record<string, string[]>;
+            })
           : null;
+
+      if (
+        body?.code === "unpaid_session" &&
+        body.session_id != null &&
+        onUnpaidDebt
+      ) {
+        onUnpaidDebt({
+          id: body.session_id,
+          location_id: 0,
+          address: null,
+          pistol_id: null,
+          charger_id: null,
+          status: "pending",
+          status_ru: null,
+          limit_mode: null,
+          limit_value: null,
+          limit_label: null,
+          amount: body.amount ?? null,
+          payment_id: null,
+          start_at: null,
+          end_at: null,
+          duration_minutes: null,
+        });
+        return;
+      }
+
       const message =
         body?.errors?.pistol_id?.[0] ??
         body?.errors?.location_id?.[0] ??
@@ -416,12 +469,12 @@ export default function EvChargeFlow({
           {t("ev.connect_ensure", "Убедитесь, что:")}
         </p>
         <ul className="ev-flow__checks">
-          {CONNECT_CHECKS.map((text) => (
-            <li key={text} className="ev-flow__check">
+          {CONNECT_CHECKS.map((item) => (
+            <li key={item.key} className="ev-flow__check">
               <span className="ev-flow__check-icon">
                 <IconCheck />
               </span>
-              <span>{text}</span>
+              <span>{t(item.key, item.fallback)}</span>
             </li>
           ))}
         </ul>

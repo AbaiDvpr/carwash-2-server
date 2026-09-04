@@ -32,6 +32,7 @@ import { fetchGarageV2PistolTypes } from "@/lib/api/garageV2";
 import { resolveMediaUrl } from "@/lib/api/photo";
 import { useStations } from "@/hooks/useStations";
 import { useT } from "@/hooks/useT";
+import { useUserCity } from "@/hooks/useUserCity";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { distanceKm } from "@/lib/api/geos";
 import { compactHoursLabel } from "@/lib/openHours";
@@ -758,7 +759,7 @@ function ChargingListCard({
             <span className="map-ev-card__type map-ev-card__type--dc">
               <span className="map-ev-card__type-badge">DC</span>
               <span className="map-ev-card__type-label">
-                {formatPowerKw(station.maxPowerKw)}
+                {formatPowerKw(station.maxPowerKw, t)}
               </span>
             </span>
           ) : null}
@@ -794,16 +795,16 @@ function ChargingListCard({
               <rect x="3" y="6" width="18" height="12" rx="2" />
               <path d="M3 10h18" />
             </svg>
-            {formatPricePerKwh(station.pricePerKwh)}
+            {formatPricePerKwh(station.pricePerKwh, t)}
           </span>
-          <span className="map-ev-card__pill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-            {station.distanceKm != null
-              ? formatDistanceLabel(station.distanceKm)
-              : "—"}
-          </span>
+          {station.distanceKm != null ? (
+            <span className="map-ev-card__pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+              {formatDistanceLabel(station.distanceKm)}
+            </span>
+          ) : null}
         </div>
       </button>
     </li>
@@ -863,16 +864,16 @@ function WashListCard({
           </div>
         </div>
 
-        <div className="map-ev-card__foot">
-          <span className="map-ev-card__pill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-            {station.distanceKm != null
-              ? formatDistanceLabel(station.distanceKm)
-              : "—"}
-          </span>
-        </div>
+        {station.distanceKm != null ? (
+          <div className="map-ev-card__foot">
+            <span className="map-ev-card__pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+              {formatDistanceLabel(station.distanceKm)}
+            </span>
+          </div>
+        ) : null}
       </button>
     </li>
   );
@@ -891,12 +892,12 @@ function StationListItem({
   return <WashListCard station={station} onSelect={onSelect} />;
 }
 
-function pointsWord(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return "точка";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "точки";
-  return "точек";
+/** Фиксированный формат счётчика — без склонения, чтобы layout не прыгал */
+function pointsCountLabel(
+  count: number,
+  t: (key: string, fallback?: string) => string,
+): string {
+  return t("map.points_count", "точки: {n}").replace("{n}", String(count));
 }
 
 function StationSection({
@@ -910,6 +911,7 @@ function StationSection({
   stations: StationWithDistance[];
   onSelect: (station: Station) => void;
 }) {
+  const t = useT();
   if (stations.length === 0) return null;
 
   const points = stations.length;
@@ -920,7 +922,7 @@ function StationSection({
         <div className="map-list-section__title-row">
           <h3 className="map-list-section__title">{title}</h3>
           <span className="map-list-section__count">
-            {points} {pointsWord(points)}
+            {pointsCountLabel(points, t)}
           </span>
         </div>
         {hint ? <p className="map-list-section__hint">{hint}</p> : null}
@@ -938,6 +940,9 @@ function MapStationList({
   nearby,
   others,
   hasLocation,
+  listByCity,
+  cityName,
+  cityLoading,
   search,
   filterCount,
   loading,
@@ -950,6 +955,10 @@ function MapStationList({
   nearby: StationWithDistance[];
   others: StationWithDistance[];
   hasLocation: boolean;
+  /** Без GPS: список отфильтрован по geo_id профиля */
+  listByCity: boolean;
+  cityName: string | null;
+  cityLoading: boolean;
   search: string;
   filterCount: number;
   loading: boolean;
@@ -962,7 +971,15 @@ function MapStationList({
   const t = useT();
   const [portalReady, setPortalReady] = useState(false);
   const empty = nearby.length === 0 && others.length === 0;
+  /** Без GPS ждём город профиля — иначе мелькает «ничего не найдено» */
+  const emptyPending = !hasLocation && cityLoading;
   const totalPoints = nearby.length + others.length;
+
+  const emptyMessage = hasLocation
+    ? t("map.not_found_radius", "Ничего не найдено в радиусе 100 км")
+    : listByCity
+      ? t("map.not_found_city", "В вашем городе пока нет точек")
+      : t("map.pick_city", "Выберите город в профиле");
 
   useEffect(() => {
     setPortalReady(true);
@@ -993,11 +1010,9 @@ function MapStationList({
               <h2 className="map-list-sheet__title">
                 {t("map.stations_list", "Список станций")}
               </h2>
-              {!empty ? (
-                <p className="map-list-sheet__summary">
-                  {totalPoints} {pointsWord(totalPoints)}
-                </p>
-              ) : null}
+              <p className="map-list-sheet__summary">
+                {pointsCountLabel(totalPoints, t)}
+              </p>
             </div>
             <div className="map-list-sheet__tools">
               <button
@@ -1028,11 +1043,12 @@ function MapStationList({
               <path strokeLinecap="round" d="m20 20-3.5-3.5" />
             </svg>
             <input
-              type="search"
+              type="text"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder={t("map.search", "Поиск по названию или адресу")}
               autoComplete="off"
+              enterKeyHint="search"
             />
           </label>
           {loading ? (
@@ -1043,32 +1059,32 @@ function MapStationList({
         </div>
 
         <div className="map-list-sheet__scroll">
-          {empty ? (
+          {emptyPending || (empty && loading) ? (
             <p className="map-list-sheet__empty">
-              {!hasLocation
-                ? t("map.enable_geo", "Включите геолокацию, чтобы увидеть точки в списке")
-                : search.trim()
-                  ? t("map.not_found", "Ничего не найдено в радиусе 100 км")
-                  : t("map.no_points", "В радиусе 100 км пока нет точек")}
+              {t("map.updating", "Обновляем данные…")}
             </p>
+          ) : empty ? (
+            <p className="map-list-sheet__empty">{emptyMessage}</p>
           ) : (
             <>
+              {hasLocation ? (
+                <StationSection
+                  title={t("map.nearby", "Ближайшие точки")}
+                  hint={`0–${NEARBY_MAX_KM} ${t("map.unit_km", "км")}`}
+                  stations={nearby}
+                  onSelect={onSelect}
+                />
+              ) : null}
               <StationSection
-                title={t("map.nearby", "Ближайшие точки")}
-                hint={
-                  hasLocation
-                    ? `0–${NEARBY_MAX_KM} км`
-                    : t("map.enable_geo", "Включите геолокацию, чтобы увидеть точки в списке")
+                title={
+                  listByCity
+                    ? t("map.in_your_city", "В вашем городе")
+                    : t("map.others", "Остальные")
                 }
-                stations={nearby}
-                onSelect={onSelect}
-              />
-              <StationSection
-                title={t("map.others", "Остальные")}
                 hint={
                   hasLocation
-                    ? `${NEARBY_MAX_KM}–${LIST_MAX_KM} км`
-                    : undefined
+                    ? `${NEARBY_MAX_KM}–${LIST_MAX_KM} ${t("map.unit_km", "км")}`
+                    : cityName ?? undefined
                 }
                 stations={others}
                 onSelect={onSelect}
@@ -1089,6 +1105,11 @@ function MapPageInner() {
   const searchParams = useSearchParams();
   const { stations, loading, refreshing, error, reload } = useStations();
   const { location: userLocation } = useUserLocation();
+  const {
+    geoId: profileGeoId,
+    cityName: profileCityName,
+    loading: cityLoading,
+  } = useUserCity();
 
   const kindFromQuery = parseKind(searchParams.get("kind"));
   const deepLinkId =
@@ -1214,6 +1235,12 @@ function MapPageInner() {
     const rest: StationWithDistance[] = [];
 
     if (!userLocation) {
+      // Без GPS — станции города из профиля (geo_id)
+      if (profileGeoId != null) {
+        for (const station of sortedList) {
+          if (station.geoId === profileGeoId) rest.push(station);
+        }
+      }
       return { nearby: near, others: rest };
     }
 
@@ -1225,7 +1252,7 @@ function MapPageInner() {
     }
 
     return { nearby: near, others: rest };
-  }, [sortedList, userLocation]);
+  }, [sortedList, userLocation, profileGeoId]);
 
   if (!bootReady) {
     return (
@@ -1306,6 +1333,9 @@ function MapPageInner() {
           nearby={nearby}
           others={others}
           hasLocation={Boolean(userLocation)}
+          listByCity={!userLocation && profileGeoId != null}
+          cityName={profileCityName}
+          cityLoading={cityLoading}
           search={search}
           filterCount={filterCount}
           loading={refreshing || loading}

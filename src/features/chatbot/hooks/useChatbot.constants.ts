@@ -13,5 +13,15 @@ export const BOT_REPLIES: Record<string, string> = {
 };
 
 export function formatTime(date = new Date()) {
-  return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const locale =
+    typeof document !== "undefined"
+      ? document.documentElement.lang || "ru-RU"
+      : "ru-RU";
+  const resolved =
+    locale === "kk" || locale === "kz"
+      ? "kk-KZ"
+      : locale === "en"
+        ? "en-US"
+        : "ru-RU";
+  return date.toLocaleTimeString(resolved, { hour: "2-digit", minute: "2-digit" });
 }

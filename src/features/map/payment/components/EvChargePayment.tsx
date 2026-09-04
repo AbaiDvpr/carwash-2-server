@@ -21,9 +21,26 @@ import {
   fetchEvSession,
   type EvSession,
 } from "@/lib/api/evSessions";
+import { formatPowerKw, formatPricePerKwh } from "@/features/map/evConnectors";
+import { localizeStandTitle } from "@/lib/standTitle";
 import "@/features/profile/components/profile.css";
 import "../ev-charge-payment.css";
 import "../car-wash-payment.css";
+
+/** Оценка кВт·ч к списанию с абонемента (как AbonementBilling::estimateEvKwh). */
+function estimatePayKwh(session: EvSession, amount: number): number {
+  const meta = session.meta ?? {};
+  const charged = Number(meta.charged_kwh);
+  if (Number.isFinite(charged) && charged > 0) {
+    return Math.max(0.01, Math.round(charged * 100) / 100);
+  }
+  let rate = Number(session.price_per_kwh ?? meta.price_per_kwh);
+  if (!Number.isFinite(rate) || rate <= 0) rate = 95;
+  if (amount > 0) {
+    return Math.max(0.01, Math.round((amount / rate) * 100) / 100);
+  }
+  return 1;
+}
 
 function IconOk() {
   return (
@@ -73,6 +90,7 @@ export default function EvChargePayment() {
   const [payResult, setPayResult] = useState<"success" | "error" | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [paySource, setPaySource] = useState<"balance" | string>("balance");
+  const [useBalanceForDiff, setUseBalanceForDiff] = useState(false);
   const [abonCards, setAbonCards] = useState<AbonementCard[]>([]);
   const payTimerRef = useRef<number | null>(null);
 
@@ -172,24 +190,76 @@ export default function EvChargePayment() {
   }, [session]);
 
   const amountLabel = amount.toLocaleString("ru-RU");
-  const standTitle =
-    session?.stand_title ?? session?.charger_type ?? session?.meta?.stand_title ?? "—";
+  const kwhNeeded = useMemo(() => {
+    if (!session || amount <= 0) return 0;
+    return estimatePayKwh(session, amount);
+  }, [session, amount]);
+  const kwhLabel = kwhNeeded > 0 ? formatKwh(kwhNeeded, t) : "—";
+
+  const selectedAbon = useMemo(() => {
+    if (paySource === "balance") return null;
+    return abonCards.find((card) => card.id === paySource) ?? null;
+  }, [abonCards, paySource]);
+
+  const abonSplit = useMemo(() => {
+    if (!selectedAbon || kwhNeeded <= 0) {
+      return {
+        abonKwh: 0,
+        balanceKwh: 0,
+        balanceAmount: 0,
+        coversFull: false,
+        hasShortfall: false,
+      };
+    }
+    const remaining = Math.max(0, Number(selectedAbon.remainingKwh ?? 0));
+    const abonKwh = Math.min(remaining, kwhNeeded);
+    const balanceKwh = Math.round(Math.max(0, kwhNeeded - abonKwh) * 100) / 100;
+    const coversFull = balanceKwh <= 0.0001;
+    const hasShortfall = !coversFull;
+    const balanceAmount = coversFull
+      ? 0
+      : Math.max(
+          0.01,
+          Math.round(amount * (balanceKwh / kwhNeeded) * 100) / 100,
+        );
+    return { abonKwh, balanceKwh, balanceAmount, coversFull, hasShortfall };
+  }, [selectedAbon, kwhNeeded, amount]);
+
+  const standTitle = localizeStandTitle(
+    session?.stand_title ?? session?.charger_type ?? session?.meta?.stand_title,
+    t,
+    session?.meta?.stand_index ?? null,
+  );
   const portLabel =
     session?.port_label ?? session?.pistol_type ?? session?.meta?.port_label ?? "—";
   const address = session?.address ?? session?.meta?.address ?? "—";
   const limitLabel = session?.limit_label ?? "—";
   const priceHint =
     session?.price_per_kwh != null
-      ? `${Number(session.price_per_kwh)} ₸/кВт·ч`
+      ? formatPricePerKwh(Number(session.price_per_kwh), t)
       : "—";
   const powerHint =
-    session?.charger_power != null ? `${session.charger_power} кВт` : "—";
+    session?.charger_power != null
+      ? formatPowerKw(Number(session.charger_power), t)
+      : "—";
+
+  function selectPaySource(source: "balance" | string) {
+    setPaySource(source);
+    setUseBalanceForDiff(false);
+  }
 
   async function onPay() {
     if (paying || !session || session.payment_id) return;
     const payWithAbonement = paySource !== "balance";
     const balanceValue = balance ?? 0;
-    if (!payWithAbonement && (balanceLoading || balanceValue < amount)) return;
+    if (!payWithAbonement) {
+      if (balanceLoading || balanceValue < amount) return;
+    } else if (abonSplit.abonKwh <= 0) {
+      return;
+    } else if (abonSplit.hasShortfall) {
+      if (!useBalanceForDiff) return;
+      if (balanceLoading || balanceValue < abonSplit.balanceAmount) return;
+    }
     setPaying(true);
     setPayResult(null);
     setPayError(null);
@@ -201,7 +271,10 @@ export default function EvChargePayment() {
         session_id: session.id,
         description: `${address} · ${portLabel}/${standTitle} · ${limitLabel}`,
         ...(abonementId != null && Number.isFinite(abonementId)
-          ? { abonement_id: abonementId }
+          ? {
+              abonement_id: abonementId,
+              use_balance: abonSplit.hasShortfall && useBalanceForDiff,
+            }
           : {}),
       });
       setPayResult("success");
@@ -214,6 +287,7 @@ export default function EvChargePayment() {
         body?.errors?.amount?.[0] ??
         body?.errors?.session_id?.[0] ??
         body?.errors?.abonement_id?.[0] ??
+        body?.errors?.use_balance?.[0] ??
         body?.message ??
         t("ev.pay_failed", "Не удалось оплатить");
       setPayError(message);
@@ -366,12 +440,66 @@ export default function EvChargePayment() {
 
   const balanceValue = balance ?? 0;
   const payWithAbonement = paySource !== "balance";
+  const showBalanceToggle = payWithAbonement && abonSplit.hasShortfall;
+  const effectiveUseBalance = showBalanceToggle && useBalanceForDiff;
+
   const canAffordBalance =
     Number.isFinite(balanceValue) && balanceValue >= amount;
+  const needsBalanceTopUp =
+    effectiveUseBalance &&
+    (!Number.isFinite(balanceValue) || balanceValue < abonSplit.balanceAmount);
+  const canAffordAbonement =
+    payWithAbonement &&
+    abonSplit.abonKwh > 0 &&
+    (abonSplit.coversFull ||
+      (effectiveUseBalance &&
+        Number.isFinite(balanceValue) &&
+        balanceValue >= abonSplit.balanceAmount));
   const canPay =
     !session.payment_id &&
     !balanceLoading &&
-    (payWithAbonement || canAffordBalance);
+    (payWithAbonement ? canAffordAbonement : canAffordBalance);
+
+  const abonHint = (() => {
+    if (!payWithAbonement) return null;
+    if (abonSplit.coversFull) {
+      return t(
+        "payment.abon_full_cover",
+        "Заказ будет полностью оплачен абонементом",
+      );
+    }
+    if (!useBalanceForDiff) {
+      return t(
+        "payment.abon_enable_diff",
+        "Включите доплату с баланса, чтобы оплатить заказ",
+      );
+    }
+    if (needsBalanceTopUp) {
+      return t("payment.abon_need_topup", "Нужно пополнить баланс.");
+    }
+    return t(
+      "payment.abon_cover_from_balance_on",
+      "Недостающая часть будет списана с баланса",
+    );
+  })();
+
+  const balanceDueLabel = abonSplit.balanceAmount.toLocaleString("ru-RU");
+  const abonKwhLabel =
+    abonSplit.abonKwh > 0 ? formatKwh(abonSplit.abonKwh, t) : "—";
+
+  const payButtonLabel = (() => {
+    if (paying) return t("common.loading", "Загрузка…");
+    if (!payWithAbonement) {
+      return `${t("ev.pay", "Оплатить")} · ${amountLabel} ₸`;
+    }
+    if (abonSplit.coversFull) {
+      return `${t("ev.pay_abonement", "Оплатить абонементом")} · ${kwhLabel}`;
+    }
+    if (effectiveUseBalance) {
+      return `${t("ev.pay", "Оплатить")} · ${abonKwhLabel} + ${balanceDueLabel} ₸`;
+    }
+    return t("ev.pay_abonement", "Оплатить абонементом");
+  })();
 
   return (
     <PageLayout title={t("payment.title", "Оплата")} className="page--profile-edit">
@@ -428,7 +556,7 @@ export default function EvChargePayment() {
                   aria-checked={paySource === "balance"}
                   className={`cw-pay__tariff${paySource === "balance" ? " is-on" : ""}`}
                   disabled={paying}
-                  onClick={() => setPaySource("balance")}
+                  onClick={() => selectPaySource("balance")}
                 >
                   <RadioMark checked={paySource === "balance"} />
                   <span className="cw-pay__tariff-body">
@@ -452,13 +580,13 @@ export default function EvChargePayment() {
                       aria-checked={checked}
                       className={`cw-pay__tariff${checked ? " is-on" : ""}`}
                       disabled={paying}
-                      onClick={() => setPaySource(card.id)}
+                      onClick={() => selectPaySource(card.id)}
                     >
                       <RadioMark checked={checked} />
                       <span className="cw-pay__tariff-body">
                         <span className="cw-pay__tariff-title">{card.title}</span>
                         <span className="cw-pay__tariff-desc">
-                          {formatKwh(card.remainingKwh ?? 0)}
+                          {formatKwh(card.remainingKwh ?? 0, t)}
                         </span>
                       </span>
                     </button>
@@ -477,16 +605,71 @@ export default function EvChargePayment() {
                     : t("ev.from_balance", "С баланса")}
                 </p>
                 <p className="profile-card__balance-value">
-                  {payWithAbonement
-                    ? t("payment.by_abonement", "Списание с карты")
-                    : `${amountLabel} ₸`}
+                  {payWithAbonement ? abonKwhLabel : `${amountLabel} ₸`}
                 </p>
               </div>
+              {showBalanceToggle ? (
+                <label className="ev-pay__balance-toggle">
+                  <span className="ev-pay__balance-toggle-label">
+                    <span className="ev-pay__balance-toggle-title">
+                      {t(
+                        "payment.abon_cover_from_balance",
+                        "Доплатить с баланса",
+                      )}
+                    </span>
+                    <span
+                      className={`ev-pay__balance-toggle-desc${
+                        needsBalanceTopUp ? " is-danger" : ""
+                      }`}
+                    >
+                      {needsBalanceTopUp
+                        ? t(
+                            "payment.abon_need_topup",
+                            "Нужно пополнить баланс.",
+                          )
+                        : t(
+                            "payment.abon_cover_from_balance_hint",
+                            "Списать недостающие {n} ₸ с баланса",
+                          ).replace("{n}", balanceDueLabel)}
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={useBalanceForDiff}
+                    disabled={paying}
+                    onChange={(e) => setUseBalanceForDiff(e.target.checked)}
+                    aria-label={t(
+                      "payment.abon_cover_from_balance",
+                      "Доплатить с баланса",
+                    )}
+                  />
+                  <span
+                    className={`ev-pay__toggle-switch${
+                      useBalanceForDiff ? " is-on" : ""
+                    }`}
+                    aria-hidden
+                  />
+                </label>
+              ) : null}
+
+              {effectiveUseBalance ? (
+                <div className="profile-card__balance-item">
+                  <p className="profile-card__balance-label">
+                    {t("ev.from_balance", "С баланса")}
+                  </p>
+                  <p className="profile-card__balance-value">
+                    {balanceDueLabel} ₸
+                  </p>
+                </div>
+              ) : null}
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
                   {t("ev.charge_cost", "Зарядка")}
                 </p>
-                <p className="profile-card__balance-value">{amountLabel} ₸</p>
+                <p className="profile-card__balance-value">
+                  {payWithAbonement ? kwhLabel : `${amountLabel} ₸`}
+                </p>
               </div>
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
@@ -494,10 +677,22 @@ export default function EvChargePayment() {
                 </p>
                 <p className="profile-card__balance-value ev-pay__total-value">
                   {payWithAbonement
-                    ? t("payment.abonement_cover", "По абонементу")
+                    ? abonSplit.coversFull
+                      ? kwhLabel
+                      : effectiveUseBalance
+                        ? `${abonKwhLabel} + ${balanceDueLabel} ₸`
+                        : abonKwhLabel
                     : `${amountLabel} ₸`}
                 </p>
               </div>
+              {abonHint ? (
+                <p
+                  className={`cw-pay__hint${needsBalanceTopUp ? " is-danger" : ""}`}
+                  role="status"
+                >
+                  {abonHint}
+                </p>
+              ) : null}
             </div>
           </section>
 
@@ -508,12 +703,17 @@ export default function EvChargePayment() {
               disabled={paying || !canPay}
               onClick={() => void onPay()}
             >
-              {paying
-                ? t("common.loading", "Загрузка…")
-                : payWithAbonement
-                  ? t("ev.pay_abonement", "Оплатить абонементом")
-                  : `${t("ev.pay", "Оплатить")} · ${amountLabel} ₸`}
+              {payButtonLabel}
             </button>
+            {needsBalanceTopUp ? (
+              <button
+                type="button"
+                className="theme-button-secondary w-full"
+                onClick={() => router.push("/profile/top-up")}
+              >
+                {t("profile.top_up", "Пополнить баланс")}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

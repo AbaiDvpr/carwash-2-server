@@ -126,17 +126,50 @@ export function parsePricePerKwh(
   return Number.isFinite(num) ? num : null;
 }
 
-export function formatPricePerKwh(price: number | null | undefined): string {
-  if (price == null) return "Информация отсутствует";
-  if (price === 0) return "Бесплатно";
-  const formatted = Number.isInteger(price)
+type TFn = (key: string, fallback?: string) => string;
+
+function formatPriceNumber(price: number): string {
+  return Number.isInteger(price)
     ? String(price)
     : price.toFixed(2).replace(/\.?0+$/, "");
+}
+
+export function formatPricePerKwh(
+  price: number | null | undefined,
+  t?: TFn,
+): string {
+  if (price == null) {
+    return t
+      ? t("units.info_missing", "Информация отсутствует")
+      : "Информация отсутствует";
+  }
+  if (price === 0) {
+    return t ? t("units.free", "Бесплатно") : "Бесплатно";
+  }
+  const formatted = formatPriceNumber(price);
+  if (t) {
+    return t("units.price_per_kwh", "{n} ₸/кВт·ч").replace("{n}", formatted);
+  }
   return `${formatted} ₸/кВт·ч`;
 }
 
-export function formatPowerKw(power: number | null | undefined): string {
-  if (power == null) return "Информация отсутствует";
-  if (power >= POWER_MAX_CAP) return `${POWER_MAX_CAP}+ кВт`;
-  return `${Math.round(power)} кВт`;
+export function formatPowerKw(
+  power: number | null | undefined,
+  t?: TFn,
+): string {
+  if (power == null) {
+    return t
+      ? t("units.info_missing", "Информация отсутствует")
+      : "Информация отсутствует";
+  }
+  if (power >= POWER_MAX_CAP) {
+    const n = String(POWER_MAX_CAP);
+    return t
+      ? t("units.power_kw_plus", "{n}+ кВт").replace("{n}", n)
+      : `${n}+ кВт`;
+  }
+  const n = String(Math.round(power));
+  return t
+    ? t("units.power_kw", "{n} кВт").replace("{n}", n)
+    : `${n} кВт`;
 }

@@ -8,7 +8,7 @@ import { useT } from "@/hooks/useT";
 import {
   fetchAbonementCard,
   formatAbonementDeadline,
-  formatAbonementMoney,
+  formatAbonementUsed,
   formatKwh,
   formatKwhAmount,
   isAbonementExpired,
@@ -134,7 +134,7 @@ export default function AbonementCardPage() {
                   {formatKwhAmount(card.remainingKwh ?? 0)}
                   <span className="abonement-stats__of">
                     {" "}
-                    / {formatKwh(card.totalKwh ?? 0)}
+                    / {formatKwh(card.totalKwh ?? 0, t)}
                   </span>
                 </p>
               </div>
@@ -157,10 +157,10 @@ export default function AbonementCardPage() {
 
             <div className="profile-card__balance-item">
               <p className="profile-card__balance-label">
-                {t("profile.abonement_spent_from_card", "Потратили с этой карты")}
+                {t("profile.abonement_spent", "Потрачено")}
               </p>
               <p className="profile-card__balance-value">
-                {formatAbonementMoney(card.spentAmount)}
+                {formatAbonementUsed(card, t)}
               </p>
             </div>
           </div>

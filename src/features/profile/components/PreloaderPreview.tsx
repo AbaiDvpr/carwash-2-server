@@ -28,7 +28,9 @@ export default function PreloaderPreview() {
   const defaultMeta = PRELOADER_VARIANTS.find(
     (item) => item.id === DEFAULT_PRELOADER_VARIANT,
   );
-  const showDefaultCircleIcon = !(isDefault && active.startsWith("circle-"));
+  const showDefaultCircleIcon = !(
+    isDefault && active.startsWith("circle-")
+  );
 
   return (
     <>
@@ -46,7 +48,7 @@ export default function PreloaderPreview() {
         <div className="preloader-preview__section-head">
           <p className="preloader-preview__section-title">Стандартный прелоадер</p>
           <p className="preloader-preview__section-desc">
-            Классический круглый спиннер — без иконки, как при первом запуске
+            Общий прелоадер приложения (№31) — как при первом запуске
           </p>
         </div>
         <button
@@ -60,14 +62,14 @@ export default function PreloaderPreview() {
               <PreloaderStage
                 variant={DEFAULT_PRELOADER_VARIANT}
                 size={72}
-                showCircleIcon={false}
               />
             ) : null}
           </span>
           <span className="preloader-preview__meta">
             <span className="preloader-preview__label">По умолчанию</span>
             <span className="preloader-preview__hint">
-              {defaultMeta?.label.replace(/^\d+ · /, "") ?? "Круг · вращение"} · без иконки
+              {defaultMeta?.label.replace(/^\d+ · /, "") ??
+                "Горизонтальный + двойное кольцо"}
             </span>
           </span>
         </button>

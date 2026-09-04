@@ -9,10 +9,59 @@ import ProfileNavRow from "@/features/profile/components/ProfileNavRow";
 import BotAvatar from "./components/BotAvatar";
 import TypingIndicator from "./components/TypingIndicator";
 import { useChatbot } from "./hooks/useChatbot";
+import type { HotQuestion } from "@/lib/api/chatbot";
 import "@/features/profile/components/profile.css";
 import "./chatbot.css";
 
 type ChatMode = "gate" | "chat";
+
+const HOT_QUESTION_KEYS: Record<
+  number,
+  { q: string; qFb: string; a: string; aFb: string }
+> = {
+  1: {
+    q: "chatbot.hot_pay_wash",
+    qFb: "Как оплатить мойку?",
+    a: "chatbot.hot_pay_wash_a",
+    aFb: "Откройте мойку на карте, выберите тариф и подтвердите оплату в приложении. После успешной оплаты пост будет зарезервирован.",
+  },
+  2: {
+    q: "chatbot.hot_nearest",
+    qFb: "Где ближайшая мойка?",
+    a: "chatbot.hot_nearest_a",
+    aFb: "На вкладке «Карта» показаны все мойки рядом с вами. Нажмите на маркер, чтобы увидеть свободные посты и тарифы.",
+  },
+  3: {
+    q: "chatbot.hot_promo",
+    qFb: "Как использовать промокод?",
+    a: "chatbot.hot_promo_a",
+    aFb: "Перейдите в Профиль → Промокод, введите код и нажмите OK. Скидка применится при следующей оплате.",
+  },
+  4: {
+    q: "chatbot.hot_operator",
+    qFb: "Связаться с оператором",
+    a: "chatbot.hot_operator_a",
+    aFb: "Напишите нам в Telegram или WhatsApp — ссылки есть в разделе «Профиль» → «Связаться с нами».",
+  },
+};
+
+function hotQuestionLabel(
+  item: HotQuestion,
+  t: (key: string, fallback?: string) => string,
+): string {
+  const mapped = HOT_QUESTION_KEYS[item.id];
+  if (mapped) return t(mapped.q, mapped.qFb);
+  return item.question;
+}
+
+function hotQuestionAnswer(
+  item: HotQuestion,
+  t: (key: string, fallback?: string) => string,
+): string | null {
+  const mapped = HOT_QUESTION_KEYS[item.id];
+  if (mapped) return t(mapped.a, mapped.aFb);
+  return null;
+}
 
 function IconBot() {
   return (
@@ -69,7 +118,7 @@ function ChatGate({ onOpenBot }: { onOpenBot: () => void }) {
         <ProfileNavRow
           icon={<IconWhatsApp />}
           label={support.whatsapp.title}
-          hint={support.whatsapp.hint}
+          hint={t("profile.support_write_chat", "Написать в чат")}
           onClick={() => openWhatsApp(support.whatsapp.url)}
         />
         <ProfileNavRow
@@ -151,11 +200,15 @@ function ChatRoom({ onBack }: { onBack: () => void }) {
             <button
               key={item.id}
               type="button"
-              onClick={() => sendMessage(item.question)}
+              onClick={() => {
+                const label = hotQuestionLabel(item, t);
+                const answer = hotQuestionAnswer(item, t);
+                sendMessage(label, answer ? { localReply: answer } : undefined);
+              }}
               disabled={isTyping}
               className="chat-room__chip"
             >
-              {item.question}
+              {hotQuestionLabel(item, t)}
             </button>
           ))}
         </div>

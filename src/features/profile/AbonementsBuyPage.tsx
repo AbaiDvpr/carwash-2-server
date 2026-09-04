@@ -47,12 +47,16 @@ function OfferPlasticCard({
   validLabel: string;
   priceLabel: string;
 }) {
+  const t = useT();
   const hero =
     offer.kind === "ev"
-      ? formatKwh(offer.totalKwh ?? 0)
+      ? formatKwh(offer.totalKwh ?? 0, t)
       : `${offer.totalWashes ?? 0}`;
   const heroHint = offer.kind === "ev" ? packKwhLabel : packWashLabel;
-  const heroUnit = offer.kind === "wash" ? "моек" : null;
+  const heroUnit =
+    offer.kind === "wash"
+      ? t("profile.abonement_washes_unit", "моек")
+      : null;
 
   return (
     <article
@@ -110,7 +114,7 @@ function OfferPlasticCard({
         <div>
           <span className="abonement-plastic__meta-label">{validLabel}</span>
           <span className="abonement-plastic__meta-value">
-            {formatValidityDays(offer.validityDays)}
+            {formatValidityDays(offer.validityDays, t)}
           </span>
         </div>
         <div className="abonement-plastic__meta-right">
@@ -428,7 +432,7 @@ export default function AbonementsBuyPage() {
                       </p>
                       <p className="profile-card__balance-value">
                         {active.kind === "ev"
-                          ? formatKwh(active.totalKwh ?? 0)
+                          ? formatKwh(active.totalKwh ?? 0, t)
                           : `${active.totalWashes ?? 0} ${t("profile.abonement_washes_unit", "моек")}`}
                       </p>
                     </div>
@@ -445,7 +449,7 @@ export default function AbonementsBuyPage() {
                         {t("profile.abonement_valid", "Срок действия")}
                       </p>
                       <p className="profile-card__balance-value">
-                        {formatValidityDays(active.validityDays)}
+                        {formatValidityDays(active.validityDays, t)}
                       </p>
                     </div>
                   </div>

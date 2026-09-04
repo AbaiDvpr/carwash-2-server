@@ -4,6 +4,7 @@ export type EvSessionLimitMode = "price" | "charge" | "time";
 
 export type EvSessionMeta = {
   stand_title?: string | null;
+  stand_index?: number | null;
   port_label?: string | null;
   pistol_type?: string | null;
   power_kw?: number | null;
@@ -17,6 +18,7 @@ export type EvSessionMeta = {
   limit_mode?: string | null;
   limit_value?: number | null;
   amount?: number | null;
+  charged_kwh?: number | null;
 };
 
 export type EvSession = {
@@ -95,6 +97,20 @@ export async function fetchActiveEvSessions(): Promise<EvSession[]> {
     "/api/ev/sessions/active",
   );
   return data.sessions ?? [];
+}
+
+/** Неоплаченная завершённая зарядка (pending без payment_id). */
+export function findUnpaidEvSession(
+  sessions: EvSession[],
+): EvSession | null {
+  return (
+    sessions.find(
+      (session) =>
+        session.payment_id == null &&
+        (session.status === "pending" ||
+          session.status?.toLowerCase() === "pending"),
+    ) ?? null
+  );
 }
 
 export function evStationIdFromLocation(locationId: number): string {

@@ -50,6 +50,7 @@ export async function payEv(input: {
   description?: string;
   car_id?: number;
   abonement_id?: number;
+  use_balance?: boolean;
 }): Promise<BalancePaymentResponse> {
   const data = await apiFetch<BalancePaymentResponse>("/api/payments/ev", {
     method: "POST",

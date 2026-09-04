@@ -392,7 +392,10 @@ export default function CarWashPayment({
                         <span className="cw-pay__tariff-body">
                           <span className="cw-pay__tariff-title">{card.title}</span>
                           <span className="cw-pay__tariff-desc">
-                            {`${card.remainingWashes ?? 0} моек`}
+                            {t("profile.abonement_subtitle_wash", "{n} моек").replace(
+                              "{n}",
+                              String(card.remainingWashes ?? 0),
+                            )}
                           </span>
                         </span>
                       </button>

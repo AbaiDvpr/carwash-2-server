@@ -27,6 +27,8 @@ import {
   type GarageV2PowerType,
 } from "@/lib/api/garageV2";
 import { useT } from "@/hooks/useT";
+import { countryLabel } from "@/lib/countryLabels";
+import { fuelTypeLabel } from "@/lib/fuelLabels";
 import IconActionButton, {
   IconEdit,
   IconTrash,
@@ -246,7 +248,9 @@ function CountryDrawer({
                     {item.flag}
                   </span>
                   <span className="profile-nav-row__main">
-                    <span className="profile-nav-row__hint">{item.label}</span>
+                    <span className="profile-nav-row__hint">
+                      {countryLabel(item.code, t)}
+                    </span>
                   </span>
                   <RadioMark checked={selected} />
                 </button>
@@ -560,16 +564,14 @@ export default function Garage2Page({
                             <span className="garage2__list-meta">
                               {item.power_type === "hybrid"
                                 ? [
-                                    item.fuel_type?.name ??
-                                      t("garage2.fuel", "Топливо"),
+                                    fuelTypeLabel(item.fuel_type, t),
                                     item.pistol_type?.type ??
                                       t("garage2.electric", "Электро"),
                                   ].join(" · ")
                                 : item.power_type === "electric"
                                   ? item.pistol_type?.type ??
                                     t("garage2.electric", "Электро")
-                                  : item.fuel_type?.name ??
-                                    t("garage2.fuel", "Топливо")}
+                                  : fuelTypeLabel(item.fuel_type, t)}
                             </span>
                           </span>
                         </span>
@@ -616,7 +618,7 @@ export default function Garage2Page({
                     className="garage2__flag-btn"
                     disabled={saving}
                     onClick={() => setFlagDrawerOpen(true)}
-                    aria-label={activeCountry.label}
+                    aria-label={countryLabel(activeCountry.code, t)}
                   >
                     <span className="garage2__flag" aria-hidden>
                       {activeCountry.flag}
@@ -732,9 +734,7 @@ export default function Garage2Page({
                           className={`garage2__fuel-chip${fuelTypeId === type.id ? " is-active" : ""}`}
                           onClick={() => setFuelTypeId(type.id)}
                         >
-                          {type.group === "gasoline"
-                            ? type.code.toUpperCase()
-                            : type.name}
+                          {fuelTypeLabel(type, t)}
                         </button>
                       ))}
                     </div>

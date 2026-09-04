@@ -139,7 +139,7 @@
 }
 
 .abonements-slider .abonement-plastic--slide .abonement-plastic__number {
-  margin-top: 0.5rem;
+  margin-top: 0.2rem;
   font-size: clamp(0.85rem, 3.6vw, 1rem);
 }
 
@@ -311,7 +311,7 @@
 .abonement-plastic__logo {
   flex-shrink: 0;
   width: 5.5rem;
-  height: 3.25rem;
+  height: 2.5rem;
   object-fit: contain;
   object-position: left center;
   display: block;

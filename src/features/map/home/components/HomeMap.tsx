@@ -696,20 +696,20 @@ async function createMapView() {
               type="button"
               className="map-zoom-controls__btn"
               onClick={handleLocation}
-              aria-label="Моё местоположение"
-              title="Моё местоположение"
+              aria-label={t("map.my_location", "Моё местоположение")}
+              title={t("map.my_location", "Моё местоположение")}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <circle cx="12" cy="12" r="3" />
                 <path strokeLinecap="round" d="M12 2v3M12 19v3M2 12h3M19 12h3" />
               </svg>
             </button>
-            <div className="map-zoom-controls__stack" role="group" aria-label="Масштаб">
+            <div className="map-zoom-controls__stack" role="group" aria-label={t("map.zoom", "Масштаб")}>
               <button
                 type="button"
                 className="map-zoom-controls__btn"
                 onClick={() => mapRef.current?.zoomIn({ duration: 200 })}
-                aria-label="Приблизить"
+                aria-label={t("map.zoom_in", "Приблизить")}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden>
                   <path strokeLinecap="round" d="M12 5v14M5 12h14" />
@@ -719,7 +719,7 @@ async function createMapView() {
                 type="button"
                 className="map-zoom-controls__btn"
                 onClick={() => mapRef.current?.zoomOut({ duration: 200 })}
-                aria-label="Отдалить"
+                aria-label={t("map.zoom_out", "Отдалить")}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden>
                   <path strokeLinecap="round" d="M5 12h14" />
@@ -1180,8 +1180,8 @@ export default function HomeMap({
   }, [mapBusy, onBusyChange]);
 
   const preloaderLabel = locationLoading
-    ? "Определяем геолокацию"
-    : "Загрузка карты";
+    ? t("map.locating", "Определяем геолокацию…")
+    : t("map.loading", "Загрузка карты…");
 
   useEffect(() => {
     if (!focusStation) return;

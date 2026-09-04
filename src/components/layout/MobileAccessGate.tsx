@@ -10,6 +10,7 @@ import { forceLogout } from "@/lib/forceLogout";
 import { grantAccess, isAccessGranted } from "@/lib/userSession";
 import { useAppDispatch } from "@/store/hooks";
 import { setTestVersion } from "@/store/slices/appSlice";
+import { useT } from "@/hooks/useT";
 import AppPreloader from "./AppPreloader";
 
 /** Ждём bridge / source=mobile из Flutter */
@@ -27,15 +28,19 @@ function isOpenDashboardPath(pathname: string | null): boolean {
 }
 
 function AccessDenied() {
+  const t = useT();
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-zinc-50 px-6 dark:bg-zinc-950">
       <div className="w-full max-w-xs text-center">
         <p className="text-[0.8125rem] font-medium uppercase tracking-wider text-zinc-400">HiPoint</p>
         <h1 className="mt-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Скачайте приложение
+          {t("gate.download_app", "Скачайте приложение")}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-          Веб-версия недоступна. Откройте CarWash в приложении из магазина.
+          {t(
+            "gate.web_unavailable",
+            "Веб-версия недоступна. Откройте CarWash в приложении из магазина.",
+          )}
         </p>
         <div className="mt-6 flex flex-col gap-2.5">
           <a
