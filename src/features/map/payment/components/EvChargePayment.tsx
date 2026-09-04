@@ -600,14 +600,20 @@ export default function EvChargePayment() {
             <div className="profile-card__balance">
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
-                  {payWithAbonement
-                    ? t("profile.abonement", "Абонемент")
-                    : t("ev.from_balance", "С баланса")}
+                  {t("ev.charged", "Заряжено")}
                 </p>
-                <p className="profile-card__balance-value">
-                  {payWithAbonement ? abonKwhLabel : `${amountLabel} ₸`}
-                </p>
+                <p className="profile-card__balance-value">{kwhLabel}</p>
               </div>
+
+              {payWithAbonement ? (
+                <div className="profile-card__balance-item">
+                  <p className="profile-card__balance-label">
+                    {t("profile.abonement", "Абонемент")}
+                  </p>
+                  <p className="profile-card__balance-value">{abonKwhLabel}</p>
+                </div>
+              ) : null}
+
               {showBalanceToggle ? (
                 <label className="ev-pay__balance-toggle">
                   <span className="ev-pay__balance-toggle-label">
@@ -617,20 +623,11 @@ export default function EvChargePayment() {
                         "Доплатить с баланса",
                       )}
                     </span>
-                    <span
-                      className={`ev-pay__balance-toggle-desc${
-                        needsBalanceTopUp ? " is-danger" : ""
-                      }`}
-                    >
-                      {needsBalanceTopUp
-                        ? t(
-                            "payment.abon_need_topup",
-                            "Нужно пополнить баланс.",
-                          )
-                        : t(
-                            "payment.abon_cover_from_balance_hint",
-                            "Списать недостающие {n} ₸ с баланса",
-                          ).replace("{n}", balanceDueLabel)}
+                    <span className="ev-pay__balance-toggle-desc">
+                      {t(
+                        "payment.abon_cover_from_balance_hint",
+                        "Списать недостающие {n} ₸ с баланса",
+                      ).replace("{n}", balanceDueLabel)}
                     </span>
                   </span>
                   <input
@@ -653,7 +650,7 @@ export default function EvChargePayment() {
                 </label>
               ) : null}
 
-              {effectiveUseBalance ? (
+              {payWithAbonement && effectiveUseBalance ? (
                 <div className="profile-card__balance-item">
                   <p className="profile-card__balance-label">
                     {t("ev.from_balance", "С баланса")}
@@ -663,17 +660,10 @@ export default function EvChargePayment() {
                   </p>
                 </div>
               ) : null}
+
               <div className="profile-card__balance-item">
                 <p className="profile-card__balance-label">
-                  {t("ev.charge_cost", "Зарядка")}
-                </p>
-                <p className="profile-card__balance-value">
-                  {payWithAbonement ? kwhLabel : `${amountLabel} ₸`}
-                </p>
-              </div>
-              <div className="profile-card__balance-item">
-                <p className="profile-card__balance-label">
-                  {t("ev.total", "Итого")}
+                  {t("ev.to_pay", "К оплате")}
                 </p>
                 <p className="profile-card__balance-value ev-pay__total-value">
                   {payWithAbonement

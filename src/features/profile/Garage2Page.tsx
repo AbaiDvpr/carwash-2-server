@@ -537,7 +537,28 @@ export default function Garage2Page({
         {error ? <p className="garage2__error">{error}</p> : null}
 
         {loading && screen === "list" ? (
-          <p className="garage2__empty">{t("common.loading", "Загрузка…")}</p>
+          <div
+            className="profile-edit__main garage2__skeleton"
+            aria-busy="true"
+            aria-label={t("common.loading", "Загрузка…")}
+          >
+            <ul className="garage2__list" aria-hidden>
+              {[1, 2, 3].map((key) => (
+                <li key={key} className="garage2__list-item garage2__skeleton-item">
+                  <span className="garage2__skeleton-flag" />
+                  <span className="garage2__skeleton-texts">
+                    <span className="garage2__skeleton-line garage2__skeleton-line--plate" />
+                    <span className="garage2__skeleton-line garage2__skeleton-line--meta" />
+                  </span>
+                  <span className="garage2__skeleton-actions">
+                    <span className="garage2__skeleton-btn" />
+                    <span className="garage2__skeleton-btn" />
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="garage2__skeleton-cta" />
+          </div>
         ) : null}
 
         {screen === "list" && !loading ? (

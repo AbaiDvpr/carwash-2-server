@@ -246,10 +246,6 @@
   line-height: 1.35;
 }
 
-.ev-pay__balance-toggle-desc.is-danger {
-  color: var(--app-danger);
-}
-
 .ev-pay__toggle-switch {
   position: relative;
   flex-shrink: 0;
