@@ -224,6 +224,10 @@ export async function fetchCwStation(id: number | string): Promise<Station> {
 export type CwLoadHour = {
   hour: number;
   count: number;
+  /** Машины в очереди (pending / без бокса) */
+  queue?: number;
+  /** С назначенным боксом */
+  bay?: number;
 };
 
 export type CwLocationLoad = {
@@ -232,6 +236,8 @@ export type CwLocationLoad = {
   timezone: string;
   washers_total: number;
   total_sessions: number;
+  total_queue?: number;
+  total_bay?: number;
   max_hour_sessions: number;
   hours: CwLoadHour[];
 };
