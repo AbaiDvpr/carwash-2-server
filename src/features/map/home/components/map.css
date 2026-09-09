@@ -5529,9 +5529,51 @@ html[data-theme="dark"] .map-conn-card__offline {
 }
 
 .wash-load__subtitle {
-  margin: 0.2rem 0 0.85rem;
+  margin: 0.2rem 0 0.75rem;
   font-size: 0.8rem;
   color: var(--app-description, #8a8a8a);
+}
+
+.wash-load__days {
+  display: flex;
+  align-items: stretch;
+  gap: 0.15rem;
+  margin: 0 0 0.9rem;
+  padding: 0.2rem;
+  border-radius: 0.85rem;
+  background: color-mix(in oklab, var(--app-description) 10%, transparent);
+}
+
+.wash-load__day {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 2.35rem;
+  padding: 0.35rem 0.1rem 0.3rem;
+  border: 0;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: color-mix(in oklab, var(--app-description) 85%, #999);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wash-load__day.is-active {
+  background: var(--app-button, #2f6bff);
+  color: var(--app-button-text, #fff);
+}
+
+.wash-load__day-dot {
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .wash-load__hint {
