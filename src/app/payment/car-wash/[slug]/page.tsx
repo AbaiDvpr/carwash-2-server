@@ -2,7 +2,7 @@ import PaymentRoute from "@/features/map/payment/PaymentRoute";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tariff?: string | string[] }>;
+  searchParams: Promise<{ tariff?: string | string[]; session?: string | string[] }>;
 };
 
 export default async function Page({ params, searchParams }: PageProps) {

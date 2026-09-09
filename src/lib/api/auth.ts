@@ -88,3 +88,10 @@ export async function updateUserSettings(settings: {
   }
   return merged;
 }
+
+/** Мягкое удаление аккаунта (is_active=false). */
+export async function deleteAccount(): Promise<void> {
+  await apiFetch<{ message: string; ok?: boolean }>("/api/auth/account", {
+    method: "DELETE",
+  });
+}

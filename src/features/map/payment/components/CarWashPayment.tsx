@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
 import type { Station } from "@/data/stations";
 import { ApiError } from "@/lib/api";
 import { parseEvStationId } from "@/lib/api/ev";
 import { payCarWash, payEv, payFromBalance } from "@/lib/api/payments";
+import { fetchCwSession } from "@/lib/api/sessions";
 import { useT, useLocale } from "@/hooks/useT";
 import { localizeWashTariff } from "@/lib/api/cw";
 import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
@@ -94,14 +95,22 @@ export default function CarWashPayment({
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resumeSessionParam = searchParams.get("session");
   const { balance, loading: balanceLoading, refresh: refreshBalance } = useUserBalance();
   const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(
     () => tariff,
   );
   const [paySource, setPaySource] = useState<"balance" | string>("balance");
   const [abonCards, setAbonCards] = useState<AbonementCard[]>([]);
-  const [step, setStep] = useState<PayStep>("form");
+  const [step, setStep] = useState<PayStep>(() =>
+    resumeSessionParam ? "processing" : "form",
+  );
   const [payError, setPayError] = useState<string | null>(null);
+  const [washSessionId, setWashSessionId] = useState<number | null>(null);
+  const [washSessionStatus, setWashSessionStatus] = useState<string>("pending");
+  const [washWasherId, setWashWasherId] = useState<number | null>(null);
+  const resumeRequestRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +126,55 @@ export default function CarWashPayment({
       cancelled = true;
     };
   }, []);
+
+  // Возврат из «Мои услуги» к активной мойке (?session=id).
+  useEffect(() => {
+    const raw = resumeSessionParam;
+    if (!raw) return;
+
+    const id = Number.parseInt(raw, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      setStep("form");
+      return;
+    }
+
+    const requestId = ++resumeRequestRef.current;
+    let cancelled = false;
+    setStep("processing");
+
+    void (async () => {
+      try {
+        const { session } = await fetchCwSession(id);
+        if (cancelled || requestId !== resumeRequestRef.current) return;
+
+        const status = (session.status ?? "pending").toLowerCase();
+        setWashSessionId(session.id);
+        setWashSessionStatus(status);
+        setWashWasherId(session.washer_id ?? null);
+
+        if (status === "completed") {
+          setStep("success");
+          return;
+        }
+        if (status === "in_progress") {
+          setStep("washing");
+          return;
+        }
+        // pending / invited — экран очереди / приглашения
+        setStep("preparing");
+      } catch {
+        if (cancelled || requestId !== resumeRequestRef.current) return;
+        setPayError(
+          t("wash.resume_failed", "Не удалось открыть активную мойку"),
+        );
+        setStep("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeSessionParam, t]);
 
   const tariffs = station.tariff.map((tariff) => localizeWashTariff(tariff, locale));
   const selected = tariffs.find((tariff) => {
@@ -182,25 +240,37 @@ export default function CarWashPayment({
           description,
           ...abonPayload,
         });
+        await refreshBalance();
+        setStep("preparing");
       } else if (cwId != null && Number.isFinite(cwId) && selected.id != null) {
-        await payCarWash({
+        const paid = await payCarWash({
           location_id: cwId,
           tariff_id: selected.id,
           description,
           ...abonPayload,
         });
+        const sessionId = paid.session?.id ?? null;
+        if (sessionId == null) {
+          throw new Error(t("payment.failed", "Не удалось оплатить"));
+        }
+        setWashSessionId(sessionId);
+        setWashSessionStatus(paid.session?.status ?? "pending");
+        setWashWasherId(
+          paid.session?.washer_id ?? paid.bay?.washer_id ?? null,
+        );
+        await refreshBalance();
+        setStep("preparing");
       } else if (!payWithAbonement) {
         await payFromBalance({
           amount: selected.price,
           tariff_title: selected.title,
           description,
         });
+        await refreshBalance();
+        setStep("preparing");
       } else {
         throw new Error(t("payment.failed", "Не удалось оплатить"));
       }
-
-      await refreshBalance();
-      setStep("preparing");
     } catch (err) {
       setPayError(
         paymentErrorMessage(err, t("payment.failed", "Не удалось оплатить")),
@@ -229,18 +299,30 @@ export default function CarWashPayment({
           </BackButton>
         </div>
 
-        {step === "preparing" ? (
+        {step === "preparing" && washSessionId != null ? (
           <div className="details-charging__stage is-charging">
-            <WashPrepareTimer onDone={startWash} />
+            <WashPrepareTimer
+              sessionId={washSessionId}
+              initialStatus={washSessionStatus}
+              initialWasherId={washWasherId}
+              onReady={(info) => {
+                if (info?.status) setWashSessionStatus(info.status);
+                if (info?.washerId != null) setWashWasherId(info.washerId);
+                startWash();
+              }}
+              onFinished={finishWash}
+            />
           </div>
         ) : null}
 
-        {step === "washing" && selected ? (
+        {step === "washing" && washSessionId != null ? (
           <div className="details-charging__stage is-charging">
             <WashSessionView
+              sessionId={washSessionId}
               stationTitle={station.paymentTitle}
-              tariffTitle={selected.title}
-              price={selected.price}
+              tariffTitle={selected?.title ?? t("payment.tariff", "Тариф")}
+              price={selected?.price ?? 0}
+              washerId={washWasherId}
               onDone={finishWash}
             />
           </div>
@@ -258,7 +340,7 @@ export default function CarWashPayment({
           </div>
         ) : null}
 
-        {step === "success" && selected ? (
+        {step === "success" ? (
           <div className="details-charging__stage is-status">
             <div className="ev-checkout ev-checkout--status ev-pay-status ev-pay-status--center">
               <div className="ev-pay-status__badge is-ok" aria-hidden>
@@ -268,8 +350,10 @@ export default function CarWashPayment({
                 {t("wash.done_title", "Мойка завершена")}
               </h1>
               <p className="ev-pay-status__text">
-                {t("payment.success", "Оплата прошла успешно")}. {selected.price} ₸ ·{" "}
-                {selected.title}
+                {t("payment.success", "Оплата прошла успешно")}
+                {selected
+                  ? `. ${selected.price} ₸ · ${selected.title}`
+                  : ""}
               </p>
               <div className="ev-pay-status__footer">
                 <button type="button" className="theme-button w-full" onClick={goMap}>

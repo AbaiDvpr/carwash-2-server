@@ -30,7 +30,7 @@ const initialState: AppState = {
   showHeaderNav: false,
   test_version: false,
   authError: null,
-  test_ui_version: true,
+  test_ui_version: false,
 };
 
 

@@ -52,6 +52,7 @@ function statusClass(status: string | null): string {
       return "is-completed";
     case "charging":
     case "in_progress":
+    case "invited":
       return "is-in_progress";
     case "pending":
       return "is-pending";

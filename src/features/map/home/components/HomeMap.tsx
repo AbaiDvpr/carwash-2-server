@@ -13,10 +13,13 @@ import StationMapDrawer from "@/features/map/home/components/StationMapDrawer";
 import MyServicesIcon from "@/features/map/home/components/MyServicesIcon";
 import {
   detailsChargingPath,
+  mapActiveCwSessions,
   mapActiveEvSessions,
+  washSessionPath,
   type MapLiveSession,
 } from "@/features/map/home/mapLiveSession";
 import { fetchActiveEvSessions } from "@/lib/api/evSessions";
+import { fetchActiveCwSessions } from "@/lib/api/sessions";
 import { useToast } from "@/hooks/useToast";
 import { useT } from "@/hooks/useT";
 import { useUserCity } from "@/hooks/useUserCity";
@@ -910,9 +913,15 @@ function MapServicesDrawer({
       setLoading(true);
       setError(null);
       try {
-        const sessions = await fetchActiveEvSessions();
+        const [ev, cw] = await Promise.all([
+          fetchActiveEvSessions().catch(() => []),
+          fetchActiveCwSessions().catch(() => []),
+        ]);
         if (cancelled) return;
-        const mapped = mapActiveEvSessions(sessions);
+        const mapped = [
+          ...mapActiveCwSessions(cw),
+          ...mapActiveEvSessions(ev),
+        ];
         setItems(mapped);
         onSessionsLoaded(mapped);
       } catch {
@@ -1013,15 +1022,32 @@ function MapServicesDrawer({
           ) : !loading ? (
             <ul className="map-services-list">
               {items.map((session) => {
+                const code = (session.statusCode ?? "").toLowerCase();
                 const isDone = session.step === "charged_ok";
-                const statusLabel =
-                  session.kind === "wash"
-                    ? isDone
-                      ? t("map.session_wash_done", "Мойка завершена")
-                      : t("map.session_washing", "Машина моется")
-                    : isDone
-                      ? t("map.session_charge_done", "Зарядка завершена")
-                      : t("map.session_charging", "Машина заряжается");
+                let statusLabel: string;
+                if (session.kind === "wash") {
+                  if (code === "pending") {
+                    statusLabel = t("map.session_wash_queue", "В очереди");
+                  } else if (code === "invited") {
+                    statusLabel = t(
+                      "map.session_wash_invited",
+                      "Вас пригласили",
+                    );
+                  } else if (code === "in_progress") {
+                    statusLabel = t("map.session_washing", "Машина моется");
+                  } else if (code === "error" || code === "cancelled") {
+                    statusLabel =
+                      session.statusCode === "error"
+                        ? t("map.session_wash_error", "Ошибка мойки")
+                        : t("map.session_wash_cancelled", "Отменено");
+                  } else {
+                    statusLabel = t("map.session_washing", "Машина моется");
+                  }
+                } else {
+                  statusLabel = isDone
+                    ? t("map.session_charge_done", "Зарядка завершена")
+                    : t("map.session_charging", "Машина заряжается");
+                }
                 const kindLabel =
                   session.kind === "wash"
                     ? t("common.wash", "Мойка")
@@ -1089,8 +1115,14 @@ export default function HomeMap({
 
   const refreshActiveSessions = useCallback(async () => {
     try {
-      const sessions = await fetchActiveEvSessions();
-      setActiveSessions(mapActiveEvSessions(sessions));
+      const [ev, cw] = await Promise.all([
+        fetchActiveEvSessions().catch(() => []),
+        fetchActiveCwSessions().catch(() => []),
+      ]);
+      setActiveSessions([
+        ...mapActiveCwSessions(cw),
+        ...mapActiveEvSessions(ev),
+      ]);
     } catch {
       /* без токена / сеть — FAB просто idle */
       setActiveSessions([]);
@@ -1212,11 +1244,10 @@ export default function HomeMap({
       router.push(detailsChargingPath(session.dbSessionId));
       return;
     }
-    const full = stations.find((s) => s.id === session.stationId) ?? null;
-    if (!full) return;
-    setResumeSession(session);
-    setResumeOpen(true);
-    setSelectedStation(full);
+    setSelectedStation(null);
+    setResumeOpen(false);
+    setResumeSession(null);
+    router.push(washSessionPath(session.stationId, session.dbSessionId));
   }
 
   function clearLiveSession() {

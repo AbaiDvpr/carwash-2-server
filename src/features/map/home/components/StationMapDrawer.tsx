@@ -38,10 +38,12 @@ import {
 } from "@/lib/openHours";
 import { formatStandTitle } from "@/lib/standTitle";
 import BackButton from "@/components/ui/BackButton";
+import { useAppSelector } from "@/store/hooks";
 import EvChargeFlow, {
   type EvChargeStep,
   type EvPhotoHeader,
 } from "./EvChargeFlow";
+import WashLoadChart from "./WashLoadChart";
 import {
   detailsChargingPath,
   type MapLiveSession,
@@ -167,6 +169,38 @@ function HoursButton({
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
         <circle cx="12" cy="12" r="9" />
         <path strokeLinecap="round" d="M12 7v5l3 2" />
+      </svg>
+    </button>
+  );
+}
+
+function LoadButton({
+  disabled = false,
+  onClick,
+  active = false,
+}: {
+  disabled?: boolean;
+  onClick: () => void;
+  active?: boolean;
+}) {
+  const t = useT();
+  const label = t("map.wash_load", "Загруженность");
+  return (
+    <button
+      type="button"
+      className={`map-station-sheet__btn map-station-sheet__btn--route map-station-sheet__btn--icon${active ? " is-active" : ""}`}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+    >
+      {/* Столбцы нагрузки */}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <path strokeLinecap="round" d="M5 19V11" />
+        <path strokeLinecap="round" d="M10 19V6" />
+        <path strokeLinecap="round" d="M15 19v-8" />
+        <path strokeLinecap="round" d="M20 19V9" />
       </svg>
     </button>
   );
@@ -682,6 +716,8 @@ export default function StationMapDrawer({
   const navigatedToDetailsRef = useRef(false);
   const [routeOpen, setRouteOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
+  const [loadOpen, setLoadOpen] = useState(false);
+  const testUi = useAppSelector((s) => s.app.test_ui_version);
   const [selectedStandId, setSelectedStandId] = useState<number | null>(
     () => resumeSession?.standId ?? null,
   );
@@ -786,10 +822,20 @@ export default function StationMapDrawer({
 
   const toggleRoute = () => {
     setRouteOpen((open) => !open);
+    setHoursOpen(false);
+    setLoadOpen(false);
   };
 
   const toggleHours = () => {
     setHoursOpen((open) => !open);
+    setRouteOpen(false);
+    setLoadOpen(false);
+  };
+
+  const toggleLoad = () => {
+    setLoadOpen((open) => !open);
+    setHoursOpen(false);
+    setRouteOpen(false);
   };
 
   const closeRoute = () => setRouteOpen(false);
@@ -803,6 +849,7 @@ export default function StationMapDrawer({
     setPhotoHeader(null);
     setRouteOpen(false);
     setHoursOpen(false);
+    setLoadOpen(false);
   };
 
   const closeStand = () => {
@@ -814,6 +861,7 @@ export default function StationMapDrawer({
     setPhotoHeader(null);
     setRouteOpen(false);
     setHoursOpen(false);
+    setLoadOpen(false);
   };
 
   const openFreePort = (port: StationConnectorPort) => {
@@ -873,6 +921,7 @@ export default function StationMapDrawer({
     onLiveSessionChange?.(null);
     setHoursOpen(false);
     setRouteOpen(false);
+    setLoadOpen(false);
     setSelectedPortId(null);
     setUnpaidDebt(null);
     setEvChargeStep("init");
@@ -891,6 +940,7 @@ export default function StationMapDrawer({
     setChargeEndsAt(null);
     setRouteOpen(false);
     setHoursOpen(false);
+    setLoadOpen(false);
     setSelectedWashTariffKey(null);
   }, [initialStation.id, resumeSession]);
 
@@ -1126,10 +1176,11 @@ export default function StationMapDrawer({
             <BackButton
               className="map-station-sheet__back"
               onClick={
-                hoursOpen || routeOpen
+                hoursOpen || routeOpen || loadOpen
                   ? () => {
                       setHoursOpen(false);
                       setRouteOpen(false);
+                      setLoadOpen(false);
                     }
                   : selectedPort
                       ? isLiveStep
@@ -1146,6 +1197,9 @@ export default function StationMapDrawer({
             <div className="map-station-sheet__toolbar-actions">
               <HoursButton onClick={toggleHours} active={hoursOpen} />
               <RouteButton onClick={toggleRoute} active={routeOpen} />
+              {!isCharging && testUi ? (
+                <LoadButton onClick={toggleLoad} active={loadOpen} />
+              ) : null}
               <ScanQrButton />
             </div>
           ) : !selectedPort ? (
@@ -1271,7 +1325,7 @@ export default function StationMapDrawer({
           </div>
         ) : (
           <div className="map-station-sheet__body map-station-sheet__body--compact" {...scrollProps}>
-            {hoursOpen || routeOpen ? (
+            {hoursOpen || routeOpen || loadOpen ? (
               <div className="map-station-sheet__drops">
                 {hoursOpen ? (
                   <div
@@ -1295,6 +1349,15 @@ export default function StationMapDrawer({
                       map2gis={station.map_2gis}
                       onPicked={closeRoute}
                     />
+                  </div>
+                ) : null}
+                {loadOpen && !isCharging && testUi ? (
+                  <div
+                    className="map-station-sheet__drop map-station-sheet__drop--load"
+                    role="region"
+                    aria-label={t("map.wash_load", "Загруженность")}
+                  >
+                    <WashLoadChart locationId={station.id} />
                   </div>
                 ) : null}
               </div>

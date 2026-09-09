@@ -5516,6 +5516,122 @@ html[data-theme="dark"] .map-conn-card__offline {
   background: transparent;
 }
 
+.map-station-sheet__drop--load {
+  padding: 0.85rem 0.9rem 1rem;
+}
+
+.wash-load__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--app-text, #111);
+  letter-spacing: -0.02em;
+}
+
+.wash-load__subtitle {
+  margin: 0.2rem 0 0.85rem;
+  font-size: 0.8rem;
+  color: var(--app-description, #8a8a8a);
+}
+
+.wash-load__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--app-description, #8a8a8a);
+}
+
+.wash-load__chart {
+  position: relative;
+}
+
+.wash-load__plot {
+  position: relative;
+  height: var(--wash-load-h, 120px);
+  margin-bottom: 1.65rem;
+}
+
+.wash-load__cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-top: 1px dashed color-mix(in oklab, var(--app-description) 35%, transparent);
+  pointer-events: none;
+}
+
+.wash-load__bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 0 2px;
+}
+
+.wash-load__col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+}
+
+.wash-load__bar {
+  width: 100%;
+  max-width: 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--app-success, #22c55e) 22%, #e8e8e8);
+}
+
+.wash-load__bar.is-filled {
+  background: var(--app-success, #22c55e);
+}
+
+.wash-load__now {
+  position: absolute;
+  top: 0;
+  bottom: -1.45rem;
+  width: 0;
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.wash-load__now-line {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 1.35rem;
+  width: 1px;
+  background: color-mix(in oklab, var(--app-description) 45%, transparent);
+  transform: translateX(-50%);
+}
+
+.wash-load__now-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.4rem;
+  background: #111;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.wash-load__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  color: var(--app-description, #9a9a9a);
+  font-variant-numeric: tabular-nums;
+}
+
 @keyframes map-station-drop-in {
   from {
     opacity: 0;

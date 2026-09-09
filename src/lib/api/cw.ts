@@ -220,3 +220,27 @@ export async function fetchCwLocation(id: number | string): Promise<CwLocation> 
 export async function fetchCwStation(id: number | string): Promise<Station> {
   return toStation(await fetchCwLocation(id));
 }
+
+export type CwLoadHour = {
+  hour: number;
+  count: number;
+};
+
+export type CwLocationLoad = {
+  location_id: number;
+  date: string;
+  timezone: string;
+  washers_total: number;
+  total_sessions: number;
+  max_hour_sessions: number;
+  hours: CwLoadHour[];
+};
+
+/** Нагрузка мойки по часам за день (кол-во сессий). */
+export function fetchCwLocationLoad(
+  id: number | string,
+  date?: string,
+): Promise<CwLocationLoad> {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : "";
+  return apiFetch<CwLocationLoad>(`/api/cw/locations/${id}/load${qs}`);
+}

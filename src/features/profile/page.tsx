@@ -829,7 +829,7 @@ export default function ProfilePage() {
                   >
                     <span className="min-w-0 flex-1">
                       <p className="profile-card__balance-label">
-                        {t("profile.phone", "Телефон")}
+                        {t("profile.phone", "Профиль")}
                       </p>
                       <p className="profile-card__balance-value">{displayPhone}</p>
                     </span>

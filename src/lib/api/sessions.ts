@@ -67,6 +67,21 @@ export function fetchCwSessions(
   return apiFetch<SessionsResponse>(`/api/cw/sessions${buildQuery(params)}`);
 }
 
+/** Статус одной сессии мойки (поллинг после оплаты). */
+export function fetchCwSession(id: number): Promise<{ session: HistorySession }> {
+  return apiFetch<{ session: HistorySession }>(`/api/cw/sessions/${id}`);
+}
+
+/**
+ * Активные мойки (очередь / приглашён / в боксе) — для «Мои услуги».
+ * Без completed и без уже закрытых (end_at).
+ */
+export function fetchActiveCwSessions(): Promise<HistorySession[]> {
+  return apiFetch<{ sessions: HistorySession[] }>("/api/cw/sessions/active").then(
+    (data) => data.sessions ?? [],
+  );
+}
+
 export function fetchEvSessions(
   params: HistorySessionsQuery = {},
 ): Promise<SessionsResponse> {

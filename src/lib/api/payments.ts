@@ -1,6 +1,13 @@
 import { apiFetch } from "@/lib/api";
 import type { AuthUser } from "@/lib/api/auth";
 
+export type CarWashBayInfo = {
+  opened: boolean;
+  http_status: number;
+  washer_id: number | null;
+  message: string | null;
+};
+
 export type BalancePaymentResponse = {
   message: string;
   balance: string | number;
@@ -15,9 +22,11 @@ export type BalancePaymentResponse = {
   session?: {
     id: number;
     location_id: number;
+    washer_id?: number | null;
     status: string;
     start_at: string | null;
   };
+  bay?: CarWashBayInfo;
 };
 
 function notifyProfileUpdated() {

@@ -10,6 +10,7 @@ export const HISTORY_STATUS_VALUES = [
   "completed",
   "charging",
   "in_progress",
+  "invited",
   "pending",
   "cancelled",
   "error",
@@ -52,6 +53,7 @@ const STATUS_SET = new Set<string>(HISTORY_STATUS_VALUES);
 export const WASH_STATUSES: HistoryStatusValue[] = [
   "completed",
   "in_progress",
+  "invited",
   "pending",
   "cancelled",
   "error",
@@ -181,6 +183,8 @@ export function historyStatusLabel(
       return t("history.status_charging", "Заряжается");
     case "in_progress":
       return t("history.status_in_progress", "В процессе");
+    case "invited":
+      return t("history.status_invited", "Приглашён");
     case "pending":
       return t("history.status_pending", "Ожидает");
     case "cancelled":

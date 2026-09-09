@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ServiceFillProgress from "@/features/map/charging/ServiceFillProgress";
 import { useT } from "@/hooks/useT";
+import { fetchCwSession } from "@/lib/api/sessions";
+import { WASH_STATUS_POLL_MS } from "@/features/map/wash/WashPrepareTimer";
 import "@/features/map/charging/charging-session-variants.css";
 import "./wash-session.css";
-
-export const WASH_MS = 60_000;
 
 function WashIcon() {
   return (
@@ -17,43 +17,97 @@ function WashIcon() {
 }
 
 type WashSessionViewProps = {
+  sessionId: number;
   stationTitle: string;
   tariffTitle: string;
   price: number;
+  washerId?: number | null;
   onDone: () => void;
 };
 
 export default function WashSessionView({
+  sessionId,
   stationTitle,
   tariffTitle,
   price,
+  washerId = null,
   onDone,
 }: WashSessionViewProps) {
   const t = useT();
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState(8);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [statusLabel, setStatusLabel] = useState(
+    t("wash.in_progress", "Идёт мойка"),
+  );
+  const [boxId, setBoxId] = useState<number | null>(washerId);
+  const doneRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
 
   useEffect(() => {
     const startedAt = Date.now();
-    const endsAt = startedAt + WASH_MS;
     const tick = () => {
-      const now = Date.now();
-      const p = Math.min(1, Math.max(0, (now - startedAt) / WASH_MS));
-      setProgress(p * 100);
-      setElapsedMs(Math.max(0, now - startedAt));
-      if (now >= endsAt) {
-        setProgress(100);
-        onDone();
-        return false;
-      }
-      return true;
+      const elapsed = Math.max(0, Date.now() - startedAt);
+      setElapsedMs(elapsed);
+      // Визуальный прогресс без фейкового финиша — до реального completed.
+      const soft = Math.min(92, 8 + (elapsed / 90_000) * 84);
+      setProgress(soft);
     };
-    if (!tick()) return;
-    const id = window.setInterval(() => {
-      if (!tick()) window.clearInterval(id);
-    }, 100);
-    return () => window.clearInterval(id);
-  }, [onDone]);
+    tick();
+    const clockId = window.setInterval(tick, 250);
+    return () => window.clearInterval(clockId);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    doneRef.current = false;
+
+    const poll = async () => {
+      try {
+        const { session } = await fetchCwSession(sessionId);
+        if (cancelled || doneRef.current) return;
+
+        const status = (session.status ?? "").toLowerCase();
+        if (session.washer_id != null) setBoxId(session.washer_id);
+
+        if (status === "completed") {
+          doneRef.current = true;
+          setProgress(100);
+          setStatusLabel(t("wash.done_title", "Мойка завершена"));
+          onDoneRef.current();
+          return;
+        }
+
+        if (status === "cancelled" || status === "error") {
+          doneRef.current = true;
+          setStatusLabel(
+            session.status_ru ||
+              t("wash.session_failed", "Сессия мойки завершилась с ошибкой"),
+          );
+          onDoneRef.current();
+          return;
+        }
+
+        if (status === "invited") {
+          setStatusLabel(t("wash.invited_title", "Вас пригласили"));
+        } else {
+          setStatusLabel(t("wash.in_progress", "Идёт мойка"));
+        }
+      } catch {
+        /* следующий тик */
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => void poll(), WASH_STATUS_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [sessionId, t]);
 
   const percent = Math.round(progress);
   const durationMin = Math.floor(elapsedMs / 60_000);
@@ -67,6 +121,9 @@ export default function WashSessionView({
     { label: t("common.wash", "Мойка"), value: stationTitle },
     { label: t("payment.tariff", "Тариф"), value: tariffTitle },
     { label: t("payment.to_pay", "Стоимость"), value: `${price} ₸` },
+    ...(boxId != null
+      ? [{ label: t("wash.box", "Бокс"), value: `№${boxId}` }]
+      : []),
     { label: t("ev.charging_duration", "Длительность"), value: durationLabel },
   ];
 
@@ -81,9 +138,7 @@ export default function WashSessionView({
         </div>
         <div className="csv-shell__body">
           <ServiceFillProgress percent={percent} variant="wash" />
-          <p className="csv-status csv-status--center">
-            {t("wash.in_progress", "Идёт мойка")}
-          </p>
+          <p className="csv-status csv-status--center">{statusLabel}</p>
         </div>
       </section>
 

@@ -28,3 +28,19 @@
   font-weight: 500;
   line-height: 1.4;
 }
+
+.wash-prep__hint--meta {
+  margin-top: 0.55rem;
+  opacity: 0.75;
+  font-size: var(--app-text-xs, 0.75rem);
+}
+
+.wash-prep__hint--error {
+  margin-top: 0.55rem;
+  color: var(--app-danger, #c62828);
+}
+
+.wash-prep__sound-btn {
+  margin-top: 0.85rem;
+  width: 100%;
+}
