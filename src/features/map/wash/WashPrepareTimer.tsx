@@ -11,7 +11,7 @@ import "./wash-session.css";
 import "./wash-prepare-timer.css";
 
 /** Как часто спрашиваем статус сессии в очереди. */
-export const WASH_STATUS_POLL_MS = 5_000;
+export const WASH_STATUS_POLL_MS = 10_000;
 
 const QUEUE_SOUND_SRC = "/mp3/queue.mp3";
 
@@ -55,7 +55,6 @@ export default function WashPrepareTimer({
       : null,
   );
   const [pollError, setPollError] = useState<string | null>(null);
-  const [soundBlocked, setSoundBlocked] = useState(false);
 
   const onReadyRef = useRef(onReady);
   const onFinishedRef = useRef(onFinished);
@@ -69,7 +68,6 @@ export default function WashPrepareTimer({
     onFinishedRef.current = onFinished;
   }, [onFinished]);
 
-  // Звук приглашения: крутим queue.mp3, пока статус invited.
   useEffect(() => {
     const invited = status === "invited";
     if (!invited) {
@@ -78,41 +76,62 @@ export default function WashPrepareTimer({
         audio.pause();
         audio.currentTime = 0;
       }
-      setSoundBlocked(false);
       return;
     }
 
     let audio = audioRef.current;
     if (!audio) {
       audio = new Audio(QUEUE_SOUND_SRC);
-      audio.loop = true;
+      audio.loop = false;
       audio.preload = "auto";
       audioRef.current = audio;
+    } else {
+      audio.loop = false;
     }
 
     let cancelled = false;
-    const tryPlay = () => {
+    let gapTimer: number | null = null;
+
+    const playOnce = () => {
       if (cancelled || !audio) return;
-      void audio.play().then(
-        () => {
-          if (!cancelled) setSoundBlocked(false);
-        },
-        () => {
-          if (!cancelled) setSoundBlocked(true);
-        },
-      );
+      try {
+        audio.currentTime = 0;
+      } catch {
+        /* ignore seek errors before ready */
+      }
+      void audio.play().catch(() => {
+        /* автоплей может быть заблокирован */
+      });
     };
 
-    tryPlay();
-    const unlock = () => tryPlay();
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    const scheduleNext = () => {
+      if (cancelled) return;
+      if (gapTimer != null) window.clearTimeout(gapTimer);
+      // Короткий mp3 (~0.4с) + пауза, чтобы не пищал непрерывно
+      gapTimer = window.setTimeout(() => {
+        playOnce();
+      }, 2_500);
+    };
+
+    const onEnded = () => scheduleNext();
+    audio.addEventListener("ended", onEnded);
+
+    playOnce();
+    const unlock = () => {
+      if (cancelled || !audio) return;
+      if (!audio.paused) return;
+      playOnce();
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
 
     return () => {
       cancelled = true;
+      if (gapTimer != null) window.clearTimeout(gapTimer);
+      audio.removeEventListener("ended", onEnded);
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
-      audio?.pause();
+      audio.pause();
     };
   }, [status]);
 
@@ -143,7 +162,6 @@ export default function WashPrepareTimer({
         return;
       }
 
-      // Мойку запускаем только когда клиент реально заехал в бокс.
       if (next === "in_progress") {
         advancedRef.current = true;
         onReadyRef.current({ washerId: nextWasherId, status: next });
@@ -179,15 +197,19 @@ export default function WashPrepareTimer({
   }, [sessionId, initialStatus, initialWasherId, t]);
 
   const invited = status === "invited";
+  const boxLabel = washerId != null ? String(washerId) : null;
+  const boxTag = boxLabel ? `#${boxLabel}` : null;
+
   const title = invited
-    ? t("wash.invited_title", "Вас пригласили")
+    ? t("wash.invited_title", "Вас ждут")
     : t("wash.queue_title", "Вы в очереди");
+
   const text = invited
-    ? washerId != null
+    ? boxTag
       ? t(
-          "wash.invited_enter_box_n",
-          "Зайдите, пожалуйста, внутрь бокса №{n}.",
-        ).replace("{n}", String(washerId))
+          "wash.invited_enter_hash",
+          "Заезжайте в бокс {tag} — мойка начнётся автоматически.",
+        ).replace("{tag}", boxTag)
       : t(
           "wash.invited_enter_box",
           "Зайдите, пожалуйста, внутрь бокса.",
@@ -198,25 +220,40 @@ export default function WashPrepareTimer({
       );
 
   return (
-    <div className="csv csv--refined wash-prep" role="status">
+    <div
+      className={`csv csv--refined wash-prep${invited ? " is-invited" : " is-queue"}`}
+      role="status"
+      aria-live="polite"
+    >
       <section className="profile-card csv-shell">
         <div className="csv-shell__head">
-          <span className="csv-ev-badge csv-ev-badge--wash csv-ev-badge--inline" aria-hidden>
+          <span
+            className="csv-ev-badge csv-ev-badge--wash csv-ev-badge--inline"
+            aria-hidden
+          >
             <WashIcon />
             <span>{t("common.wash", "Мойка")}</span>
           </span>
         </div>
 
         <div className="csv-shell__body wash-prep__body">
-          <div className="wash-prep__preloader" aria-label={title}>
-            {mounted ? (
-              <PreloaderStage
-                variant={variant}
-                size={132}
-                showCircleIcon={showCircleIcon}
-              />
-            ) : null}
-          </div>
+          {invited ? (
+            <div className="wash-prep__bay" aria-label={boxTag ?? title}>
+              <p className="wash-prep__bay-tag">
+                {boxTag ?? "#—"}
+              </p>
+            </div>
+          ) : (
+            <div className="wash-prep__preloader" aria-label={title}>
+              {mounted ? (
+                <PreloaderStage
+                  variant={variant}
+                  size={120}
+                  showCircleIcon={showCircleIcon}
+                />
+              ) : null}
+            </div>
+          )}
         </div>
       </section>
 
@@ -224,23 +261,6 @@ export default function WashPrepareTimer({
         <div className="profile-card__balance">
           <p className="csv-params__title">{title}</p>
           <p className="wash-prep__hint">{text}</p>
-          {invited && soundBlocked ? (
-            <button
-              type="button"
-              className="theme-button wash-prep__sound-btn"
-              onClick={() => {
-                const audio = audioRef.current ?? new Audio(QUEUE_SOUND_SRC);
-                audio.loop = true;
-                audioRef.current = audio;
-                void audio.play().then(
-                  () => setSoundBlocked(false),
-                  () => setSoundBlocked(true),
-                );
-              }}
-            >
-              {t("wash.enable_sound", "Включить звук")}
-            </button>
-          ) : null}
           {pollError ? (
             <p className="wash-prep__hint wash-prep__hint--error">{pollError}</p>
           ) : null}

@@ -1,24 +1,49 @@
-/* Очередь мойки — прелоадер внутри карточки */
+/* Очередь мойки / приглашение в бокс */
 
 .wash-prep {
   width: 100%;
 }
 
 .wash-prep__body {
-  align-items: stretch !important;
-  justify-content: flex-start;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center !important;
+  justify-content: center;
   text-align: center;
   gap: 0;
   padding-top: 0.35rem;
 }
 
 .wash-prep__preloader {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   min-height: 10.5rem;
   padding: 1rem 0 0.75rem;
   box-sizing: border-box;
+}
+
+.wash-prep__bay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 11rem;
+  padding: 1.25rem 0 1rem;
+  box-sizing: border-box;
+}
+
+.wash-prep__bay-tag {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  color: var(--app-text);
+  font-size: clamp(2.8rem, 12vw, 3.6rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
 }
 
 .wash-prep__hint {
@@ -29,18 +54,7 @@
   line-height: 1.4;
 }
 
-.wash-prep__hint--meta {
-  margin-top: 0.55rem;
-  opacity: 0.75;
-  font-size: var(--app-text-xs, 0.75rem);
-}
-
 .wash-prep__hint--error {
   margin-top: 0.55rem;
   color: var(--app-danger, #c62828);
-}
-
-.wash-prep__sound-btn {
-  margin-top: 0.85rem;
-  width: 100%;
 }

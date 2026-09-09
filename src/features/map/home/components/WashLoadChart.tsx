@@ -106,19 +106,12 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
     };
   }, [locationId, selectedDate, t]);
 
-  const washersTotal = data?.washers_total ?? 0;
   const maxCount = data?.max_hour_sessions ?? 0;
   const hours = data?.hours ?? [];
 
   function hourLoadPct(count: number): number {
-    if (count <= 0) return 0;
-    if (washersTotal > 0) {
-      return Math.min(100, Math.round((count / washersTotal) * 100));
-    }
-    if (maxCount > 0) {
-      return Math.min(100, Math.round((count / maxCount) * 100));
-    }
-    return 0;
+    if (count <= 0 || maxCount <= 0) return 0;
+    return Math.min(100, Math.round((count / maxCount) * 100));
   }
 
   const nowPct = useMemo(() => {

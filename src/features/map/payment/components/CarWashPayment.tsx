@@ -110,6 +110,7 @@ export default function CarWashPayment({
   const [washSessionId, setWashSessionId] = useState<number | null>(null);
   const [washSessionStatus, setWashSessionStatus] = useState<string>("pending");
   const [washWasherId, setWashWasherId] = useState<number | null>(null);
+  const [resumeReady, setResumeReady] = useState(() => !resumeSessionParam);
   const resumeRequestRef = useRef(0);
 
   useEffect(() => {
@@ -127,20 +128,26 @@ export default function CarWashPayment({
     };
   }, []);
 
-  // Возврат из «Мои услуги» к активной мойке (?session=id).
+  // Возврат к активной мойке (?session=id) — очередь / приглашение / мойка.
   useEffect(() => {
     const raw = resumeSessionParam;
-    if (!raw) return;
+    if (!raw) {
+      setResumeReady(true);
+      return;
+    }
 
     const id = Number.parseInt(raw, 10);
     if (!Number.isFinite(id) || id <= 0) {
+      setResumeReady(true);
       setStep("form");
       return;
     }
 
     const requestId = ++resumeRequestRef.current;
     let cancelled = false;
+    setResumeReady(false);
     setStep("processing");
+    setPayError(null);
 
     void (async () => {
       try {
@@ -154,20 +161,28 @@ export default function CarWashPayment({
 
         if (status === "completed") {
           setStep("success");
-          return;
-        }
-        if (status === "in_progress") {
+        } else if (status === "cancelled" || status === "error") {
+          setPayError(
+            session.status_ru ||
+              t("wash.resume_closed", "Сессия мойки уже закрыта"),
+          );
+          setStep("error");
+        } else if (status === "in_progress") {
           setStep("washing");
-          return;
+        } else {
+          // pending / invited / queue — экран очереди или приглашения
+          setStep("preparing");
         }
-        // pending / invited — экран очереди / приглашения
-        setStep("preparing");
       } catch {
         if (cancelled || requestId !== resumeRequestRef.current) return;
         setPayError(
           t("wash.resume_failed", "Не удалось открыть активную мойку"),
         );
         setStep("error");
+      } finally {
+        if (!cancelled && requestId === resumeRequestRef.current) {
+          setResumeReady(true);
+        }
       }
     })();
 
@@ -259,6 +274,7 @@ export default function CarWashPayment({
           paid.session?.washer_id ?? paid.bay?.washer_id ?? null,
         );
         await refreshBalance();
+        router.replace(`/payment/car-wash/${cwId}?session=${sessionId}`);
         setStep("preparing");
       } else if (!payWithAbonement) {
         await payFromBalance({
@@ -332,10 +348,14 @@ export default function CarWashPayment({
           <div className="profile-edit__main ev-pay-status ev-pay-status--center" role="status">
             <span className="profile-boot__spinner ev-pay-status__spinner" aria-hidden />
             <h1 className="ev-pay-status__title">
-              {t("payment.processing", "Оплата...")}
+              {resumeSessionParam && !resumeReady
+                ? t("wash.resuming", "Открываем мойку…")
+                : t("payment.processing", "Оплата...")}
             </h1>
             <p className="ev-pay-status__text">
-              {t("payment.deducting", "Списываем с баланса")}
+              {resumeSessionParam && !resumeReady
+                ? t("wash.resuming_text", "Проверяем статус сессии")
+                : t("payment.deducting", "Списываем с баланса")}
             </p>
           </div>
         ) : null}
@@ -403,7 +423,7 @@ export default function CarWashPayment({
           </div>
         ) : null}
 
-        {step === "form" ? (
+        {step === "form" && resumeReady ? (
           <div
             className={`profile-edit__main ev-pay cw-pay profile-home${
               locked ? " pointer-events-none opacity-60" : ""
