@@ -5521,7 +5521,7 @@ html[data-theme="dark"] .map-conn-card__offline {
 }
 
 .wash-load__title {
-  margin: 0;
+  margin: 0 0 0.85rem;
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--app-text, #111);
@@ -5569,6 +5569,14 @@ html[data-theme="dark"] .map-conn-card__offline {
   color: var(--app-button-text, #fff);
 }
 
+.wash-load__day.is-disabled,
+.wash-load__day:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+  color: color-mix(in oklab, var(--app-description) 55%, transparent);
+}
+
 .wash-load__day-dot {
   width: 0.28rem;
   height: 0.28rem;
@@ -5586,19 +5594,69 @@ html[data-theme="dark"] .map-conn-card__offline {
   position: relative;
 }
 
+.wash-load__main {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.wash-load__y {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.15rem;
+  height: var(--wash-load-h, 120px);
+  font-size: 0.62rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--app-description, #9a9a9a);
+  text-align: right;
+}
+
+.wash-load__y span {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+}
+
+.wash-load__y span:first-child {
+  transform: translateY(100%);
+}
+
+.wash-load__y span:last-child {
+  transform: translateY(0);
+}
+
 .wash-load__plot {
   position: relative;
+  flex: 1;
+  min-width: 0;
   height: var(--wash-load-h, 120px);
   margin-bottom: 1.65rem;
 }
 
-.wash-load__cap {
+.wash-load__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wash-load__grid-line {
   position: absolute;
   left: 0;
   right: 0;
-  top: 0;
-  border-top: 1px dashed color-mix(in oklab, var(--app-description) 35%, transparent);
-  pointer-events: none;
+  border-top: 1px dashed color-mix(in oklab, var(--app-description) 28%, transparent);
+  transform: translateY(50%);
+}
+
+.wash-load__grid-line:first-child {
+  transform: translateY(0);
+}
+
+.wash-load__grid-line:last-child {
+  transform: translateY(0);
+  border-top-style: solid;
+  border-top-color: color-mix(in oklab, var(--app-description) 22%, transparent);
 }
 
 .wash-load__bars {
@@ -5623,11 +5681,11 @@ html[data-theme="dark"] .map-conn-card__offline {
   width: 100%;
   max-width: 10px;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--app-success, #22c55e) 22%, #e8e8e8);
+  background: color-mix(in oklab, var(--app-button, #2f6bff) 22%, #e8e8e8);
 }
 
 .wash-load__bar.is-filled {
-  background: var(--app-success, #22c55e);
+  background: var(--app-button, #2f6bff);
 }
 
 .wash-load__now {
@@ -5667,11 +5725,24 @@ html[data-theme="dark"] .map-conn-card__offline {
 
 .wash-load__axis {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 0.35rem;
   margin-top: 0.15rem;
   font-size: 0.68rem;
   color: var(--app-description, #9a9a9a);
   font-variant-numeric: tabular-nums;
+}
+
+.wash-load__axis-pad {
+  flex-shrink: 0;
+  width: 2.15rem;
+}
+
+.wash-load__axis-hours {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
 }
 
 @keyframes map-station-drop-in {

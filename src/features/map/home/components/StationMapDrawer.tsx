@@ -38,7 +38,6 @@ import {
 } from "@/lib/openHours";
 import { formatStandTitle } from "@/lib/standTitle";
 import BackButton from "@/components/ui/BackButton";
-import { useAppSelector } from "@/store/hooks";
 import EvChargeFlow, {
   type EvChargeStep,
   type EvPhotoHeader,
@@ -717,7 +716,6 @@ export default function StationMapDrawer({
   const [routeOpen, setRouteOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
-  const testUi = useAppSelector((s) => s.app.test_ui_version);
   const [selectedStandId, setSelectedStandId] = useState<number | null>(
     () => resumeSession?.standId ?? null,
   );
@@ -1197,7 +1195,7 @@ export default function StationMapDrawer({
             <div className="map-station-sheet__toolbar-actions">
               <HoursButton onClick={toggleHours} active={hoursOpen} />
               <RouteButton onClick={toggleRoute} active={routeOpen} />
-              {!isCharging && testUi ? (
+              {!isCharging ? (
                 <LoadButton onClick={toggleLoad} active={loadOpen} />
               ) : null}
               <ScanQrButton />
@@ -1351,7 +1349,7 @@ export default function StationMapDrawer({
                     />
                   </div>
                 ) : null}
-                {loadOpen && !isCharging && testUi ? (
+                {loadOpen && !isCharging ? (
                   <div
                     className="map-station-sheet__drop map-station-sheet__drop--load"
                     role="region"

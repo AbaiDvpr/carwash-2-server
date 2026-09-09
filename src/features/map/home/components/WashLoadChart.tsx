@@ -8,6 +8,7 @@ import {
 import { useT } from "@/hooks/useT";
 
 const AXIS_HOURS = [0, 6, 12, 18, 23] as const;
+const Y_TICKS = [100, 75, 50, 25, 0] as const;
 const CHART_H = 120;
 const MIN_BAR_H = 6;
 
@@ -73,9 +74,10 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
   }, []);
 
   useEffect(() => {
-    setSelectedDate((prev) =>
-      days.some((d) => d.date === prev) ? prev : todayYmd,
-    );
+    setSelectedDate((prev) => {
+      if (prev > todayYmd) return todayYmd;
+      return days.some((d) => d.date === prev) ? prev : todayYmd;
+    });
   }, [days, todayYmd]);
 
   useEffect(() => {
@@ -104,8 +106,20 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
     };
   }, [locationId, selectedDate, t]);
 
+  const washersTotal = data?.washers_total ?? 0;
   const maxCount = data?.max_hour_sessions ?? 0;
   const hours = data?.hours ?? [];
+
+  function hourLoadPct(count: number): number {
+    if (count <= 0) return 0;
+    if (washersTotal > 0) {
+      return Math.min(100, Math.round((count / washersTotal) * 100));
+    }
+    if (maxCount > 0) {
+      return Math.min(100, Math.round((count / maxCount) * 100));
+    }
+    return 0;
+  }
 
   const nowPct = useMemo(() => {
     const h = now.getHours();
@@ -131,9 +145,6 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
       <h3 className="wash-load__title">
         {t("map.wash_load", "Загруженность")}
       </h3>
-      <p className="wash-load__subtitle">
-        {t("map.wash_load_subtitle", "Нагрузка мойки")}
-      </p>
 
       <div
         className="wash-load__days"
@@ -142,14 +153,22 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
       >
         {days.map((day) => {
           const active = day.date === selectedDate;
+          const disabled = day.date > todayYmd;
           return (
             <button
               key={day.date}
               type="button"
               role="tab"
               aria-selected={active}
-              className={`wash-load__day${active ? " is-active" : ""}`}
-              onClick={() => setSelectedDate(day.date)}
+              aria-disabled={disabled}
+              disabled={disabled}
+              className={`wash-load__day${active ? " is-active" : ""}${
+                disabled ? " is-disabled" : ""
+              }`}
+              onClick={() => {
+                if (disabled) return;
+                setSelectedDate(day.date);
+              }}
             >
               <span>
                 {t(`map.day_${day.key}`, DAY_FALLBACK[day.key] ?? day.key)}
@@ -168,50 +187,65 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
         <p className="wash-load__hint">{error}</p>
       ) : (
         <div className="wash-load__chart" style={chartStyle}>
-          <div className="wash-load__plot">
-            <div className="wash-load__cap" aria-hidden />
-            <div
-              className="wash-load__bars"
-              role="img"
-              aria-label={t("map.wash_load", "Загруженность")}
-            >
-              {hours.map((item) => {
-                const ratio = maxCount > 0 ? item.count / maxCount : 0;
-                const height =
-                  item.count > 0
-                    ? Math.max(MIN_BAR_H, Math.round(ratio * CHART_H))
-                    : 2;
-                const q = item.queue ?? 0;
-                const b = item.bay ?? 0;
-                const tip =
-                  q || b
-                    ? `${formatHourLabel(item.hour)} · ${item.count} (${q}+${b})`
-                    : `${formatHourLabel(item.hour)} · ${item.count}`;
-                return (
-                  <div key={item.hour} className="wash-load__col" title={tip}>
-                    <div
-                      className={`wash-load__bar${item.count > 0 ? " is-filled" : ""}`}
-                      style={{ height: `${height}px` }}
-                    />
-                  </div>
-                );
-              })}
+          <div className="wash-load__main">
+            <div className="wash-load__y" aria-hidden>
+              {Y_TICKS.map((pct) => (
+                <span key={pct} style={{ bottom: `${pct}%` }}>
+                  {pct}%
+                </span>
+              ))}
             </div>
-            {isToday ? (
-              <div
-                className="wash-load__now"
-                style={{ left: `${nowPct}%` }}
-                aria-hidden
-              >
-                <span className="wash-load__now-line" />
-                <span className="wash-load__now-badge">{nowLabel}</span>
+            <div className="wash-load__plot">
+              <div className="wash-load__grid" aria-hidden>
+                {Y_TICKS.map((pct) => (
+                  <span
+                    key={pct}
+                    className="wash-load__grid-line"
+                    style={{ bottom: `${pct}%` }}
+                  />
+                ))}
               </div>
-            ) : null}
+              <div
+                className="wash-load__bars"
+                role="img"
+                aria-label={t("map.wash_load", "Загруженность")}
+              >
+                {hours.map((item) => {
+                  const pct = hourLoadPct(item.count);
+                  const height =
+                    pct > 0
+                      ? Math.max(MIN_BAR_H, Math.round((pct / 100) * CHART_H))
+                      : 2;
+                  const tip = `${formatHourLabel(item.hour)} · ${pct}%`;
+                  return (
+                    <div key={item.hour} className="wash-load__col" title={tip}>
+                      <div
+                        className={`wash-load__bar${pct > 0 ? " is-filled" : ""}`}
+                        style={{ height: `${height}px` }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {isToday ? (
+                <div
+                  className="wash-load__now"
+                  style={{ left: `${nowPct}%` }}
+                  aria-hidden
+                >
+                  <span className="wash-load__now-line" />
+                  <span className="wash-load__now-badge">{nowLabel}</span>
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="wash-load__axis">
-            {AXIS_HOURS.map((h) => (
-              <span key={h}>{formatHourLabel(h)}</span>
-            ))}
+            <span className="wash-load__axis-pad" aria-hidden />
+            <div className="wash-load__axis-hours">
+              {AXIS_HOURS.map((h) => (
+                <span key={h}>{formatHourLabel(h)}</span>
+              ))}
+            </div>
           </div>
         </div>
       )}
