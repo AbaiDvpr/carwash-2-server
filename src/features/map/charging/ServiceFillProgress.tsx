@@ -5,6 +5,10 @@ import { PRELOADER_SVG_SRC } from "@/features/profile/components/preloaderVarian
 type ServiceFillProgressProps = {
   percent: number;
   variant: "wash" | "charging";
+  /** Скрыть цифры и шкалу 0–100% */
+  showPercent?: boolean;
+  /** Бесконечная заливка туда-обратно (ожидание event из БД) */
+  indeterminate?: boolean;
 };
 
 const MASK_STYLE = {
@@ -36,16 +40,18 @@ function ScaleBar({ fill, variant }: { fill: number; variant: "wash" | "charging
 function MaskFillLogo({
   percent,
   variant,
+  indeterminate,
 }: {
   percent: number;
   variant: "wash" | "charging";
+  indeterminate?: boolean;
 }) {
   const fill = Math.min(100, Math.max(0, percent));
 
   return (
     <div
-      className="csv-fill-progress__mark"
-      style={{ ["--csv-fill" as string]: `${fill}%` }}
+      className={`csv-fill-progress__mark${indeterminate ? " is-loop" : ""}`}
+      style={indeterminate ? undefined : { ["--csv-fill" as string]: `${fill}%` }}
       aria-hidden
     >
       <span className="csv-fill-progress__shape csv-fill-progress__shape--empty" style={MASK_STYLE} />
@@ -57,21 +63,35 @@ function MaskFillLogo({
   );
 }
 
-export default function ServiceFillProgress({ percent, variant }: ServiceFillProgressProps) {
+export default function ServiceFillProgress({
+  percent,
+  variant,
+  showPercent = true,
+  indeterminate = false,
+}: ServiceFillProgressProps) {
   const fill = Math.min(100, Math.max(0, percent));
   const rounded = Math.round(fill);
 
   return (
     <div
-      className={`csv-fill-progress csv-fill-progress--${variant}`}
+      className={`csv-fill-progress csv-fill-progress--${variant}${indeterminate ? " is-indeterminate" : ""}`}
       role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={rounded}
+      aria-valuemin={showPercent ? 0 : undefined}
+      aria-valuemax={showPercent ? 100 : undefined}
+      aria-valuenow={showPercent && !indeterminate ? rounded : undefined}
+      aria-busy={indeterminate || undefined}
     >
-      <MaskFillLogo percent={fill} variant={variant} />
-      <p className="csv-fill-progress__pct">{rounded}%</p>
-      <ScaleBar fill={fill} variant={variant} />
+      <MaskFillLogo
+        percent={fill}
+        variant={variant}
+        indeterminate={indeterminate}
+      />
+      {showPercent && !indeterminate ? (
+        <>
+          <p className="csv-fill-progress__pct">{rounded}%</p>
+          <ScaleBar fill={fill} variant={variant} />
+        </>
+      ) : null}
     </div>
   );
 }

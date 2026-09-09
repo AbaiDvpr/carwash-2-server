@@ -237,6 +237,27 @@
   clip-path: inset(0 calc(100% - var(--csv-fill, 0%)) 0 0);
 }
 
+/* Мойка: красим машину туда-обратно, без привязки к % / таймеру финиша */
+.csv-fill-progress.is-indeterminate .csv-fill-progress__mark.is-loop .csv-fill-progress__shape--fill {
+  animation: csv-wash-paint-loop 5.5s ease-in-out infinite alternate;
+}
+
+@keyframes csv-wash-paint-loop {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0% 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .csv-fill-progress.is-indeterminate .csv-fill-progress__mark.is-loop .csv-fill-progress__shape--fill {
+    animation: none;
+    clip-path: inset(0 35% 0 0);
+  }
+}
+
 .csv-fill-progress__pct {
   margin: 0;
   text-align: center;

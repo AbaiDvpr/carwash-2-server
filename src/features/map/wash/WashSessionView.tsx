@@ -25,6 +25,10 @@ type WashSessionViewProps = {
   onDone: () => void;
 };
 
+/**
+ * Экран мойки: ждём completed/error только из API (event → статус в БД).
+ * Прогресс в % не показываем — только анимация заливки туда-обратно.
+ */
 export default function WashSessionView({
   sessionId,
   stationTitle,
@@ -34,10 +38,9 @@ export default function WashSessionView({
   onDone,
 }: WashSessionViewProps) {
   const t = useT();
-  const [progress, setProgress] = useState(8);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [statusLabel, setStatusLabel] = useState(
-    t("wash.in_progress", "Идёт мойка"),
+    t("wash.car_washing", "Машина моется"),
   );
   const [boxId, setBoxId] = useState<number | null>(washerId);
   const doneRef = useRef(false);
@@ -49,13 +52,7 @@ export default function WashSessionView({
 
   useEffect(() => {
     const startedAt = Date.now();
-    const tick = () => {
-      const elapsed = Math.max(0, Date.now() - startedAt);
-      setElapsedMs(elapsed);
-      // Визуальный прогресс без фейкового финиша — до реального completed.
-      const soft = Math.min(92, 8 + (elapsed / 90_000) * 84);
-      setProgress(soft);
-    };
+    const tick = () => setElapsedMs(Math.max(0, Date.now() - startedAt));
     tick();
     const clockId = window.setInterval(tick, 250);
     return () => window.clearInterval(clockId);
@@ -73,9 +70,9 @@ export default function WashSessionView({
         const status = (session.status ?? "").toLowerCase();
         if (session.washer_id != null) setBoxId(session.washer_id);
 
+        // Завершение только по статусу из БД (event с оборудования / админки)
         if (status === "completed") {
           doneRef.current = true;
-          setProgress(100);
           setStatusLabel(t("wash.done_title", "Мойка завершена"));
           onDoneRef.current();
           return;
@@ -94,7 +91,7 @@ export default function WashSessionView({
         if (status === "invited") {
           setStatusLabel(t("wash.invited_title", "Вас пригласили"));
         } else {
-          setStatusLabel(t("wash.in_progress", "Идёт мойка"));
+          setStatusLabel(t("wash.car_washing", "Машина моется"));
         }
       } catch {
         /* следующий тик */
@@ -109,7 +106,6 @@ export default function WashSessionView({
     };
   }, [sessionId, t]);
 
-  const percent = Math.round(progress);
   const durationMin = Math.floor(elapsedMs / 60_000);
   const durationSec = Math.floor((elapsedMs % 60_000) / 1000);
   const durationLabel =
@@ -137,7 +133,12 @@ export default function WashSessionView({
           </span>
         </div>
         <div className="csv-shell__body">
-          <ServiceFillProgress percent={percent} variant="wash" />
+          <ServiceFillProgress
+            percent={0}
+            variant="wash"
+            showPercent={false}
+            indeterminate
+          />
           <p className="csv-status csv-status--center">{statusLabel}</p>
         </div>
       </section>
