@@ -5571,7 +5571,7 @@ html[data-theme="dark"] .map-conn-card__offline {
 
 .wash-load__day.is-disabled,
 .wash-load__day:disabled {
-  opacity: 0.35;
+  opacity: 0.65;
   cursor: not-allowed;
   pointer-events: none;
   color: color-mix(in oklab, var(--app-description) 55%, transparent);
