@@ -5590,8 +5590,78 @@ html[data-theme="dark"] .map-conn-card__offline {
   color: var(--app-description, #8a8a8a);
 }
 
+.wash-load__hint--abs {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.1rem;
+  margin: 0;
+  text-align: center;
+  pointer-events: none;
+}
+
 .wash-load__chart {
   position: relative;
+  min-height: calc(var(--wash-load-h, 120px) + 2.6rem);
+}
+
+.wash-load__chart.is-loading .wash-load__bars {
+  opacity: 0.22;
+}
+
+.wash-load__chart.is-loading .wash-load__now {
+  opacity: 0;
+}
+
+.wash-load__shimmer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 0 2px;
+  pointer-events: none;
+}
+
+.wash-load__shimmer-bar {
+  width: 100%;
+  max-width: 10px;
+  margin-inline: auto;
+  border-radius: 999px;
+  height: calc(18% + (var(--wash-shimmer-i, 0) % 7) * 10%);
+  min-height: 10px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--app-description) 12%, transparent) 0%,
+    color-mix(in oklab, var(--app-description) 28%, transparent) 45%,
+    color-mix(in oklab, var(--app-description) 12%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: wash-load-shimmer 1.1s ease-in-out infinite;
+  animation-delay: calc(var(--wash-shimmer-i, 0) * 35ms);
+}
+
+@keyframes wash-load-shimmer {
+  0% {
+    background-position: 100% 0;
+    opacity: 0.55;
+  }
+  50% {
+    background-position: 0% 0;
+    opacity: 1;
+  }
+  100% {
+    background-position: -100% 0;
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wash-load__shimmer-bar {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 
 .wash-load__main {
@@ -5836,6 +5906,30 @@ html[data-theme="dark"] .map-conn-card__offline {
   border-radius: 0.75rem;
   font-size: var(--app-text-md);
   font-weight: 700;
+}
+
+.map-station-sheet__pay-notice {
+  margin-top: 0.85rem;
+}
+
+.map-station-sheet__pay-notice-title {
+  margin: 0;
+  font-size: var(--app-text-md);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--app-danger, #c0392b);
+}
+
+.map-station-sheet__pay-notice-text {
+  margin: 0.35rem 0 0;
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--app-description);
+}
+
+.map-station-sheet__pay-notice + .map-station-sheet__pay-after {
+  margin-top: 0.65rem;
 }
 
 .map-station-sheet__tariff-main {

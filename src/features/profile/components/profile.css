@@ -7,7 +7,24 @@
   padding-bottom: 1.25rem;
 }
 
-/* Редактирование: «Выйти» у низа экрана */
+.profile-home__logout {
+  margin-top: 0.15rem;
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+}
+
+.profile-home__logout .profile-nav-row {
+  justify-content: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.profile-home__logout .profile-nav-row__main {
+  flex: 0 1 auto;
+}
+
+/* Редактирование */
 .page--profile-edit {
   display: flex;
   flex-direction: column;

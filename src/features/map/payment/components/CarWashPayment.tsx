@@ -10,7 +10,14 @@ import { parseEvStationId } from "@/lib/api/ev";
 import { payCarWash, payEv, payFromBalance } from "@/lib/api/payments";
 import { fetchCwSession } from "@/lib/api/sessions";
 import { useT, useLocale } from "@/hooks/useT";
-import { localizeWashTariff } from "@/lib/api/cw";
+import { localizeWashTariff, fetchCwCanPay } from "@/lib/api/cw";
+import { washSessionPath } from "@/features/map/home/mapLiveSession";
+import {
+  washPayCheckMessage,
+  washPayCheckTitle,
+  washPayCheckCodeFromApi,
+} from "@/lib/washPayCheckI18n";
+import type { AppLocale } from "@/lib/i18n/storage";
 import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
 import {
   fetchAbonementCards,
@@ -70,12 +77,22 @@ function RadioMark({ checked }: { checked: boolean }) {
   );
 }
 
-function paymentErrorMessage(err: unknown, fallback: string): string {
+function paymentErrorMessage(
+  err: unknown,
+  t: (key: string, fallback?: string) => string,
+  locale: AppLocale,
+  fallback: string,
+): string {
   if (err instanceof ApiError) {
     const body = err.body as {
       message?: string;
+      code?: string;
       errors?: Record<string, string[]>;
     } | null;
+    const code = washPayCheckCodeFromApi(body);
+    if (code) {
+      return washPayCheckMessage(t, code, locale);
+    }
     const fieldError =
       body?.errors?.amount?.[0] ??
       body?.errors?.tariff_id?.[0] ??
@@ -107,6 +124,9 @@ export default function CarWashPayment({
     resumeSessionParam ? "processing" : "form",
   );
   const [payError, setPayError] = useState<string | null>(null);
+  /** Код ошибки оплаты мойки — текст всегда через t()/locale при рендере */
+  const [payErrorCode, setPayErrorCode] = useState<string | null>(null);
+  const [presenceCode, setPresenceCode] = useState<string | null>(null);
   const [washSessionId, setWashSessionId] = useState<number | null>(null);
   const [washSessionStatus, setWashSessionStatus] = useState<string>("pending");
   const [washWasherId, setWashWasherId] = useState<number | null>(null);
@@ -128,6 +148,42 @@ export default function CarWashPayment({
     };
   }, []);
 
+  // До оплаты: на площадке ли машина / нет ли уже активной мойки.
+  useEffect(() => {
+    if (resumeSessionParam) return;
+    const cwId = /^\d+$/.test(station.id) ? Number.parseInt(station.id, 10) : null;
+    if (cwId == null || !Number.isFinite(cwId)) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const check = await fetchCwCanPay(cwId);
+        if (cancelled) return;
+        if (
+          check.code === "active_wash" &&
+          check.session_id != null &&
+          check.location_id != null
+        ) {
+          router.replace(washSessionPath(check.location_id, check.session_id));
+          return;
+        }
+        if (!check.ok) {
+          setPresenceCode(check.code ?? "not_on_territory");
+        } else {
+          setPresenceCode(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setPresenceCode(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [station.id, resumeSessionParam, router, t, locale]);
+
   // Возврат к активной мойке (?session=id) — очередь / приглашение / мойка.
   useEffect(() => {
     const raw = resumeSessionParam;
@@ -148,6 +204,7 @@ export default function CarWashPayment({
     setResumeReady(false);
     setStep("processing");
     setPayError(null);
+    setPayErrorCode(null);
 
     void (async () => {
       try {
@@ -163,8 +220,9 @@ export default function CarWashPayment({
           setStep("success");
         } else if (status === "cancelled" || status === "error") {
           setPayError(
-            session.status_ru ||
-              t("wash.resume_closed", "Сессия мойки уже закрыта"),
+            status === "error"
+              ? t("wash.session_failed", "Сессия мойки завершилась с ошибкой")
+              : t("wash.session_cancelled", "Мойка отменена"),
           );
           setStep("error");
         } else if (status === "in_progress") {
@@ -223,6 +281,7 @@ export default function CarWashPayment({
     if (step === "error") {
       setStep("form");
       setPayError(null);
+      setPayErrorCode(null);
       return;
     }
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -235,12 +294,39 @@ export default function CarWashPayment({
   const handlePay = async () => {
     if (!selected || !canAfford) return;
     setPayError(null);
+    setPayErrorCode(null);
+
+    const cwId = /^\d+$/.test(station.id) ? Number.parseInt(station.id, 10) : null;
+    if (cwId != null && Number.isFinite(cwId)) {
+      try {
+        const check = await fetchCwCanPay(cwId);
+        if (!check.ok) {
+          if (
+            check.code === "active_wash" &&
+            check.session_id != null &&
+            check.location_id != null
+          ) {
+            router.replace(
+              washSessionPath(check.location_id, check.session_id),
+            );
+            return;
+          }
+          setPayErrorCode(check.code ?? "not_on_territory");
+          setStep("error");
+          return;
+        }
+      } catch {
+        setPayErrorCode("not_on_territory");
+        setStep("error");
+        return;
+      }
+    }
+
     setStep("processing");
 
     try {
       const description = `${station.paymentTitle} · ${selected.title}`;
       const evId = parseEvStationId(station.id);
-      const cwId = /^\d+$/.test(station.id) ? Number.parseInt(station.id, 10) : null;
       const abonementId =
         paySource !== "balance" ? Number.parseInt(paySource, 10) : undefined;
       const abonPayload =
@@ -288,9 +374,29 @@ export default function CarWashPayment({
         throw new Error(t("payment.failed", "Не удалось оплатить"));
       }
     } catch (err) {
-      setPayError(
-        paymentErrorMessage(err, t("payment.failed", "Не удалось оплатить")),
-      );
+      const body =
+        err instanceof ApiError
+          ? (err.body as {
+              message?: string;
+              code?: string;
+              errors?: Record<string, string[]>;
+            } | null)
+          : null;
+      const code = washPayCheckCodeFromApi(body);
+      if (code) {
+        setPayErrorCode(code);
+        setPayError(null);
+      } else {
+        setPayErrorCode(null);
+        setPayError(
+          paymentErrorMessage(
+            err,
+            t,
+            locale,
+            t("payment.failed", "Не удалось оплатить"),
+          ),
+        );
+      }
       setStep("error");
     }
   };
@@ -390,14 +496,18 @@ export default function CarWashPayment({
               <IconFail />
             </div>
             <h1 className="ev-pay-status__title">
-              {t("ev.pay_error_title", "Ошибка оплаты")}
+              {payErrorCode
+                ? washPayCheckTitle(t, payErrorCode, locale)
+                : t("ev.pay_error_title", "Ошибка оплаты")}
             </h1>
             <p className="ev-pay-status__text">
-              {payError ||
-                t(
-                  "ev.pay_error_text",
-                  "Процесс оплаты был прерван по техническим причинам.",
-                )}
+              {payErrorCode
+                ? washPayCheckMessage(t, payErrorCode, locale)
+                : payError ||
+                  t(
+                    "ev.pay_error_text",
+                    "Процесс оплаты был прерван по техническим причинам.",
+                  )}
             </p>
             <div className="ev-pay-status__footer">
               <div className="ev-pay-status__actions">
@@ -414,6 +524,7 @@ export default function CarWashPayment({
                   onClick={() => {
                     setStep("form");
                     setPayError(null);
+                    setPayErrorCode(null);
                   }}
                 >
                   {t("ev.to_home_short", "Назад")}
@@ -552,12 +663,27 @@ export default function CarWashPayment({
               </div>
             </section>
 
+            {presenceCode ? (
+              <section className="profile-card" role="status">
+                <div className="profile-card__balance">
+                  <p className="cw-pay__title">
+                    {washPayCheckTitle(t, presenceCode, locale)}
+                  </p>
+                  <p className="cw-pay__hint is-danger">
+                    {washPayCheckMessage(t, presenceCode, locale)}
+                  </p>
+                </div>
+              </section>
+            ) : null}
+
             {selected ? (
               <div className="ev-pay__actions">
                 <button
                   type="button"
                   className="theme-button w-full"
-                  disabled={!canAfford || locked || balanceLoading}
+                  disabled={
+                    !canAfford || locked || balanceLoading || Boolean(presenceCode)
+                  }
                   onClick={() => void handlePay()}
                 >
                   {station.kind === "charging"

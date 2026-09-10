@@ -3,24 +3,27 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   fetchCwLocationLoad,
+  type CwLoadHour,
   type CwLocationLoad,
 } from "@/lib/api/cw";
 import { useT } from "@/hooks/useT";
 
 const AXIS_HOURS = [0, 6, 12, 18, 23] as const;
-const Y_TICKS = [100, 75, 50, 25, 0] as const;
 const CHART_H = 120;
 const MIN_BAR_H = 6;
+const EMPTY_HOURS: CwLoadHour[] = Array.from({ length: 24 }, (_, hour) => ({
+  hour,
+  count: 0,
+}));
 
-/** Только текущая неделя: Пн→Вс */
 const WEEK_DAYS = [
-  { jsDay: 1, key: "mon" },
-  { jsDay: 2, key: "tue" },
-  { jsDay: 3, key: "wed" },
-  { jsDay: 4, key: "thu" },
-  { jsDay: 5, key: "fri" },
-  { jsDay: 6, key: "sat" },
-  { jsDay: 0, key: "sun" },
+  { key: "mon" },
+  { key: "tue" },
+  { key: "wed" },
+  { key: "thu" },
+  { key: "fri" },
+  { key: "sat" },
+  { key: "sun" },
 ] as const;
 
 function pad2(n: number): string {
@@ -31,25 +34,30 @@ function formatHourLabel(hour: number): string {
   return `${pad2(hour)}:00`;
 }
 
-function toYmd(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+/** JS getDay(): 0=Sun → mon…sun key */
+function weekdayKeyFromDate(d: Date): string {
+  const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+  return map[d.getDay()] ?? "mon";
 }
 
-function mondayOfWeek(ref: Date): Date {
-  const d = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return d;
+function formatAvg(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function weekDates(ref: Date): { jsDay: number; key: string; date: string }[] {
-  const monday = mondayOfWeek(ref);
-  return WEEK_DAYS.map((item, index) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + index);
-    return { ...item, date: toYmd(d) };
-  });
+function yTicks(yMax: number): number[] {
+  const top = Math.max(1, yMax);
+  const raw = [top, (top * 3) / 4, top / 2, top / 4, 0].map((v) =>
+    Math.round(v),
+  );
+  const seen = new Set<number>();
+  const out: number[] = [];
+  for (const v of raw) {
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
 }
 
 type WashLoadChartProps = {
@@ -59,14 +67,13 @@ type WashLoadChartProps = {
 export default function WashLoadChart({ locationId }: WashLoadChartProps) {
   const t = useT();
   const [now, setNow] = useState(() => new Date());
-  const todayYmd = toYmd(now);
-  const days = useMemo(() => weekDates(now), [todayYmd]);
-  const [selectedDate, setSelectedDate] = useState(todayYmd);
+  const todayKey = weekdayKeyFromDate(now);
+  const [selectedKey, setSelectedKey] = useState(todayKey);
   const [data, setData] = useState<CwLocationLoad | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isToday = selectedDate === todayYmd;
+  const isToday = selectedKey === todayKey;
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 30_000);
@@ -74,18 +81,11 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
   }, []);
 
   useEffect(() => {
-    setSelectedDate((prev) => {
-      if (prev > todayYmd) return todayYmd;
-      return days.some((d) => d.date === prev) ? prev : todayYmd;
-    });
-  }, [days, todayYmd]);
-
-  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetchCwLocationLoad(locationId, selectedDate)
+    fetchCwLocationLoad(locationId)
       .then((res) => {
         if (!cancelled) setData(res);
       })
@@ -94,7 +94,6 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
           setError(
             t("map.wash_load_error", "Не удалось загрузить нагрузку"),
           );
-          setData(null);
         }
       })
       .finally(() => {
@@ -104,15 +103,14 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
     return () => {
       cancelled = true;
     };
-  }, [locationId, selectedDate, t]);
+  }, [locationId, t]);
 
-  const maxCount = data?.max_hour_sessions ?? 0;
-  const hours = data?.hours ?? [];
-
-  function hourLoadPct(count: number): number {
-    if (count <= 0 || maxCount <= 0) return 0;
-    return Math.min(100, Math.round((count / maxCount) * 100));
-  }
+  const yMax = Math.max(1, data?.y_max ?? data?.max_hour_sessions ?? 4);
+  const ticks = useMemo(() => yTicks(yMax), [yMax]);
+  const hours =
+    data?.weekdays?.[selectedKey]?.hours?.length === 24
+      ? data.weekdays[selectedKey].hours
+      : EMPTY_HOURS;
 
   const nowPct = useMemo(() => {
     const h = now.getHours();
@@ -138,30 +136,28 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
       <h3 className="wash-load__title">
         {t("map.wash_load", "Загруженность")}
       </h3>
+      <p className="wash-load__subtitle">
+        {t(
+          "map.wash_load_avg_30d",
+          "Среднее число стартов мойки за 30 дней",
+        )}
+      </p>
 
       <div
         className="wash-load__days"
         role="tablist"
         aria-label={t("map.wash_load_week", "Дни недели")}
       >
-        {days.map((day) => {
-          const active = day.date === selectedDate;
-          const disabled = day.date > todayYmd;
+        {WEEK_DAYS.map((day) => {
+          const active = day.key === selectedKey;
           return (
             <button
-              key={day.date}
+              key={day.key}
               type="button"
               role="tab"
               aria-selected={active}
-              aria-disabled={disabled}
-              disabled={disabled}
-              className={`wash-load__day${active ? " is-active" : ""}${
-                disabled ? " is-disabled" : ""
-              }`}
-              onClick={() => {
-                if (disabled) return;
-                setSelectedDate(day.date);
-              }}
+              className={`wash-load__day${active ? " is-active" : ""}`}
+              onClick={() => setSelectedKey(day.key)}
             >
               <span>
                 {t(`map.day_${day.key}`, DAY_FALLBACK[day.key] ?? day.key)}
@@ -174,74 +170,98 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
         })}
       </div>
 
-      {loading ? (
-        <p className="wash-load__hint">{t("common.loading", "Загрузка…")}</p>
-      ) : error ? (
-        <p className="wash-load__hint">{error}</p>
-      ) : (
-        <div className="wash-load__chart" style={chartStyle}>
-          <div className="wash-load__main">
-            <div className="wash-load__y" aria-hidden>
-              {Y_TICKS.map((pct) => (
-                <span key={pct} style={{ bottom: `${pct}%` }}>
-                  {pct}%
-                </span>
+      <div
+        className={`wash-load__chart${loading ? " is-loading" : ""}${error && !loading ? " is-error" : ""}`}
+        style={chartStyle}
+        aria-busy={loading || undefined}
+      >
+        <div className="wash-load__main">
+          <div className="wash-load__y" aria-hidden>
+            {ticks.map((value) => (
+              <span
+                key={value}
+                style={{ bottom: `${(value / yMax) * 100}%` }}
+              >
+                {value}
+              </span>
+            ))}
+          </div>
+          <div className="wash-load__plot">
+            <div className="wash-load__grid" aria-hidden>
+              {ticks.map((value) => (
+                <span
+                  key={value}
+                  className="wash-load__grid-line"
+                  style={{ bottom: `${(value / yMax) * 100}%` }}
+                />
               ))}
             </div>
-            <div className="wash-load__plot">
-              <div className="wash-load__grid" aria-hidden>
-                {Y_TICKS.map((pct) => (
-                  <span
-                    key={pct}
-                    className="wash-load__grid-line"
-                    style={{ bottom: `${pct}%` }}
-                  />
+            <div
+              className="wash-load__bars"
+              role="img"
+              aria-label={t("map.wash_load", "Загруженность")}
+            >
+              {hours.map((item) => {
+                const avg = Number(item.count) || 0;
+                const ratio = Math.min(1, avg / yMax);
+                const height =
+                  avg > 0
+                    ? Math.max(MIN_BAR_H, Math.round(ratio * CHART_H))
+                    : 2;
+                const tip = `${formatHourLabel(item.hour)} · ${formatAvg(avg)}`;
+                return (
+                  <div key={item.hour} className="wash-load__col" title={tip}>
+                    <div
+                      className={`wash-load__bar${avg > 0 ? " is-filled" : ""}`}
+                      style={{ height: `${height}px` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {loading ? (
+              <div className="wash-load__shimmer" aria-hidden>
+                {EMPTY_HOURS.map((item) => (
+                  <div key={item.hour} className="wash-load__col">
+                    <div
+                      className="wash-load__shimmer-bar"
+                      style={{
+                        ["--wash-shimmer-i" as string]: String(item.hour),
+                      }}
+                    />
+                  </div>
                 ))}
               </div>
+            ) : null}
+
+            {!loading && isToday ? (
               <div
-                className="wash-load__bars"
-                role="img"
-                aria-label={t("map.wash_load", "Загруженность")}
+                className="wash-load__now"
+                style={{ left: `${nowPct}%` }}
+                aria-hidden
               >
-                {hours.map((item) => {
-                  const pct = hourLoadPct(item.count);
-                  const height =
-                    pct > 0
-                      ? Math.max(MIN_BAR_H, Math.round((pct / 100) * CHART_H))
-                      : 2;
-                  const tip = `${formatHourLabel(item.hour)} · ${pct}%`;
-                  return (
-                    <div key={item.hour} className="wash-load__col" title={tip}>
-                      <div
-                        className={`wash-load__bar${pct > 0 ? " is-filled" : ""}`}
-                        style={{ height: `${height}px` }}
-                      />
-                    </div>
-                  );
-                })}
+                <span className="wash-load__now-line" />
+                <span className="wash-load__now-badge">{nowLabel}</span>
               </div>
-              {isToday ? (
-                <div
-                  className="wash-load__now"
-                  style={{ left: `${nowPct}%` }}
-                  aria-hidden
-                >
-                  <span className="wash-load__now-line" />
-                  <span className="wash-load__now-badge">{nowLabel}</span>
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <div className="wash-load__axis">
-            <span className="wash-load__axis-pad" aria-hidden />
-            <div className="wash-load__axis-hours">
-              {AXIS_HOURS.map((h) => (
-                <span key={h}>{formatHourLabel(h)}</span>
-              ))}
-            </div>
+            ) : null}
           </div>
         </div>
-      )}
+        <div className="wash-load__axis">
+          <span className="wash-load__axis-pad" aria-hidden />
+          <div className="wash-load__axis-hours">
+            {AXIS_HOURS.map((h) => (
+              <span key={h}>{formatHourLabel(h)}</span>
+            ))}
+          </div>
+        </div>
+
+        {error && !loading ? (
+          <p className="wash-load__hint wash-load__hint--abs" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

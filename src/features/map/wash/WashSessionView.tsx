@@ -81,15 +81,16 @@ export default function WashSessionView({
         if (status === "cancelled" || status === "error") {
           doneRef.current = true;
           setStatusLabel(
-            session.status_ru ||
-              t("wash.session_failed", "Сессия мойки завершилась с ошибкой"),
+            status === "error"
+              ? t("wash.session_failed", "Сессия мойки завершилась с ошибкой")
+              : t("wash.session_cancelled", "Мойка отменена"),
           );
           onDoneRef.current();
           return;
         }
 
         if (status === "invited") {
-          setStatusLabel(t("wash.invited_title", "Вас пригласили"));
+          setStatusLabel(t("wash.invited_title", "Вас ждут"));
         } else {
           setStatusLabel(t("wash.car_washing", "Машина моется"));
         }
@@ -108,10 +109,12 @@ export default function WashSessionView({
 
   const durationMin = Math.floor(elapsedMs / 60_000);
   const durationSec = Math.floor((elapsedMs % 60_000) / 1000);
+  const minUnit = t("common.minutes_short", "мин");
+  const secUnit = t("common.seconds_short", "с");
   const durationLabel =
     durationMin > 0
-      ? `${durationMin} мин ${durationSec} с`
-      : `${durationSec} с`;
+      ? `${durationMin} ${minUnit} ${durationSec} ${secUnit}`
+      : `${durationSec} ${secUnit}`;
 
   const rows = [
     { label: t("common.wash", "Мойка"), value: stationTitle },

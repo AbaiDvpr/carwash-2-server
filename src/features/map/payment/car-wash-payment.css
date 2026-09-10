@@ -122,7 +122,11 @@
 }
 
 .cw-pay__hint.is-danger {
-  color: var(--app-danger);
+  color: var(--app-danger, #c0392b);
+}
+
+.profile-card__balance > .cw-pay__title + .cw-pay__hint {
+  margin-top: 0.45rem;
 }
 
 .cw-pay .csv-params__row .profile-card__balance-label,

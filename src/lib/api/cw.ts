@@ -1,5 +1,5 @@
 import type { Station, StationKind } from "@/data/stations";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/api/photo";
 import { formatOpenHoursLabel } from "@/lib/openHours";
 
@@ -223,30 +223,71 @@ export async function fetchCwStation(id: number | string): Promise<Station> {
 
 export type CwLoadHour = {
   hour: number;
+  /** Среднее число стартов мойки в этот час */
   count: number;
-  /** Машины в очереди (pending / без бокса) */
-  queue?: number;
-  /** С назначенным боксом */
-  bay?: number;
+};
+
+export type CwLoadWeekday = {
+  key: string;
+  weekday: number;
+  sample_days: number;
+  hours: CwLoadHour[];
 };
 
 export type CwLocationLoad = {
   location_id: number;
-  date: string;
   timezone: string;
+  window_days: number;
+  from?: string;
+  to?: string;
   washers_total: number;
-  total_sessions: number;
-  total_queue?: number;
-  total_bay?: number;
+  /** Общий потолок оси Y для всех дней недели */
+  y_max: number;
   max_hour_sessions: number;
-  hours: CwLoadHour[];
+  weekdays: Record<string, CwLoadWeekday>;
 };
 
-/** Нагрузка мойки по часам за день (кол-во сессий). */
+/** Проверка перед оплатой: на площадке + нет активной мойки. */
+export type CwCanPayResult = {
+  ok: boolean;
+  code?: string | null;
+  message?: string | null;
+  session_id?: number | null;
+  location_id?: number | null;
+  entrance_id?: number | null;
+};
+
+export async function fetchCwCanPay(
+  id: number | string,
+  carId?: number,
+): Promise<CwCanPayResult> {
+  const qs =
+    carId != null && Number.isFinite(carId) ? `?car_id=${carId}` : "";
+  try {
+    return await apiFetch<CwCanPayResult>(
+      `/api/cw/locations/${id}/can-pay${qs}`,
+    );
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 422) {
+      const body = err.body as CwCanPayResult | null;
+      if (body && typeof body === "object") {
+        return {
+          ok: false,
+          code: body.code ?? "not_on_territory",
+          message: body.message ?? null,
+          session_id: body.session_id ?? null,
+          location_id: body.location_id ?? null,
+          entrance_id: body.entrance_id ?? null,
+        };
+      }
+    }
+    throw err;
+  }
+}
+
+/** Средняя нагрузка мойки по дням недели за 30 дней (старты мойки). */
 export function fetchCwLocationLoad(
   id: number | string,
-  date?: string,
 ): Promise<CwLocationLoad> {
-  const qs = date ? `?date=${encodeURIComponent(date)}` : "";
-  return apiFetch<CwLocationLoad>(`/api/cw/locations/${id}/load${qs}`);
+  return apiFetch<CwLocationLoad>(`/api/cw/locations/${id}/load`);
 }

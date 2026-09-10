@@ -54,6 +54,7 @@ import ProfileNavRow from "./components/ProfileNavRow";
 import FaqSection from "./components/FaqSection";
 import { resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
 import { pickImage } from "@/lib/pickImage";
+import { forceLogout } from "@/lib/forceLogout";
 import PreloaderPreview from "./components/PreloaderPreview";
 import PreloaderOverlay from "@/components/layout/PreloaderOverlay";
 import "./components/profile.css";
@@ -245,6 +246,13 @@ function IconChat() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 17.5 4 20l3-1.2A8.5 8.5 0 1 0 5 17.5Z" />
+    </svg>
+  );
+}
+function IconLogout() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" d="M10 4.5H7A2.5 2.5 0 0 0 4.5 7v10A2.5 2.5 0 0 0 7 19.5h3M14 8l4 4-4 4M10 12h8" />
     </svg>
   );
 }
@@ -577,6 +585,7 @@ export default function ProfilePage() {
 
   const [view, setView] = useState<ProfileView>("home");
   const [copied, setCopied] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [avatarReady, setAvatarReady] = useState(false);
@@ -966,6 +975,15 @@ export default function ProfilePage() {
                 onClick={() => setView("support")}
               />
             </section>
+
+            <div className="profile-home__logout">
+              <ProfileNavRow
+                icon={<IconLogout />}
+                label={t("profile.logout", "Выйти")}
+                danger
+                onClick={() => setLogoutOpen(true)}
+              />
+            </div>
           </div>
         ) : null}
 
@@ -1708,6 +1726,70 @@ export default function ProfilePage() {
         ) : null}
 
         <Toast message={toastMessage} />
+
+        {logoutOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="presentation"
+            onClick={() => setLogoutOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="logout-modal-title"
+              className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+                <p
+                  id="logout-modal-title"
+                  className="text-center font-bold"
+                  style={{
+                    fontSize: "var(--app-text-lg)",
+                    color: "var(--app-text)",
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {t("profile.logout_title", "Выйти из аккаунта?")}
+                </p>
+                <p
+                  className="mt-2 text-center"
+                  style={{
+                    fontSize: "var(--app-text-sm)",
+                    color: "var(--app-description)",
+                  }}
+                >
+                  {t("profile.logout_confirm", "Вы уверены, что хотите выйти?")}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-4">
+                <button
+                  type="button"
+                  onClick={() => setLogoutOpen(false)}
+                  className="theme-button-secondary"
+                >
+                  {t("common.cancel", "Отмена")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLogoutOpen(false);
+                    forceLogout({
+                      skipDebug: true,
+                      reason: "Выход из профиля",
+                      source: "ProfilePage",
+                    });
+                  }}
+                  className="theme-button"
+                  style={{ background: "var(--app-danger)" }}
+                >
+                  {t("profile.logout_yes", "Да, выйти")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {cropSrc ? (
           <AvatarCropper
