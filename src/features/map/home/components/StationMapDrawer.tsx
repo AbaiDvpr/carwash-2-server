@@ -210,13 +210,14 @@ function LoadButton({
   );
 }
 
-function ScanQrButton() {
+function ScanQrButton({ disabled = false }: { disabled?: boolean }) {
   const t = useT();
   const label = t("map.scan_qr", "Сканировать QR");
   return (
     <button
       type="button"
       className="map-station-sheet__btn map-station-sheet__btn--route map-station-sheet__btn--icon"
+      disabled={disabled}
       onClick={() => navigateNavbar("qr")}
       aria-label={label}
       title={label}
@@ -762,6 +763,15 @@ export default function StationMapDrawer({
   useEffect(() => {
     setWashPayBlock(null);
   }, [station.id]);
+
+  useEffect(() => {
+    if (!washPayBlock) return;
+    setHoursOpen(false);
+    setRouteOpen(false);
+    setLoadOpen(false);
+  }, [washPayBlock]);
+
+  const washPayLocked = washPayBlock != null;
   const [stationPhotoFailed, setStationPhotoFailed] = useState(false);
   const [stationPhotoLoading, setStationPhotoLoading] = useState(
     () => Boolean(initialStation.photoUrl),
@@ -1196,6 +1206,10 @@ export default function StationMapDrawer({
                       setRouteOpen(false);
                       setLoadOpen(false);
                     }
+                  : washPayLocked
+                    ? () => {
+                        setWashPayBlock(null);
+                      }
                   : selectedPort
                       ? isLiveStep
                         ? dismissAll
@@ -1209,16 +1223,28 @@ export default function StationMapDrawer({
           </div>
           {!selectedStand && !selectedPort ? (
             <div className="map-station-sheet__toolbar-actions">
-              <HoursButton onClick={toggleHours} active={hoursOpen} />
-              <RouteButton onClick={toggleRoute} active={routeOpen} />
+              <HoursButton
+                onClick={toggleHours}
+                active={hoursOpen}
+                disabled={washPayLocked}
+              />
+              <RouteButton
+                onClick={toggleRoute}
+                active={routeOpen}
+                disabled={washPayLocked}
+              />
               {!isCharging ? (
-                <LoadButton onClick={toggleLoad} active={loadOpen} />
+                <LoadButton
+                  onClick={toggleLoad}
+                  active={loadOpen}
+                  disabled={washPayLocked}
+                />
               ) : null}
-              <ScanQrButton />
+              <ScanQrButton disabled={washPayLocked} />
             </div>
           ) : !selectedPort ? (
             <div className="map-station-sheet__toolbar-actions">
-              <ScanQrButton />
+              <ScanQrButton disabled={washPayLocked} />
             </div>
           ) : null}
           <SheetCloseButton onClick={dismissAll} />
@@ -1339,6 +1365,62 @@ export default function StationMapDrawer({
           </div>
         ) : (
           <div className="map-station-sheet__body map-station-sheet__body--compact" {...scrollProps}>
+            {washPayLocked && washPayBlock ? (
+              <div className="map-station-sheet__pay-notice" role="status">
+                <div className="map-station-sheet__pay-notice-body">
+                  {washPayBlock.code === "not_on_territory" ? (
+                    <img
+                      className="map-station-sheet__pay-notice-illust"
+                      src="/img/illustrations/empty_territory.png"
+                      alt=""
+                      aria-hidden
+                    />
+                  ) : null}
+                  {washPayBlock.code === "active_wash" ? (
+                    <img
+                      className="map-station-sheet__pay-notice-illust"
+                      src="/img/illustrations/cw_event_2.png"
+                      alt=""
+                      aria-hidden
+                    />
+                  ) : null}
+                  <p className="map-station-sheet__pay-notice-title">
+                    {washPayCheckTitle(t, washPayBlock.code, locale)}
+                  </p>
+                  <p className="map-station-sheet__pay-notice-text">
+                    {washPayBlock.message}
+                  </p>
+                </div>
+                {washPayBlock.code === "active_wash" &&
+                washPayBlock.sessionId != null &&
+                washPayBlock.locationId != null ? (
+                  <button
+                    type="button"
+                    className="theme-button w-full map-station-sheet__pay-notice-action"
+                    onClick={() => {
+                      const sessionId = washPayBlock.sessionId!;
+                      const locationId = washPayBlock.locationId!;
+                      setWashPayBlock(null);
+                      onPayNavigate?.();
+                      router.push(washSessionPath(locationId, sessionId));
+                    }}
+                  >
+                    {t("wash.open_session", "Открыть сессию")}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="theme-button w-full map-station-sheet__pay-notice-action"
+                    onClick={() => {
+                      setWashPayBlock(null);
+                    }}
+                  >
+                    {t("common.retry", "Попробовать ещё раз")}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
             {hoursOpen || routeOpen || loadOpen ? (
               <div className="map-station-sheet__drops">
                 {hoursOpen ? (
@@ -1479,102 +1561,71 @@ export default function StationMapDrawer({
                   })}
                 </div>
                 {selectedWashTariffKey ? (
-                  <>
-                    {washPayBlock ? (
-                      <div
-                        className="map-station-sheet__pay-notice"
-                        role="status"
-                      >
-                        <p className="map-station-sheet__pay-notice-title">
-                          {washPayCheckTitle(t, washPayBlock.code, locale)}
-                        </p>
-                        <p className="map-station-sheet__pay-notice-text">
-                          {washPayBlock.message}
-                        </p>
-                      </div>
-                    ) : null}
-                    {washPayBlock?.code === "active_wash" &&
-                    washPayBlock.sessionId != null &&
-                    washPayBlock.locationId != null ? (
-                      <button
-                        type="button"
-                        className="map-station-sheet__btn map-station-sheet__btn--pay map-station-sheet__pay-after"
-                        onClick={() => {
-                          const sessionId = washPayBlock.sessionId!;
-                          const locationId = washPayBlock.locationId!;
-                          setWashPayBlock(null);
-                          onPayNavigate?.();
-                          router.push(washSessionPath(locationId, sessionId));
-                        }}
-                      >
-                        {t("wash.open_session", "Открыть сессию")}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="map-station-sheet__btn map-station-sheet__btn--pay map-station-sheet__pay-after"
-                        disabled={washPayChecking}
-                        onClick={() => {
-                          const cwId = /^\d+$/.test(station.id)
-                            ? Number.parseInt(station.id, 10)
-                            : null;
-                          if (cwId == null || !Number.isFinite(cwId)) {
+                  <button
+                    type="button"
+                    className="map-station-sheet__btn map-station-sheet__btn--pay map-station-sheet__pay-after"
+                    disabled={washPayChecking}
+                    onClick={() => {
+                      const cwId = /^\d+$/.test(station.id)
+                        ? Number.parseInt(station.id, 10)
+                        : null;
+                      if (cwId == null || !Number.isFinite(cwId)) {
+                        setWashPayBlock({
+                          code: "not_on_territory",
+                          message: washPayCheckMessage(
+                            t,
+                            "not_on_territory",
+                            locale,
+                          ),
+                        });
+                        return;
+                      }
+                      setWashPayChecking(true);
+                      void (async () => {
+                        try {
+                          const check = await fetchCwCanPay(cwId);
+                          if (!check.ok) {
                             setWashPayBlock({
-                              code: "not_on_territory",
+                              code: check.code ?? "not_on_territory",
                               message: washPayCheckMessage(
                                 t,
-                                "not_on_territory",
+                                check.code,
                                 locale,
                               ),
+                              sessionId: check.session_id,
+                              locationId: check.location_id,
                             });
                             return;
                           }
-                          setWashPayChecking(true);
-                          void (async () => {
-                            try {
-                              const check = await fetchCwCanPay(cwId);
-                              if (!check.ok) {
-                                setWashPayBlock({
-                                  code: check.code ?? "not_on_territory",
-                                  message: washPayCheckMessage(
-                                    t,
-                                    check.code,
-                                    locale,
-                                  ),
-                                  sessionId: check.session_id,
-                                  locationId: check.location_id,
-                                });
-                                return;
-                              }
-                              setWashPayBlock(null);
-                              onPayNavigate?.();
-                              router.push(
-                                getPaymentPath(station, selectedWashTariffKey),
-                              );
-                            } catch {
-                              setWashPayBlock({
-                                code: "not_on_territory",
-                                message: washPayCheckMessage(
-                                  t,
-                                  "not_on_territory",
-                                  locale,
-                                ),
-                              });
-                            } finally {
-                              setWashPayChecking(false);
-                            }
-                          })();
-                        }}
-                      >
-                        {washPayChecking
-                          ? t("common.loading", "Загрузка…")
-                          : t("ev.pay", "Оплатить")}
-                      </button>
-                    )}
-                  </>
+                          setWashPayBlock(null);
+                          onPayNavigate?.();
+                          router.push(
+                            getPaymentPath(station, selectedWashTariffKey),
+                          );
+                        } catch {
+                          setWashPayBlock({
+                            code: "not_on_territory",
+                            message: washPayCheckMessage(
+                              t,
+                              "not_on_territory",
+                              locale,
+                            ),
+                          });
+                        } finally {
+                          setWashPayChecking(false);
+                        }
+                      })();
+                    }}
+                  >
+                    {washPayChecking
+                      ? t("common.loading", "Загрузка…")
+                      : t("ev.pay", "Оплатить")}
+                  </button>
                 ) : null}
               </div>
             ) : null}
+              </>
+            )}
           </div>
         )}
       </div>

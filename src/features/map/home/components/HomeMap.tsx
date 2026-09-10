@@ -448,6 +448,8 @@ async function createMapView() {
       kind: "wash" | "charging" | "idle";
       active: boolean;
       label: string;
+      /** Одна мойка — капля; несколько услуг — корзина */
+      icon: "wash" | "cart";
       onOpen: () => void;
     };
     onStatusChange?: (status: MapStatus) => void;
@@ -684,17 +686,25 @@ async function createMapView() {
             onPointerDown={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className={`map-session-fab map-session-fab--${sessionFab.kind}${sessionFab.active ? " is-active" : ""}`}
-              onClick={sessionFab.onOpen}
-              aria-label={sessionFab.label}
-              title={sessionFab.label}
-            >
-              <span className="map-session-fab__icon" aria-hidden>
-                <MyServicesIcon />
-              </span>
-            </button>
+            {sessionFab.active ? (
+              <button
+                type="button"
+                className={`map-session-fab map-session-fab--${sessionFab.kind} is-active`}
+                onClick={sessionFab.onOpen}
+                aria-label={sessionFab.label}
+                title={sessionFab.label}
+              >
+                <span className="map-session-fab__icon" aria-hidden>
+                  {sessionFab.icon === "wash" ? (
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2.2C12 2.2 5.5 9.4 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 9.4 12 2.2 12 2.2Z" />
+                    </svg>
+                  ) : (
+                    <MyServicesIcon />
+                  )}
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               className="map-zoom-controls__btn"
@@ -1232,6 +1242,11 @@ export default function HomeMap({
     setSelectedStation(null);
     setResumeOpen(false);
     setResumeSession(null);
+    // Обычно одна активная услуга — сразу в сессию, без лишнего списка
+    if (activeSessions.length === 1) {
+      openServiceFromDrawer(activeSessions[0]);
+      return;
+    }
     setServicesOpen(true);
   }
 
@@ -1297,6 +1312,12 @@ export default function HomeMap({
                   kind: fabKind,
                   active: hasLiveSession,
                   label: sessionFabLabel,
+                  icon:
+                    hasLiveSession &&
+                    activeSessions.length === 1 &&
+                    activeSessions[0]?.kind === "wash"
+                      ? "wash"
+                      : "cart",
                   onOpen: openServicesFab,
                 }}
                 onSelectStation={(station) => {

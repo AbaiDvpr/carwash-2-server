@@ -2077,13 +2077,33 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
 }
 
 .map-session-fab.is-active {
-  border-color: color-mix(in oklab, #111827 22%, transparent);
+  border-color: color-mix(in oklab, var(--app-button, #2f6bff) 45%, transparent);
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.16);
+}
+
+.map-session-fab.is-active::before,
+.map-session-fab.is-active::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid var(--app-button, #2f6bff);
+  pointer-events: none;
+  animation: map-session-fab-pulse 1.7s ease-out infinite;
+}
+
+.map-session-fab.is-active::after {
+  animation-delay: 0.85s;
 }
 
 .map-session-fab--charging.is-active {
   color: #111827;
   background: #fff;
+}
+
+.map-session-fab--charging.is-active::before,
+.map-session-fab--charging.is-active::after {
+  border-color: var(--map-charging, #facc15);
 }
 
 .map-session-fab__icon {
@@ -2099,6 +2119,17 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+@keyframes map-session-fab-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
 }
 
 .map-list-sheet--services .map-list-sheet__title-row {
@@ -5909,27 +5940,56 @@ html[data-theme="dark"] .map-conn-card__offline {
 }
 
 .map-station-sheet__pay-notice {
-  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 1.25rem;
+  min-height: 12rem;
+  margin: 0.35rem 0 0;
+  padding: 1.25rem 0.25rem 0.35rem;
+  text-align: center;
+}
+
+.map-station-sheet__pay-notice-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.map-station-sheet__pay-notice-illust {
+  display: block;
+  width: min(12.5rem, 62vw);
+  height: auto;
+  margin: 0 0 0.35rem;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
 }
 
 .map-station-sheet__pay-notice-title {
   margin: 0;
-  font-size: var(--app-text-md);
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--app-danger, #c0392b);
+  max-width: 18rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--app-text);
 }
 
 .map-station-sheet__pay-notice-text {
-  margin: 0.35rem 0 0;
+  margin: 0;
+  max-width: 18rem;
   font-size: var(--app-text-sm);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--app-description);
 }
 
-.map-station-sheet__pay-notice + .map-station-sheet__pay-after {
-  margin-top: 0.65rem;
+.map-station-sheet__pay-notice-action {
+  margin-top: auto;
+  width: 100%;
 }
 
 .map-station-sheet__tariff-main {
