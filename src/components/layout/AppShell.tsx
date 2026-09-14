@@ -23,8 +23,9 @@ export default function AppShell({ children }: AppShellProps) {
         <div className="app-layout">
           <PagePreloader />
           <Header />
-          <div className="app-shell">{children}</div>
-          <ProfileCompleteGate />
+          <div className="app-shell">
+            <ProfileCompleteGate>{children}</ProfileCompleteGate>
+          </div>
         </div>
       </MobileAccessGate>
       <AuthErrorBlock />

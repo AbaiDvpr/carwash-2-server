@@ -24,6 +24,27 @@
   flex: 0 1 auto;
 }
 
+/* Анкета на главной: отступ сверху + крестик, без навбара */
+.profile-gate-page__top {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 52px;
+  padding-bottom: 0.65rem;
+}
+
+.profile-gate-page__title {
+  margin: 0 0 1.25rem;
+  font-size: var(--app-text-xl);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--app-text);
+}
+
+.profile-gate-page__req {
+  color: var(--app-danger);
+}
+
 /* Редактирование */
 .page--profile-edit {
   display: flex;
@@ -52,6 +73,41 @@
   letter-spacing: -0.01em;
   color: var(--app-text);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Анкета: приклеить к видимой области — iOS/Flutter иначе сдвигает форму вниз */
+html.profile-gate-open,
+html.profile-gate-open body,
+html.profile-gate-open .app-root,
+html.profile-gate-open .app-layout,
+html.profile-gate-open .app-shell {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+html.profile-gate-open .page--profile-edit.page--profile-gate {
+  position: fixed;
+  top: var(--gate-vv-top, 0px);
+  left: 0;
+  width: 100%;
+  height: var(--gate-vv-height, 100%);
+  max-height: var(--gate-vv-height, 100%);
+  overflow: hidden;
+  transform: none;
+}
+
+html.profile-gate-open .page--profile-edit.page--profile-gate .page-content {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0.75rem;
+}
+
+html.profile-gate-open .profile-edit.profile-gate-page {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .profile-edit__main {

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import AppPreloader from "@/components/layout/AppPreloader";
+import { PageLayout } from "@/components/layout";
 import { fetchUserInfo, updateUserSettings } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
 import { hasAccessToken } from "@/lib/authToken";
@@ -15,6 +16,7 @@ import {
 } from "@/lib/profileComplete";
 import { useT } from "@/hooks/useT";
 import { cacheUserProfile } from "@/lib/userSession";
+import "@/features/profile/components/profile.css";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -23,14 +25,13 @@ function isHomePath(pathname: string | null): boolean {
 }
 
 /**
- * Sheet на главной (как drawer на карте): если нет имени / email — заполнить.
- * Фамилия необязательна. Крестик → logout.
+ * На главной, если нет имени / email — обычная страница как /profile/edit.
+ * Карту не показываем. Фамилия необязательна. Назад → logout.
  */
-export default function ProfileCompleteGate() {
+export default function ProfileCompleteGate({ children }: { children: ReactNode }) {
   const t = useT();
   const pathname = usePathname();
   const onHome = isHomePath(pathname);
-  const titleId = useId();
   const savedRef = useRef(false);
 
   const [open, setOpen] = useState(false);
@@ -60,7 +61,6 @@ export default function ProfileCompleteGate() {
       return;
     }
 
-    // Ждём user_info до показа формы — иначе ответ API затирает уже введённый email
     setChecking(true);
 
     try {
@@ -101,29 +101,72 @@ export default function ProfileCompleteGate() {
   }, [checkProfile]);
 
   useEffect(() => {
-    if (!open || !onHome) return;
+    if (open && onHome) {
+      enterFullscreen();
+      const root = document.documentElement;
+      const body = document.body;
+      const prev = {
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        overflow: body.style.overflow,
+      };
+      root.classList.add("profile-gate-open");
+      body.style.position = "fixed";
+      body.style.top = "0";
+      body.style.left = "0";
+      body.style.right = "0";
+      body.style.overflow = "hidden";
 
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    enterFullscreen();
+      const pin = () => {
+        const vv = window.visualViewport;
+        const height = vv?.height ?? window.innerHeight;
+        root.style.setProperty("--gate-vv-top", "0px");
+        root.style.setProperty("--gate-vv-height", `${Math.round(height)}px`);
+        window.scrollTo(0, 0);
+        root.scrollTop = 0;
+        body.scrollTop = 0;
+        const shell = document.querySelector(".app-shell");
+        if (shell instanceof HTMLElement) shell.scrollTop = 0;
+      };
+      pin();
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        forceLogout({
-          skipDebug: true,
-          reason: "Закрытие обязательной анкеты (Escape)",
-          source: "ProfileCompleteGate",
-        });
-      }
-    };
+      const vv = window.visualViewport;
+      vv?.addEventListener("resize", pin);
+      vv?.addEventListener("scroll", pin);
+      window.addEventListener("scroll", pin, true);
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = prev;
-      exitFullscreen();
-      window.removeEventListener("keydown", onKeyDown);
-    };
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          forceLogout({
+            skipDebug: true,
+            reason: "Закрытие обязательной анкеты (Escape)",
+            source: "ProfileCompleteGate",
+          });
+        }
+      };
+      window.addEventListener("keydown", onKeyDown);
+      return () => {
+        root.classList.remove("profile-gate-open");
+        root.style.removeProperty("--gate-vv-top");
+        root.style.removeProperty("--gate-vv-height");
+        body.style.position = prev.position;
+        body.style.top = prev.top;
+        body.style.left = prev.left;
+        body.style.right = prev.right;
+        body.style.overflow = prev.overflow;
+        vv?.removeEventListener("resize", pin);
+        vv?.removeEventListener("scroll", pin);
+        window.removeEventListener("scroll", pin, true);
+        exitFullscreen();
+        window.removeEventListener("keydown", onKeyDown);
+      };
+    }
+
+    document.documentElement.classList.remove("profile-gate-open");
+    exitFullscreen();
   }, [open, onHome]);
 
   const handleClose = () => {
@@ -166,7 +209,6 @@ export default function ProfileCompleteGate() {
       const savedEmail = user.email?.trim() || emailValue;
       const savedLastName = user.last_name?.trim() || last_name || "";
 
-      // Сначала помечаем сохранённым — чтобы параллельный user_info не открыл анкету снова
       savedRef.current = true;
       setProfileCompleteCached(true);
       cacheUserProfile({
@@ -208,31 +250,24 @@ export default function ProfileCompleteGate() {
     }
   };
 
-  if (!onHome) return null;
+  if (!onHome) return children;
 
   if (checking) {
     return <AppPreloader />;
   }
 
-  if (!open) return null;
+  if (!open) return children;
 
   const canSubmit =
     firstName.trim().length > 0 && email.trim().length > 0 && !saving;
 
-  const fieldClass =
-    "theme-field w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition disabled:opacity-60";
-
   return (
-    <>
-      <div className="app-bottom-sheet-backdrop" aria-hidden />
-
-      <div
-        className="app-bottom-sheet"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <div className="app-bottom-sheet__toolbar">
+    <PageLayout
+      title={t("profile.edit", "Редактирование профиля")}
+      className="page--profile-edit page--profile-gate"
+    >
+      <div className="profile-edit profile-gate-page">
+        <div className="profile-gate-page__top">
           <button
             type="button"
             onClick={handleClose}
@@ -245,109 +280,97 @@ export default function ProfileCompleteGate() {
           </button>
         </div>
 
-        <div className="app-bottom-sheet__body">
-          <div>
-            <h2 id={titleId} className="app-bottom-sheet__title">
-              {t("profile.gate_welcome", "Добро пожаловать!")}
-            </h2>
-            <p className="app-bottom-sheet__subtitle">
-              {t(
-                "profile.gate_subtitle",
-                "Заполните информацию, чтобы продолжить пользоваться приложением.",
-              )}
-            </p>
-          </div>
+        <div className="profile-edit__main space-y-4">
+          <h1 className="profile-gate-page__title">
+            {t("profile.gate_title", "Заполните информацию")}
+          </h1>
 
-          <div className="app-bottom-sheet__fields">
-            <label className="block">
-              <span className="app-bottom-sheet__label">
-                {t("profile.gate_first_name", "Имя")} *
+          <div className="profile-edit-fields">
+            <label className="profile-edit-row">
+              <span className="profile-edit-row__label">
+                {t("profile.first_name", "Имя")}{" "}
+                <span className="profile-gate-page__req" aria-hidden>
+                  *
+                </span>
               </span>
               <input
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                disabled={saving}
-                placeholder={t("profile.gate_first_name", "Имя")}
-                autoComplete="given-name"
-                autoFocus
-                className={fieldClass}
-                style={{
-                  borderColor: "var(--app-border)",
-                  background: "var(--app-hover)",
-                  color: "var(--app-text)",
+                onChange={(e) => {
+                  setError(null);
+                  setFirstName(e.target.value);
                 }}
+                disabled={saving}
+                placeholder={t("profile.first_name", "Имя")}
+                autoComplete="given-name"
+                className="profile-edit-row__value"
+                onFocus={() => window.scrollTo(0, 0)}
               />
             </label>
-
-            <label className="block">
-              <span className="app-bottom-sheet__label">
-                {t("profile.gate_last_name", "Фамилия")}{" "}
-                <span className="font-normal">
+            <label className="profile-edit-row">
+              <span className="profile-edit-row__label">
+                {t("profile.last_name", "Фамилия")}{" "}
+                <span style={{ fontWeight: 500, color: "var(--app-description)" }}>
                   ({t("common.optional", "необязательно")})
                 </span>
               </span>
               <input
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                disabled={saving}
-                placeholder={t(
-                  "profile.gate_last_name_optional",
-                  "Фамилия (необязательно)",
-                )}
-                autoComplete="family-name"
-                className={fieldClass}
-                style={{
-                  borderColor: "var(--app-border)",
-                  background: "var(--app-hover)",
-                  color: "var(--app-text)",
+                onChange={(e) => {
+                  setError(null);
+                  setLastName(e.target.value);
                 }}
+                disabled={saving}
+                placeholder={t("profile.last_name", "Фамилия")}
+                autoComplete="family-name"
+                className="profile-edit-row__value"
+                onFocus={() => window.scrollTo(0, 0)}
               />
             </label>
-
-            <label className="block">
-              <span className="app-bottom-sheet__label">Email *</span>
+            <label className="profile-edit-row">
+              <span className="profile-edit-row__label">
+                Email{" "}
+                <span className="profile-gate-page__req" aria-hidden>
+                  *
+                </span>
+              </span>
               <input
-                type="email"
+                type="text"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setError(null);
+                  setEmail(e.target.value);
+                }}
                 disabled={saving}
                 placeholder="example@mail.com"
                 autoComplete="email"
                 inputMode="email"
-                className={fieldClass}
-                style={{
-                  borderColor: "var(--app-border)",
-                  background: "var(--app-hover)",
-                  color: "var(--app-text)",
-                }}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="profile-edit-row__value"
+                onFocus={() => window.scrollTo(0, 0)}
               />
             </label>
-
-            {error ? <p className="app-bottom-sheet__error">{error}</p> : null}
           </div>
-        </div>
 
-        <div className="app-bottom-sheet__footer">
           <button
             type="button"
             disabled={!canSubmit}
             onClick={() => void handleSave()}
-            className="theme-button"
+            className="theme-button w-full"
           >
             {saving
               ? t("common.saving", "Сохранение…")
               : t("profile.gate_continue", "Продолжить")}
           </button>
-          <p className="app-bottom-sheet__hint">
-            {t(
-              "profile.gate_close_hint",
-              "Закрытие окна вернёт вас к авторизации.",
-            )}
-          </p>
+
+          {error ? (
+            <p className="profile-edit__feedback is-error">{error}</p>
+          ) : null}
         </div>
       </div>
-    </>
+    </PageLayout>
   );
 }
