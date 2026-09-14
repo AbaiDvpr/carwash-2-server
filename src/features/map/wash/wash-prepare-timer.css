@@ -1,53 +1,65 @@
-/* Очередь мойки / приглашение в бокс */
+/* Очередь мойки / приглашение в бокс — один full-height блок */
 
 .wash-prep {
   width: 100%;
+  min-height: 0;
 }
 
-.wash-prep__body {
-  display: flex !important;
+.details-charging__stage.is-charging:has(.wash-prep) {
+  overflow: hidden;
+  padding-bottom: 0.85rem;
+}
+
+.details-charging__stage.is-charging .csv.wash-prep {
+  flex: 1 1 auto;
+  display: flex;
   flex-direction: column;
-  align-items: center !important;
-  justify-content: center;
-  text-align: center;
-  gap: 0;
-  padding-top: 0.35rem;
+  min-height: 0;
+  max-width: none;
 }
 
-.wash-prep__preloader {
+.wash-prep__card {
+  flex: 1 1 auto;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 10.5rem;
-  padding: 1rem 0 0.75rem;
-  box-sizing: border-box;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 
-.wash-prep__bay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 11rem;
-  padding: 1.25rem 0 1rem;
-  box-sizing: border-box;
+.wash-prep .csv-shell__head {
+  flex-shrink: 0;
 }
 
-.wash-prep__bay-tag {
+.wash-prep .cw-car-plate {
   margin: 0;
-  width: 100%;
-  text-align: center;
+}
+
+.wash-prep__copy {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+}
+
+.wash-prep__stage {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wash-prep__title {
+  margin: 0;
+  font-size: var(--app-text-lg, 1.15rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
   color: var(--app-text);
-  font-size: clamp(2.8rem, 12vw, 3.6rem);
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-  line-height: 1;
 }
 
 .wash-prep__hint {
-  margin: 0.15rem 0 0;
+  margin: 0;
   color: var(--app-description);
   font-size: var(--app-text-sm);
   font-weight: 500;
@@ -55,6 +67,33 @@
 }
 
 .wash-prep__hint--error {
-  margin-top: 0.55rem;
   color: var(--app-danger, #c62828);
+}
+
+.wash-prep__preloader {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 10rem;
+  padding: 1rem 0 0.5rem;
+  box-sizing: border-box;
+}
+
+.wash-prep__bay-tag {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  width: 100%;
+  min-height: 10rem;
+  text-align: center;
+  color: var(--app-text);
+  font-size: clamp(2.8rem, 14vw, 4.2rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
 }

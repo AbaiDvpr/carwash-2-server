@@ -14,16 +14,28 @@ const ACTIVE_TEXT: LocaleText = {
   kk: "Сізде төленген жуу бар. Қайта төлеуге болмайды — ағымдағы сессияны ашыңыз.",
 };
 
+const MUST_EXIT_TITLE: LocaleText = {
+  ru: "Сначала выезд из здания",
+  en: "Exit the building first",
+  kk: "Алдымен ғимараттан шығыңыз",
+};
+
+const MUST_EXIT_TEXT: LocaleText = {
+  ru: "Чтобы оплатить ещё раз, выйдите из здания через шлагбаум паркинга и заезжайте снова. Выезд с территории не нужен.",
+  en: "To pay again, exit the building via the parking barrier and drive back in. You don’t need to leave the site.",
+  kk: "Қайта төлеу үшін паркинг шлагбаумы арқылы ғимараттан шығып, қайта кіріңіз. Алаңнан шығудың қажеті жоқ.",
+};
+
 const NOT_ON_TITLE: LocaleText = {
-  ru: "Машина не на площадке",
-  en: "Car not on site",
-  kk: "Көлік алаңда жоқ",
+  ru: "Вы не на этой площадке",
+  en: "You’re not at this site",
+  kk: "Сіз бұл алаңда емессіз",
 };
 
 const NOT_ON_TEXT: LocaleText = {
-  ru: "Упс! Мы не видим вашу машину на площадке. Приедьте к нам — только тогда можно оплатить мойку.",
-  en: "Oops! We can’t see your car on site. Drive in first — only then you can pay for a wash.",
-  kk: "Қап! Біз сіздің көлігіңізді алаңда көрмейміз. Алдымен бізге келіңіз — содан кейін ғана жууды төлей аласыз.",
+  ru: "Вы не на этой площадке. Приедьте сюда — только тогда можно оплатить мойку.",
+  en: "You’re not at this site. Drive here first — only then you can pay for a wash.",
+  kk: "Сіз бұл алаңда емессіз. Алдымен осында келіңіз — содан кейін ғана жууды төлей аласыз.",
 };
 
 const NO_CAR_TITLE: LocaleText = {
@@ -70,6 +82,8 @@ export function washPayCheckMessage(
   switch (code) {
     case "active_wash":
       return localized(t, "wash.active_text", ACTIVE_TEXT, locale);
+    case "must_exit_building":
+      return localized(t, "wash.must_exit_building", MUST_EXIT_TEXT, locale);
     case "no_car":
       return localized(t, "wash.no_car_text", NO_CAR_TEXT, locale);
     case "not_on_territory":
@@ -86,6 +100,8 @@ export function washPayCheckTitle(
   switch (code) {
     case "active_wash":
       return localized(t, "wash.active_title", ACTIVE_TITLE, locale);
+    case "must_exit_building":
+      return localized(t, "wash.must_exit_building_title", MUST_EXIT_TITLE, locale);
     case "no_car":
       return localized(t, "wash.no_car_title", NO_CAR_TITLE, locale);
     case "not_on_territory":
@@ -111,10 +127,13 @@ export function washPayCheckCodeFromApi(body: {
   if (/активн|повторн|оплаченн.*мойк|already have.*wash|paid wash/i.test(msg)) {
     return "active_wash";
   }
+  if (/выезд из здания|паркинг|exit the building|ғимараттан/i.test(msg)) {
+    return "must_exit_building";
+  }
   if (/гараж|garage|без номера|without a plate/i.test(msg)) {
     return "no_car";
   }
-  if (/не видим|площадк|not on site|алаңда|Упс!/i.test(msg)) {
+  if (/не видим|площадк|not on site|алаңда|Упс!|не на этой/i.test(msg)) {
     return "not_on_territory";
   }
   return null;

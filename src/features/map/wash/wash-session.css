@@ -9,3 +9,23 @@
 .csv-status--center {
   text-align: center;
 }
+
+.cw-car-plate {
+  margin: 0;
+  padding: 0.22rem 0.55rem;
+  border: 1.5px solid color-mix(in oklab, var(--app-text) 28%, var(--app-border));
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, var(--app-block) 70%, white);
+  color: var(--app-text);
+  font-size: var(--app-text-sm, 0.875rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ev-pay-status__plate {
+  display: inline-flex;
+  margin: 0.15rem auto 0.35rem;
+}

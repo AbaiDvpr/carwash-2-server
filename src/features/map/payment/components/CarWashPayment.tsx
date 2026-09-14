@@ -26,9 +26,12 @@ import {
 } from "@/features/profile/abonements";
 import WashPrepareTimer from "@/features/map/wash/WashPrepareTimer";
 import WashSessionView from "@/features/map/wash/WashSessionView";
+import { playWashDoneSound } from "@/features/map/wash/washSounds";
+import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
 import "@/features/profile/components/profile.css";
 import "@/features/map/charging/charging-session-variants.css";
 import "@/features/map/charging/details-charging.css";
+import "@/features/map/wash/wash-session.css";
 import "../ev-charge-payment.css";
 import "../car-wash-payment.css";
 
@@ -114,6 +117,12 @@ export default function CarWashPayment({
   const router = useRouter();
   const searchParams = useSearchParams();
   const resumeSessionParam = searchParams.get("session");
+  const carIdParam = searchParams.get("car_id");
+  const carIdFromQuery = (() => {
+    if (!carIdParam) return null;
+    const n = Number.parseInt(carIdParam, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
   const { balance, loading: balanceLoading, refresh: refreshBalance } = useUserBalance();
   const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(
     () => tariff,
@@ -127,11 +136,18 @@ export default function CarWashPayment({
   /** Код ошибки оплаты мойки — текст всегда через t()/locale при рендере */
   const [payErrorCode, setPayErrorCode] = useState<string | null>(null);
   const [presenceCode, setPresenceCode] = useState<string | null>(null);
+  const [payCarId, setPayCarId] = useState<number | null>(carIdFromQuery);
+  const [payCarPlate, setPayCarPlate] = useState<string | null>(null);
   const [washSessionId, setWashSessionId] = useState<number | null>(null);
   const [washSessionStatus, setWashSessionStatus] = useState<string>("pending");
   const [washWasherId, setWashWasherId] = useState<number | null>(null);
+  const [washBayNumber, setWashBayNumber] = useState<number | null>(null);
+  const [washStartAt, setWashStartAt] = useState<string | null>(null);
+  const [washTariffTitle, setWashTariffTitle] = useState<string | null>(null);
+  const [washPrice, setWashPrice] = useState<number | null>(null);
   const [resumeReady, setResumeReady] = useState(() => !resumeSessionParam);
   const resumeRequestRef = useRef(0);
+  const doneSoundPlayedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,8 +173,10 @@ export default function CarWashPayment({
     let cancelled = false;
     void (async () => {
       try {
-        const check = await fetchCwCanPay(cwId);
+        const check = await fetchCwCanPay(cwId, carIdFromQuery ?? undefined);
         if (cancelled) return;
+        if (check.car_id != null) setPayCarId(check.car_id);
+        if (check.car_plate) setPayCarPlate(check.car_plate);
         if (
           check.code === "active_wash" &&
           check.session_id != null &&
@@ -182,7 +200,7 @@ export default function CarWashPayment({
     return () => {
       cancelled = true;
     };
-  }, [station.id, resumeSessionParam, router, t, locale]);
+  }, [station.id, resumeSessionParam, router, carIdFromQuery]);
 
   // Возврат к активной мойке (?session=id) — очередь / приглашение / мойка.
   useEffect(() => {
@@ -215,6 +233,20 @@ export default function CarWashPayment({
         setWashSessionId(session.id);
         setWashSessionStatus(status);
         setWashWasherId(session.washer_id ?? null);
+        setWashBayNumber(session.bay_number ?? null);
+        setWashStartAt(session.start_at ?? null);
+        if (session.tariff_title) {
+          setWashTariffTitle(session.tariff_title);
+        }
+        if (session.car_plate) {
+          setPayCarPlate(session.car_plate);
+        }
+        const resumePrice = Number(
+          session.payment_display_amount ?? session.payment_amount,
+        );
+        if (Number.isFinite(resumePrice) && resumePrice >= 0) {
+          setWashPrice(resumePrice);
+        }
 
         if (status === "completed") {
           setStep("success");
@@ -267,7 +299,14 @@ export default function CarWashPayment({
     step === "success";
 
   const goMap = () => router.push("/");
-  const finishWash = useCallback(() => setStep("success"), []);
+  const finishWash = useCallback((info?: { status?: string }) => {
+    const status = (info?.status ?? "completed").toLowerCase();
+    if (status === "completed" && !doneSoundPlayedRef.current) {
+      doneSoundPlayedRef.current = true;
+      playWashDoneSound();
+    }
+    setStep("success");
+  }, []);
   const startWash = useCallback(() => setStep("washing"), []);
 
   const handleBack = () => {
@@ -299,7 +338,7 @@ export default function CarWashPayment({
     const cwId = /^\d+$/.test(station.id) ? Number.parseInt(station.id, 10) : null;
     if (cwId != null && Number.isFinite(cwId)) {
       try {
-        const check = await fetchCwCanPay(cwId);
+        const check = await fetchCwCanPay(cwId, payCarId ?? undefined);
         if (!check.ok) {
           if (
             check.code === "active_wash" &&
@@ -348,6 +387,7 @@ export default function CarWashPayment({
           location_id: cwId,
           tariff_id: selected.id,
           description,
+          ...(payCarId != null ? { car_id: payCarId } : {}),
           ...abonPayload,
         });
         const sessionId = paid.session?.id ?? null;
@@ -356,9 +396,12 @@ export default function CarWashPayment({
         }
         setWashSessionId(sessionId);
         setWashSessionStatus(paid.session?.status ?? "pending");
-        setWashWasherId(
-          paid.session?.washer_id ?? paid.bay?.washer_id ?? null,
-        );
+        // Только пост ЭТОЙ сессии — bay.washer_id может быть чужим (FIFO invite)
+        setWashWasherId(paid.session?.washer_id ?? null);
+        setWashBayNumber(paid.session?.bay_number ?? null);
+        setWashStartAt(paid.session?.start_at ?? null);
+        setWashTariffTitle(selected.title);
+        setWashPrice(selected.price);
         await refreshBalance();
         router.replace(`/payment/car-wash/${cwId}?session=${sessionId}`);
         setStep("preparing");
@@ -427,9 +470,15 @@ export default function CarWashPayment({
               sessionId={washSessionId}
               initialStatus={washSessionStatus}
               initialWasherId={washWasherId}
+              initialBayNumber={washBayNumber}
+              initialCarPlate={payCarPlate}
+              onCarPlate={(plate) => {
+                if (plate) setPayCarPlate(plate);
+              }}
               onReady={(info) => {
                 if (info?.status) setWashSessionStatus(info.status);
                 if (info?.washerId != null) setWashWasherId(info.washerId);
+                if (info?.bayNumber != null) setWashBayNumber(info.bayNumber);
                 startWash();
               }}
               onFinished={finishWash}
@@ -442,9 +491,16 @@ export default function CarWashPayment({
             <WashSessionView
               sessionId={washSessionId}
               stationTitle={station.paymentTitle}
-              tariffTitle={selected?.title ?? t("payment.tariff", "Тариф")}
-              price={selected?.price ?? 0}
+              tariffTitle={
+                washTariffTitle ??
+                selected?.title ??
+                t("payment.tariff", "Тариф")
+              }
+              price={washPrice ?? selected?.price ?? 0}
               washerId={washWasherId}
+              bayNumber={washBayNumber}
+              startAt={washStartAt}
+              carPlate={payCarPlate}
               onDone={finishWash}
             />
           </div>
@@ -475,10 +531,20 @@ export default function CarWashPayment({
               <h1 className="ev-pay-status__title">
                 {t("wash.done_title", "Мойка завершена")}
               </h1>
+              {payCarPlate ? (
+                <p
+                  className="cw-car-plate ev-pay-status__plate"
+                  title={t("wash.your_car", "Ваша машина")}
+                >
+                  {formatCarPlate(payCarPlate)}
+                </p>
+              ) : null}
               <p className="ev-pay-status__text">
                 {t("payment.success", "Оплата прошла успешно")}
-                {selected
-                  ? `. ${selected.price} ₸ · ${selected.title}`
+                {washPrice != null || selected
+                  ? `. ${Math.round(washPrice ?? selected?.price ?? 0)} ₸ · ${
+                      washTariffTitle ?? selected?.title ?? ""
+                    }`
                   : ""}
               </p>
               <div className="ev-pay-status__footer">
@@ -492,9 +558,18 @@ export default function CarWashPayment({
 
         {step === "error" ? (
           <div className="profile-edit__main ev-pay-status ev-pay-status--center">
-            <div className="ev-pay-status__badge is-fail" aria-hidden>
-              <IconFail />
-            </div>
+            {payErrorCode === "must_exit_building" ? (
+              <img
+                className="cw-pay__notice-illust"
+                src="/img/illustrations/cw_event_3.png"
+                alt=""
+                aria-hidden
+              />
+            ) : (
+              <div className="ev-pay-status__badge is-fail" aria-hidden>
+                <IconFail />
+              </div>
+            )}
             <h1 className="ev-pay-status__title">
               {payErrorCode
                 ? washPayCheckTitle(t, payErrorCode, locale)
@@ -550,6 +625,16 @@ export default function CarWashPayment({
                   </p>
                   <p className="profile-card__balance-value">{station.paymentTitle}</p>
                 </div>
+                {payCarPlate ? (
+                  <div className="profile-card__balance-item">
+                    <p className="profile-card__balance-label">
+                      {t("wash.your_car", "Ваша машина")}
+                    </p>
+                    <p className="profile-card__balance-value">
+                      {formatCarPlate(payCarPlate)}
+                    </p>
+                  </div>
+                ) : null}
                 <div className="profile-card__balance-item">
                   <p className="profile-card__balance-label">
                     {t("home.balance", "Баланс")}
@@ -666,6 +751,30 @@ export default function CarWashPayment({
             {presenceCode ? (
               <section className="profile-card" role="status">
                 <div className="profile-card__balance">
+                  {presenceCode === "not_on_territory" ? (
+                    <img
+                      className="cw-pay__notice-illust"
+                      src="/img/illustrations/empty_territory.png"
+                      alt=""
+                      aria-hidden
+                    />
+                  ) : null}
+                  {presenceCode === "active_wash" ? (
+                    <img
+                      className="cw-pay__notice-illust"
+                      src="/img/illustrations/cw_event_2.png"
+                      alt=""
+                      aria-hidden
+                    />
+                  ) : null}
+                  {presenceCode === "must_exit_building" ? (
+                    <img
+                      className="cw-pay__notice-illust"
+                      src="/img/illustrations/cw_event_3.png"
+                      alt=""
+                      aria-hidden
+                    />
+                  ) : null}
                   <p className="cw-pay__title">
                     {washPayCheckTitle(t, presenceCode, locale)}
                   </p>

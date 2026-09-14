@@ -23,8 +23,13 @@ import { useMapMarkerStylePrefs } from "@/features/map/MapMarkerStyleDrawer";
 import { useMapSheetDrag } from "@/features/map/useMapSheetDrag";
 import { useStation } from "@/hooks/useStation";
 import { useLocale, useT } from "@/hooks/useT";
-import { localizeWashTariff, fetchCwCanPay } from "@/lib/api/cw";
+import {
+  localizeWashTariff,
+  fetchCwCanPay,
+  type CwCanPayCar,
+} from "@/lib/api/cw";
 import { washSessionPath } from "@/features/map/home/mapLiveSession";
+import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
 import {
   washPayCheckMessage,
   washPayCheckTitle,
@@ -54,6 +59,19 @@ import {
 } from "@/features/map/home/mapLiveSession";
 
 export type { MapLiveSession };
+
+function washCarPresenceLabel(
+  car: Pick<CwCanPayCar, "on_territory" | "active_wash">,
+  t: (key: string, fallback?: string) => string,
+): string {
+  if (car.active_wash) {
+    return t("wash.car_washing", "Машина моется");
+  }
+  if (car.on_territory) {
+    return t("wash.car_on_site", "На площадке");
+  }
+  return t("wash.car_off_site", "Не на территории");
+}
 
 const YANDEX_LOGO = "/img/yandex_logo.svg";
 const GIS_LOGO = "/img/gis_logo.svg";
@@ -751,6 +769,13 @@ export default function StationMapDrawer({
     locationId?: number | null;
   } | null>(null);
   const [washPayChecking, setWashPayChecking] = useState(false);
+  const [washCars, setWashCars] = useState<CwCanPayCar[]>([]);
+  const [selectedWashCarId, setSelectedWashCarId] = useState<number | null>(
+    null,
+  );
+  const [pickingWashCar, setPickingWashCar] = useState(false);
+  const [washCarOnSite, setWashCarOnSite] = useState<boolean | null>(null);
+  const [washCarUserPicked, setWashCarUserPicked] = useState(false);
   const {
     station: freshStation,
     loading,
@@ -762,7 +787,54 @@ export default function StationMapDrawer({
 
   useEffect(() => {
     setWashPayBlock(null);
+    setPickingWashCar(false);
+    setSelectedWashCarId(null);
+    setWashCars([]);
+    setWashCarOnSite(null);
+    setWashCarUserPicked(false);
   }, [station.id]);
+
+  const washPresenceQueryCarId = washCarUserPicked ? selectedWashCarId : null;
+
+  useEffect(() => {
+    if (station.kind === "charging") return;
+    const cwId = /^\d+$/.test(station.id)
+      ? Number.parseInt(station.id, 10)
+      : null;
+    if (cwId == null || !Number.isFinite(cwId)) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const check = await fetchCwCanPay(
+          cwId,
+          washPresenceQueryCarId ?? undefined,
+        );
+        if (cancelled) return;
+        const cars = check.cars ?? [];
+        setWashCars(cars);
+        const nextId =
+          washPresenceQueryCarId ??
+          check.car_id ??
+          cars[0]?.id ??
+          null;
+        setSelectedWashCarId(nextId);
+        const selected = cars.find((car) => car.id === nextId);
+        setWashCarOnSite(
+          selected != null ? selected.on_territory : Boolean(check.on_territory),
+        );
+      } catch {
+        if (!cancelled) {
+          setWashCars([]);
+          setWashCarOnSite(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [station.id, station.kind, washPresenceQueryCarId]);
 
   useEffect(() => {
     if (!washPayBlock) return;
@@ -772,6 +844,12 @@ export default function StationMapDrawer({
   }, [washPayBlock]);
 
   const washPayLocked = washPayBlock != null;
+  const selectedWashCar =
+    selectedWashCarId == null
+      ? null
+      : (washCars.find((car) => car.id === selectedWashCarId) ?? null);
+  const washCarPlate = selectedWashCar?.car_plate ?? "";
+  const washToolbarLocked = washPayLocked || pickingWashCar;
   const [stationPhotoFailed, setStationPhotoFailed] = useState(false);
   const [stationPhotoLoading, setStationPhotoLoading] = useState(
     () => Boolean(initialStation.photoUrl),
@@ -1206,6 +1284,10 @@ export default function StationMapDrawer({
                       setRouteOpen(false);
                       setLoadOpen(false);
                     }
+                  : pickingWashCar
+                    ? () => {
+                        setPickingWashCar(false);
+                      }
                   : washPayLocked
                     ? () => {
                         setWashPayBlock(null);
@@ -1226,21 +1308,21 @@ export default function StationMapDrawer({
               <HoursButton
                 onClick={toggleHours}
                 active={hoursOpen}
-                disabled={washPayLocked}
+                disabled={washToolbarLocked}
               />
               <RouteButton
                 onClick={toggleRoute}
                 active={routeOpen}
-                disabled={washPayLocked}
+                disabled={washToolbarLocked}
               />
               {!isCharging ? (
                 <LoadButton
                   onClick={toggleLoad}
                   active={loadOpen}
-                  disabled={washPayLocked}
+                  disabled={washToolbarLocked}
                 />
               ) : null}
-              <ScanQrButton disabled={washPayLocked} />
+              <ScanQrButton disabled={washToolbarLocked} />
             </div>
           ) : !selectedPort ? (
             <div className="map-station-sheet__toolbar-actions">
@@ -1384,6 +1466,14 @@ export default function StationMapDrawer({
                       aria-hidden
                     />
                   ) : null}
+                  {washPayBlock.code === "must_exit_building" ? (
+                    <img
+                      className="map-station-sheet__pay-notice-illust"
+                      src="/img/illustrations/cw_event_3.png"
+                      alt=""
+                      aria-hidden
+                    />
+                  ) : null}
                   <p className="map-station-sheet__pay-notice-title">
                     {washPayCheckTitle(t, washPayBlock.code, locale)}
                   </p>
@@ -1417,6 +1507,69 @@ export default function StationMapDrawer({
                   >
                     {t("common.retry", "Попробовать ещё раз")}
                   </button>
+                )}
+              </div>
+            ) : pickingWashCar && !isCharging ? (
+              <div className="map-station-sheet__car-pick">
+                <p className="map-station-sheet__tariffs-label">
+                  {t("wash.pick_car", "Выберите машину")}
+                </p>
+                {washCars.length === 0 ? (
+                  <p className="map-station-sheet__hint">
+                    {t(
+                      "wash.no_car_text",
+                      "Добавьте машину в гараж — без номера мы не увидим вас на площадке.",
+                    )}
+                  </p>
+                ) : (
+                  <div
+                    className="map-station-sheet__tariff-list"
+                    role="radiogroup"
+                    aria-label={t("wash.pick_car", "Выберите машину")}
+                  >
+                    {washCars.map((car) => {
+                      const selected = selectedWashCarId === car.id;
+                      return (
+                        <button
+                          key={car.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          className={`map-station-sheet__tariff${selected ? " is-on" : ""}`}
+                          onClick={() => {
+                            setSelectedWashCarId(car.id);
+                            setWashCarUserPicked(true);
+                            setWashCarOnSite(car.on_territory);
+                            setPickingWashCar(false);
+                            setWashPayBlock(null);
+                          }}
+                        >
+                          <span
+                            className={`theme-radio map-station-sheet__tariff-radio${selected ? " is-on" : ""}`}
+                            aria-hidden
+                          >
+                            {selected ? (
+                              <span className="map-station-sheet__tariff-radio-dot" />
+                            ) : null}
+                          </span>
+                          <div className="map-station-sheet__tariff-main">
+                            <p className="map-station-sheet__tariff-title">
+                              {formatCarPlate(car.car_plate)}
+                            </p>
+                            <p
+                              className={`map-station-sheet__car-status${
+                                car.on_territory || car.active_wash
+                                  ? " is-on"
+                                  : " is-off"
+                              }`}
+                            >
+                              {washCarPresenceLabel(car, t)}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             ) : (
@@ -1456,6 +1609,58 @@ export default function StationMapDrawer({
                     <WashLoadChart locationId={station.id} />
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {!isCharging ? (
+              <div className="map-station-sheet__car">
+                <p className="map-station-sheet__tariffs-label">
+                  {t("wash.your_car", "Ваша машина")}
+                </p>
+                <div className="map-station-sheet__car-card">
+                  <div className="map-station-sheet__car-main">
+                    <p className="map-station-sheet__car-plate">
+                      {washCarPlate
+                        ? formatCarPlate(washCarPlate)
+                        : t("wash.no_car_title", "Нет машины в гараже")}
+                    </p>
+                    <p
+                      className={`map-station-sheet__car-status${
+                        washCarPlate &&
+                        (washCarOnSite || selectedWashCar?.active_wash)
+                          ? " is-on"
+                          : " is-off"
+                      }`}
+                    >
+                      {!washCarPlate
+                        ? t(
+                            "wash.no_car_text",
+                            "Добавьте машину в гараж — без номера мы не увидим вас на площадке.",
+                          )
+                        : washCarPresenceLabel(
+                            {
+                              on_territory: Boolean(washCarOnSite),
+                              active_wash: selectedWashCar?.active_wash,
+                            },
+                            t,
+                          )}
+                    </p>
+                  </div>
+                  {washCars.length > 0 ? (
+                    <button
+                      type="button"
+                      className="map-station-sheet__car-change"
+                      onClick={() => {
+                        setHoursOpen(false);
+                        setRouteOpen(false);
+                        setLoadOpen(false);
+                        setPickingWashCar(true);
+                      }}
+                    >
+                      {t("wash.change_plate", "Изменить номер")}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 
@@ -1583,7 +1788,10 @@ export default function StationMapDrawer({
                       setWashPayChecking(true);
                       void (async () => {
                         try {
-                          const check = await fetchCwCanPay(cwId);
+                          const check = await fetchCwCanPay(
+                            cwId,
+                            selectedWashCarId ?? undefined,
+                          );
                           if (!check.ok) {
                             setWashPayBlock({
                               code: check.code ?? "not_on_territory",
@@ -1600,7 +1808,11 @@ export default function StationMapDrawer({
                           setWashPayBlock(null);
                           onPayNavigate?.();
                           router.push(
-                            getPaymentPath(station, selectedWashTariffKey),
+                            getPaymentPath(
+                              station,
+                              selectedWashTariffKey,
+                              selectedWashCarId,
+                            ),
                           );
                         } catch {
                           setWashPayBlock({

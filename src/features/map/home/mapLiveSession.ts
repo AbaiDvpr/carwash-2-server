@@ -20,6 +20,7 @@ export type MapLiveSession = {
   /** Сырой статус CW/EV (pending / invited / in_progress / …) */
   statusCode?: string | null;
   washerId?: number | null;
+  carPlate?: string | null;
 };
 
 export function detailsChargingPath(sessionId: number): string {
@@ -59,6 +60,7 @@ export function mapEvSessionToLive(session: EvSession): MapLiveSession | null {
     step,
     chargeEndsAt: endsAt,
     statusCode: status || null,
+    carPlate: session.car_plate ?? session.meta?.car_plate ?? null,
   };
 }
 
@@ -101,6 +103,7 @@ export function mapCwSessionToLive(session: HistorySession): MapLiveSession | nu
     chargeEndsAt: null,
     statusCode: status || "pending",
     washerId: session.washer_id ?? null,
+    carPlate: session.car_plate ?? null,
   };
 }
 

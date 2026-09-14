@@ -20,6 +20,7 @@ import {
 } from "@/features/map/home/mapLiveSession";
 import { fetchActiveEvSessions } from "@/lib/api/evSessions";
 import { fetchActiveCwSessions } from "@/lib/api/sessions";
+import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
 import { useToast } from "@/hooks/useToast";
 import { useT } from "@/hooks/useT";
 import { useUserCity } from "@/hooks/useUserCity";
@@ -1062,6 +1063,7 @@ function MapServicesDrawer({
                   session.kind === "wash"
                     ? t("common.wash", "Мойка")
                     : t("common.charging", "ЭЗС");
+                const plateLabel = formatCarPlate(session.carPlate);
                 const place =
                   session.address && session.address !== session.stationName
                     ? `${session.stationName} · ${session.address}`
@@ -1085,7 +1087,17 @@ function MapServicesDrawer({
                         )}
                       </span>
                       <span className="map-services-row__main">
-                        <span className="map-services-row__kind">{kindLabel}</span>
+                        <span className="map-services-row__meta">
+                          <span className="map-services-row__kind">{kindLabel}</span>
+                          {plateLabel ? (
+                            <span
+                              className="map-services-row__plate"
+                              title={t("wash.your_car", "Ваша машина")}
+                            >
+                              {plateLabel}
+                            </span>
+                          ) : null}
+                        </span>
                         <span className="map-services-row__title">{place}</span>
                         <span className="map-services-row__status">{statusLabel}</span>
                       </span>

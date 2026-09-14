@@ -125,6 +125,14 @@
   color: var(--app-danger, #c0392b);
 }
 
+.cw-pay__notice-illust {
+  display: block;
+  width: min(100%, 14rem);
+  max-height: 10rem;
+  margin: 0 auto 0.75rem;
+  object-fit: contain;
+}
+
 .profile-card__balance > .cw-pay__title + .cw-pay__hint {
   margin-top: 0.45rem;
 }

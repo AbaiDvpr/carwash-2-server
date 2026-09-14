@@ -6,6 +6,8 @@ export type HistorySession = {
   location_id: number;
   address: string | null;
   washer_id?: number | null;
+  /** Номер бокса = washer_id (как в админке) */
+  bay_number?: number | null;
   car_id: number | null;
   car_plate: string | null;
   status: string | null;
@@ -13,6 +15,9 @@ export type HistorySession = {
   payment_id?: number | null;
   payment_amount?: string | number | null;
   payment_description?: string | null;
+  /** Цена тарифа для UI (и при абонементе с amount=0) */
+  payment_display_amount?: string | number | null;
+  tariff_title?: string | null;
   amount?: number | null;
   limit_mode?: string | null;
   limit_value?: number | null;

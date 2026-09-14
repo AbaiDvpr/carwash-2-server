@@ -17,8 +17,8 @@ import {
   type Garage,
   type PlateType,
 } from "@/lib/api/garage";
-import { ApiError } from "@/lib/api";
-import { useT } from "@/hooks/useT";
+import { useLocale, useT } from "@/hooks/useT";
+import { garageApiError } from "@/lib/garageErrorI18n";
 import { countryLabel } from "@/lib/countryLabels";
 import "@/features/profile/history/components/history.css";
 import "./profile.css";
@@ -77,14 +77,6 @@ function countryForGarage(
     if (byId) return byId;
   }
   return countries[0] ?? FALLBACK_COUNTRIES[0]!;
-}
-
-function apiPlateError(err: unknown, fallback: string): string {
-  const body =
-    err instanceof ApiError
-      ? (err.body as { message?: string; errors?: Record<string, string[]> })
-      : null;
-  return body?.errors?.car_plate?.[0] ?? body?.message ?? fallback;
 }
 
 function RadioMark({ checked }: { checked: boolean }) {
@@ -243,6 +235,7 @@ function FlagButton({ country, disabled, onClick }: FlagButtonProps) {
 /** Гараж: drawer только при выборе флага. */
 export default function GaragePanel() {
   const t = useT();
+  const locale = useLocale();
   const [countries, setCountries] = useState<CountryOption[]>(FALLBACK_COUNTRIES);
   const [garages, setGarages] = useState<Garage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -340,7 +333,7 @@ export default function GaragePanel() {
       setGarages((prev) => [garage, ...prev]);
       setPlate("");
     } catch (err) {
-      setError(apiPlateError(err, t("garage.add_error", "Не удалось добавить авто")));
+      setError(garageApiError(err, t, locale, t("garage.add_error", "Не удалось добавить авто")));
     } finally {
       setBusy(false);
     }
@@ -364,7 +357,7 @@ export default function GaragePanel() {
       cancelEdit();
     } catch (err) {
       setError(
-        apiPlateError(err, t("garage.save_error", "Не удалось сохранить номер")),
+        garageApiError(err, t, locale, t("garage.save_error", "Не удалось сохранить номер")),
       );
     } finally {
       setBusy(false);

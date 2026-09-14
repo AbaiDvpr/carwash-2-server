@@ -247,6 +247,13 @@ export type CwLocationLoad = {
   weekdays: Record<string, CwLoadWeekday>;
 };
 
+export type CwCanPayCar = {
+  id: number;
+  car_plate: string;
+  on_territory: boolean;
+  active_wash?: boolean;
+};
+
 /** Проверка перед оплатой: на площадке + нет активной мойки. */
 export type CwCanPayResult = {
   ok: boolean;
@@ -255,6 +262,10 @@ export type CwCanPayResult = {
   session_id?: number | null;
   location_id?: number | null;
   entrance_id?: number | null;
+  car_id?: number | null;
+  car_plate?: string | null;
+  on_territory?: boolean;
+  cars?: CwCanPayCar[];
 };
 
 export async function fetchCwCanPay(
@@ -278,6 +289,10 @@ export async function fetchCwCanPay(
           session_id: body.session_id ?? null,
           location_id: body.location_id ?? null,
           entrance_id: body.entrance_id ?? null,
+          car_id: body.car_id ?? null,
+          car_plate: body.car_plate ?? null,
+          on_territory: Boolean(body.on_territory),
+          cars: Array.isArray(body.cars) ? body.cars : [],
         };
       }
     }

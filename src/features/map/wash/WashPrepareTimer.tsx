@@ -5,13 +5,14 @@ import PreloaderStage from "@/features/profile/components/PreloaderStage";
 import { usePreloaderVariant } from "@/hooks/usePreloaderVariant";
 import { useT } from "@/hooks/useT";
 import { fetchCwSession } from "@/lib/api/sessions";
+import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
 import "@/features/map/charging/charging-session-variants.css";
 import "@/features/profile/components/preloader-preview.css";
 import "./wash-session.css";
 import "./wash-prepare-timer.css";
 
-/** Как часто спрашиваем статус сессии в очереди. */
-export const WASH_STATUS_POLL_MS = 10_000;
+/** Как часто спрашиваем статус сессии в очереди / invite. */
+export const WASH_STATUS_POLL_MS = 3_000;
 
 const QUEUE_SOUND_SRC = "/mp3/queue.mp3";
 
@@ -19,10 +20,17 @@ type WashPrepareTimerProps = {
   sessionId: number;
   initialStatus?: string | null;
   initialWasherId?: number | null;
+  initialBayNumber?: number | null;
+  initialCarPlate?: string | null;
+  onCarPlate?: (plate: string | null) => void;
   /** Статус in_progress — можно идти к экрану мойки. */
-  onReady: (info?: { washerId: number | null; status: string }) => void;
+  onReady: (info?: {
+    washerId: number | null;
+    bayNumber: number | null;
+    status: string;
+  }) => void;
   /** Сессия уже completed / cancelled / error. */
-  onFinished?: () => void;
+  onFinished?: (info?: { status: string }) => void;
 };
 
 function WashIcon() {
@@ -41,6 +49,9 @@ export default function WashPrepareTimer({
   sessionId,
   initialStatus = "pending",
   initialWasherId = null,
+  initialBayNumber = null,
+  initialCarPlate = null,
+  onCarPlate,
   onReady,
   onFinished,
 }: WashPrepareTimerProps) {
@@ -54,10 +65,19 @@ export default function WashPrepareTimer({
       ? initialWasherId
       : null,
   );
+  const [bayNumber, setBayNumber] = useState<number | null>(
+    initialBayNumber != null && Number.isFinite(initialBayNumber)
+      ? initialBayNumber
+      : null,
+  );
+  const [carPlate, setCarPlate] = useState<string | null>(
+    initialCarPlate?.trim() ? initialCarPlate.trim() : null,
+  );
   const [pollError, setPollError] = useState<string | null>(null);
 
   const onReadyRef = useRef(onReady);
   const onFinishedRef = useRef(onFinished);
+  const onCarPlateRef = useRef(onCarPlate);
   const advancedRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -67,6 +87,9 @@ export default function WashPrepareTimer({
   useEffect(() => {
     onFinishedRef.current = onFinished;
   }, [onFinished]);
+  useEffect(() => {
+    onCarPlateRef.current = onCarPlate;
+  }, [onCarPlate]);
 
   useEffect(() => {
     const invited = status === "invited";
@@ -107,7 +130,6 @@ export default function WashPrepareTimer({
     const scheduleNext = () => {
       if (cancelled) return;
       if (gapTimer != null) window.clearTimeout(gapTimer);
-      // Короткий mp3 (~0.4с) + пауза, чтобы не пищал непрерывно
       gapTimer = window.setTimeout(() => {
         playOnce();
       }, 2_500);
@@ -149,22 +171,36 @@ export default function WashPrepareTimer({
     let cancelled = false;
     advancedRef.current = false;
 
-    const applyStatus = (next: string, nextWasherId: number | null) => {
+    const applyStatus = (
+      next: string,
+      nextWasherId: number | null,
+      nextBayNumber: number | null,
+      nextPlate: string | null,
+    ) => {
       if (cancelled) return;
       setStatus(next);
       if (nextWasherId != null) setWasherId(nextWasherId);
+      if (nextBayNumber != null) setBayNumber(nextBayNumber);
+      if (nextPlate) {
+        setCarPlate(nextPlate);
+        onCarPlateRef.current?.(nextPlate);
+      }
 
       if (advancedRef.current) return;
 
       if (next === "completed" || next === "cancelled" || next === "error") {
         advancedRef.current = true;
-        onFinishedRef.current?.();
+        onFinishedRef.current?.({ status: next });
         return;
       }
 
       if (next === "in_progress") {
         advancedRef.current = true;
-        onReadyRef.current({ washerId: nextWasherId, status: next });
+        onReadyRef.current({
+          washerId: nextWasherId,
+          bayNumber: nextBayNumber,
+          status: next,
+        });
       }
     };
 
@@ -176,6 +212,8 @@ export default function WashPrepareTimer({
         applyStatus(
           normalizeStatus(session.status),
           session.washer_id ?? null,
+          session.bay_number ?? null,
+          session.car_plate ?? null,
         );
       } catch {
         if (!cancelled) {
@@ -186,7 +224,12 @@ export default function WashPrepareTimer({
       }
     };
 
-    applyStatus(normalizeStatus(initialStatus), initialWasherId ?? null);
+    applyStatus(
+      normalizeStatus(initialStatus),
+      initialWasherId ?? null,
+      initialBayNumber ?? null,
+      initialCarPlate ?? null,
+    );
     void poll();
     const id = window.setInterval(() => void poll(), WASH_STATUS_POLL_MS);
 
@@ -194,11 +237,18 @@ export default function WashPrepareTimer({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [sessionId, initialStatus, initialWasherId, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только смена sessionId
+  }, [sessionId, t]);
 
   const invited = status === "invited";
-  const boxLabel = washerId != null ? String(washerId) : null;
+  const boxLabel =
+    washerId != null
+      ? String(washerId)
+      : bayNumber != null
+        ? String(bayNumber)
+        : null;
   const boxTag = boxLabel ? `#${boxLabel}` : null;
+  const plateLabel = formatCarPlate(carPlate);
 
   const title = invited
     ? t("wash.invited_title", "Вас ждут")
@@ -210,14 +260,8 @@ export default function WashPrepareTimer({
           "wash.invited_enter_hash",
           "Заезжайте в бокс {tag} — мойка начнётся автоматически.",
         ).replace("{tag}", boxTag)
-      : t(
-          "wash.invited_enter_box",
-          "Зайдите, пожалуйста, внутрь бокса.",
-        )
-    : t(
-        "wash.queue_text",
-        "Как освободится место — мы вас пригласим.",
-      );
+      : t("wash.invited_enter_box", "Зайдите, пожалуйста, внутрь бокса.")
+    : t("wash.queue_text", "Как освободится место — мы вас пригласим.");
 
   return (
     <div
@@ -225,7 +269,7 @@ export default function WashPrepareTimer({
       role="status"
       aria-live="polite"
     >
-      <section className="profile-card csv-shell">
+      <section className="profile-card csv-shell wash-prep__card">
         <div className="csv-shell__head">
           <span
             className="csv-ev-badge csv-ev-badge--wash csv-ev-badge--inline"
@@ -234,37 +278,46 @@ export default function WashPrepareTimer({
             <WashIcon />
             <span>{t("common.wash", "Мойка")}</span>
           </span>
-        </div>
-
-        <div className="csv-shell__body wash-prep__body">
-          {invited ? (
-            <div className="wash-prep__bay" aria-label={boxTag ?? title}>
-              <p className="wash-prep__bay-tag">
-                {boxTag ?? "#—"}
-              </p>
-            </div>
-          ) : (
-            <div className="wash-prep__preloader" aria-label={title}>
-              {mounted ? (
-                <PreloaderStage
-                  variant={variant}
-                  size={120}
-                  showCircleIcon={showCircleIcon}
-                />
-              ) : null}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="profile-card csv-params">
-        <div className="profile-card__balance">
-          <p className="csv-params__title">{title}</p>
-          <p className="wash-prep__hint">{text}</p>
-          {pollError ? (
-            <p className="wash-prep__hint wash-prep__hint--error">{pollError}</p>
+          {plateLabel ? (
+            <p className="cw-car-plate" title={t("wash.your_car", "Ваша машина")}>
+              {plateLabel}
+            </p>
           ) : null}
         </div>
+
+        {invited ? (
+          <div className="wash-prep__stage" aria-label={boxTag ?? title}>
+            <div className="wash-prep__copy">
+              <p className="wash-prep__title">{title}</p>
+              <p className="wash-prep__hint">{text}</p>
+              {pollError ? (
+                <p className="wash-prep__hint wash-prep__hint--error">{pollError}</p>
+              ) : null}
+            </div>
+            <p className="wash-prep__bay-tag">{boxTag ?? "#—"}</p>
+          </div>
+        ) : (
+          <>
+            <div className="wash-prep__stage">
+              <div className="wash-prep__copy">
+                <p className="wash-prep__title">{title}</p>
+                <p className="wash-prep__hint">{text}</p>
+                {pollError ? (
+                  <p className="wash-prep__hint wash-prep__hint--error">{pollError}</p>
+                ) : null}
+              </div>
+              <div className="wash-prep__preloader" aria-label={title}>
+                {mounted ? (
+                  <PreloaderStage
+                    variant={variant}
+                    size={120}
+                    showCircleIcon={showCircleIcon}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );

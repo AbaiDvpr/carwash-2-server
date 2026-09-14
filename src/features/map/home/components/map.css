@@ -2251,11 +2251,28 @@ html[data-theme="dark"] .map-marker__chooser-close:active {
   gap: 0.12rem;
 }
 
+.map-services-row__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .map-services-row__kind {
   color: var(--app-description);
   font-size: var(--app-text-sm);
   font-weight: 600;
   line-height: 1.25;
+}
+
+.map-services-row__plate {
+  flex: 0 0 auto;
+  color: var(--app-text);
+  font-size: var(--app-text-sm);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .map-services-row__title {
@@ -5873,6 +5890,75 @@ html[data-theme="dark"] .map-conn-card__offline {
   font-size: var(--app-text-xs);
   font-weight: 700;
   white-space: nowrap;
+}
+
+.map-station-sheet__car {
+  margin-top: 0.75rem;
+}
+
+.map-station-sheet__car-pick {
+  margin-top: 0.15rem;
+}
+
+.map-station-sheet__car-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid color-mix(in oklab, var(--app-description) 16%, transparent);
+  border-radius: 1rem;
+  background: var(--app-block);
+}
+
+.map-station-sheet__car-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.map-station-sheet__car-plate {
+  margin: 0;
+  font-size: var(--app-text-lg);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  color: var(--app-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.map-station-sheet__car-status {
+  margin: 0.3rem 0 0;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--app-description);
+}
+
+.map-station-sheet__car-status.is-on {
+  color: var(--app-success);
+}
+
+.map-station-sheet__car-status.is-off {
+  color: var(--app-danger);
+}
+
+.map-station-sheet__car-change {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.15rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-text);
+  font: inherit;
+  font-size: var(--app-text-xs);
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: right;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .map-station-sheet__tariffs {

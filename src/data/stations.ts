@@ -106,8 +106,14 @@ export type Station = {
 export function getPaymentPath(
   station: Station,
   tariffKey?: string | null,
+  carId?: number | null,
 ): string {
   const path = `/payment/car-wash/${station.paymentSlug}`;
-  if (!tariffKey) return path;
-  return `${path}?tariff=${encodeURIComponent(tariffKey)}`;
+  const params = new URLSearchParams();
+  if (tariffKey) params.set("tariff", tariffKey);
+  if (carId != null && Number.isFinite(carId) && carId > 0) {
+    params.set("car_id", String(carId));
+  }
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
 }

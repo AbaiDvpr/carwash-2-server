@@ -5,6 +5,7 @@ import ServiceFillProgress from "@/features/map/charging/ServiceFillProgress";
 import { useT } from "@/hooks/useT";
 import { fetchCwSession } from "@/lib/api/sessions";
 import { WASH_STATUS_POLL_MS } from "@/features/map/wash/WashPrepareTimer";
+import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
 import "@/features/map/charging/charging-session-variants.css";
 import "./wash-session.css";
 
@@ -16,13 +17,23 @@ function WashIcon() {
   );
 }
 
+function parseStartMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
 type WashSessionViewProps = {
   sessionId: number;
   stationTitle: string;
   tariffTitle: string;
   price: number;
   washerId?: number | null;
-  onDone: () => void;
+  bayNumber?: number | null;
+  /** ISO start_at с бэка — длительность от него, не с момента открытия страницы */
+  startAt?: string | null;
+  carPlate?: string | null;
+  onDone: (info?: { status: string }) => void;
 };
 
 /**
@@ -35,14 +46,25 @@ export default function WashSessionView({
   tariffTitle,
   price,
   washerId = null,
+  bayNumber = null,
+  startAt = null,
+  carPlate = null,
   onDone,
 }: WashSessionViewProps) {
   const t = useT();
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [displayTariff, setDisplayTariff] = useState(tariffTitle);
+  const [displayPrice, setDisplayPrice] = useState(price);
+  const [displayPlate, setDisplayPlate] = useState<string | null>(
+    carPlate?.trim() ? carPlate.trim() : null,
+  );
   const [statusLabel, setStatusLabel] = useState(
     t("wash.car_washing", "Машина моется"),
   );
-  const [boxId, setBoxId] = useState<number | null>(washerId);
+  const [boxNumber, setBoxNumber] = useState<number | null>(
+    washerId ?? bayNumber,
+  );
+  const startMsRef = useRef<number | null>(parseStartMs(startAt));
   const doneRef = useRef(false);
   const onDoneRef = useRef(onDone);
 
@@ -51,12 +73,40 @@ export default function WashSessionView({
   }, [onDone]);
 
   useEffect(() => {
-    const startedAt = Date.now();
-    const tick = () => setElapsedMs(Math.max(0, Date.now() - startedAt));
+    setDisplayTariff(tariffTitle);
+  }, [tariffTitle]);
+
+  useEffect(() => {
+    if (Number.isFinite(price) && price > 0) setDisplayPrice(price);
+  }, [price]);
+
+  useEffect(() => {
+    if (carPlate?.trim()) setDisplayPlate(carPlate.trim());
+  }, [carPlate]);
+
+  useEffect(() => {
+    if (washerId != null) setBoxNumber(washerId);
+    else if (bayNumber != null) setBoxNumber(bayNumber);
+  }, [washerId, bayNumber]);
+
+  useEffect(() => {
+    const ms = parseStartMs(startAt);
+    if (ms != null) startMsRef.current = ms;
+  }, [startAt]);
+
+  useEffect(() => {
+    const tick = () => {
+      const start = startMsRef.current;
+      if (start == null) {
+        setElapsedMs(0);
+        return;
+      }
+      setElapsedMs(Math.max(0, Date.now() - start));
+    };
     tick();
     const clockId = window.setInterval(tick, 250);
     return () => window.clearInterval(clockId);
-  }, []);
+  }, [sessionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,13 +118,29 @@ export default function WashSessionView({
         if (cancelled || doneRef.current) return;
 
         const status = (session.status ?? "").toLowerCase();
-        if (session.washer_id != null) setBoxId(session.washer_id);
+        if (session.washer_id != null) setBoxNumber(session.washer_id);
+        else if (session.bay_number != null) setBoxNumber(session.bay_number);
 
-        // Завершение только по статусу из БД (event с оборудования / админки)
+        const startMs = parseStartMs(session.start_at);
+        if (startMs != null) startMsRef.current = startMs;
+
+        const nextPrice = Number(
+          session.payment_display_amount ?? session.payment_amount,
+        );
+        if (Number.isFinite(nextPrice) && nextPrice > 0) {
+          setDisplayPrice(nextPrice);
+        }
+        if (session.tariff_title) {
+          setDisplayTariff(session.tariff_title);
+        }
+        if (session.car_plate) {
+          setDisplayPlate(session.car_plate);
+        }
+
         if (status === "completed") {
           doneRef.current = true;
           setStatusLabel(t("wash.done_title", "Мойка завершена"));
-          onDoneRef.current();
+          onDoneRef.current({ status: "completed" });
           return;
         }
 
@@ -85,7 +151,7 @@ export default function WashSessionView({
               ? t("wash.session_failed", "Сессия мойки завершилась с ошибкой")
               : t("wash.session_cancelled", "Мойка отменена"),
           );
-          onDoneRef.current();
+          onDoneRef.current({ status });
           return;
         }
 
@@ -116,12 +182,21 @@ export default function WashSessionView({
       ? `${durationMin} ${minUnit} ${durationSec} ${secUnit}`
       : `${durationSec} ${secUnit}`;
 
+  const priceLabel = Number.isFinite(displayPrice)
+    ? `${Math.round(displayPrice)} ₸`
+    : "—";
+
+  const plateLabel = formatCarPlate(displayPlate);
+
   const rows = [
     { label: t("common.wash", "Мойка"), value: stationTitle },
-    { label: t("payment.tariff", "Тариф"), value: tariffTitle },
-    { label: t("payment.to_pay", "Стоимость"), value: `${price} ₸` },
-    ...(boxId != null
-      ? [{ label: t("wash.box", "Бокс"), value: `№${boxId}` }]
+    ...(plateLabel
+      ? [{ label: t("wash.your_car", "Ваша машина"), value: plateLabel }]
+      : []),
+    { label: t("payment.tariff", "Тариф"), value: displayTariff || "—" },
+    { label: t("payment.to_pay", "Стоимость"), value: priceLabel },
+    ...(boxNumber != null
+      ? [{ label: t("wash.box", "Бокс"), value: `№${boxNumber}` }]
       : []),
     { label: t("ev.charging_duration", "Длительность"), value: durationLabel },
   ];
@@ -134,6 +209,11 @@ export default function WashSessionView({
             <WashIcon />
             <span>{t("common.wash", "Мойка")}</span>
           </span>
+          {plateLabel ? (
+            <p className="cw-car-plate" title={t("wash.your_car", "Ваша машина")}>
+              {plateLabel}
+            </p>
+          ) : null}
         </div>
         <div className="csv-shell__body">
           <ServiceFillProgress

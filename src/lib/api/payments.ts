@@ -23,6 +23,7 @@ export type BalancePaymentResponse = {
     id: number;
     location_id: number;
     washer_id?: number | null;
+    bay_number?: number | null;
     status: string;
     start_at: string | null;
   };

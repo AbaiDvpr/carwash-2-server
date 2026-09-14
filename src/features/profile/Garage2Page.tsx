@@ -11,7 +11,6 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import AppBackButton from "@/components/ui/AppBackButton";
-import { ApiError } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/api/photo";
 import { fetchPlateTypes, type PlateType } from "@/lib/api/garage";
 import {
@@ -26,7 +25,8 @@ import {
   type GarageV2PistolType,
   type GarageV2PowerType,
 } from "@/lib/api/garageV2";
-import { useT } from "@/hooks/useT";
+import { useLocale, useT } from "@/hooks/useT";
+import { garageApiError } from "@/lib/garageErrorI18n";
 import { countryLabel } from "@/lib/countryLabels";
 import { fuelTypeLabel } from "@/lib/fuelLabels";
 import IconActionButton, {
@@ -135,21 +135,6 @@ function countryForGarage(
     if (byId) return byId;
   }
   return countries[0] ?? FALLBACK_COUNTRIES[0]!;
-}
-
-function apiErrorMessage(err: unknown, fallback: string): string {
-  const body =
-    err instanceof ApiError
-      ? (err.body as { message?: string; errors?: Record<string, string[]> })
-      : null;
-  return (
-    body?.errors?.pistol_type_id?.[0] ??
-    body?.errors?.fuel_type_id?.[0] ??
-    body?.errors?.car_plate?.[0] ??
-    body?.errors?.power_type?.[0] ??
-    body?.message ??
-    fallback
-  );
 }
 
 function RadioMark({ checked }: { checked: boolean }) {
@@ -310,6 +295,7 @@ export default function Garage2Page({
   onBack,
 }: Garage2PageProps) {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const [garages, setGarages] = useState<GarageV2[]>([]);
   const [pistolTypes, setPistolTypes] = useState<GarageV2PistolType[]>([]);
@@ -372,15 +358,17 @@ export default function Garage2Page({
       setFuelTypes(fuels);
     } catch (err) {
       setError(
-        apiErrorMessage(
+        garageApiError(
           err,
+          t,
+          locale,
           t("garage2.load_error", "Не удалось загрузить гараж"),
         ),
       );
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [t, locale]);
 
   useEffect(() => {
     void load();
@@ -478,7 +466,7 @@ export default function Garage2Page({
       setScreen("list");
     } catch (err) {
       setError(
-        apiErrorMessage(err, t("garage2.save_error", "Не удалось сохранить")),
+        garageApiError(err, t, locale, t("garage2.save_error", "Не удалось сохранить")),
       );
     } finally {
       setSaving(false);
@@ -499,7 +487,7 @@ export default function Garage2Page({
       after?.();
     } catch (err) {
       setError(
-        apiErrorMessage(err, t("garage2.delete_error", "Не удалось удалить")),
+        garageApiError(err, t, locale, t("garage2.delete_error", "Не удалось удалить")),
       );
     } finally {
       setSaving(false);
