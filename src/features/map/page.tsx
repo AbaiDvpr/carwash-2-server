@@ -36,8 +36,14 @@ import { useUserCity } from "@/hooks/useUserCity";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { distanceKm } from "@/lib/api/geos";
 import { compactHoursLabel } from "@/lib/openHours";
-import { hasNativeBridge } from "@/lib/nativeBridge";
-import { navigateMapPath } from "@/lib/navbarController";
+import {
+  clearPendingOpenStation,
+  ensureOpenStationListenerInstalled,
+  parseOpenStationType,
+  peekPendingOpenStation,
+  subscribeOpenStation,
+  type OpenStationRequest,
+} from "@/lib/openStationController";
 import HomeMap from "@/features/map/home/components/HomeMap";
 import MapMarkerStyleDrawer, {
   useMapMarkerStylePrefs,
@@ -91,13 +97,9 @@ function parseKind(raw: string | null): StationKind | "all" {
   return "all";
 }
 
-/** Deep link: ?type=ev|cw (или charging|wash) */
+/** Deep link / Flutter event: ?type=ev|cw (или charging|wash) */
 function parseDeepLinkType(raw: string | null): StationKind | null {
-  if (!raw) return null;
-  const v = raw.trim().toLowerCase();
-  if (v === "ev" || v === "charging") return "charging";
-  if (v === "cw" || v === "wash") return "wash";
-  return null;
+  return parseOpenStationType(raw);
 }
 
 /**
@@ -1120,6 +1122,9 @@ function MapPageInner() {
   const mapBasePath = pathname.startsWith("/map") ? "/map" : "/";
 
   const [focusStationId, setFocusStationId] = useState<string | null>(null);
+  const [nativeOpenReq, setNativeOpenReq] = useState<OpenStationRequest | null>(
+    null,
+  );
   const [listOpen, setListOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
@@ -1128,8 +1133,6 @@ function MapPageInner() {
   const [filtersHydrated, setFiltersHydrated] = useState(false);
   const [search, setSearch] = useState("");
   const [mapBusy, setMapBusy] = useState(true);
-  /** Чтобы один раз кикнуть Flutter navbar на map для данного deep link */
-  const mapNavKickRef = useRef<string | null>(null);
 
   /** Пока в URL есть ?kind= — прелоадер: пишем фильтр и сразу чистим query */
   const bootReady = filtersHydrated && kindFromQuery === "all";
@@ -1149,26 +1152,45 @@ function MapPageInner() {
     router.replace(qs ? `${mapBasePath}?${qs}` : mapBasePath, { scroll: false });
   };
 
-  // Deep link: ?id=3&type=ev|cw → Flutter: вкладка map + тот же path
-  useEffect(() => {
-    if (!deepLinkId || !deepLinkType) return;
-    if (!hasNativeBridge()) return;
+  /** Чтобы ?id= не открывал drawer снова при каждом refresh stations. */
+  const consumedDeepLinkRef = useRef<string | null>(null);
 
-    const typeParam = deepLinkType === "charging" ? "ev" : "cw";
-    const path = `/?id=${encodeURIComponent(deepLinkId)}&type=${typeParam}`;
-    if (mapNavKickRef.current === path) return;
-    mapNavKickRef.current = path;
-
-    navigateMapPath(path);
-  }, [deepLinkId, deepLinkType]);
-
-  // Deep link: ?id=5&type=ev|cw → открыть drawer станции
+  // Deep link: ?id=5&type=ev|cw → открыть drawer (navbar на map переключает Flutter)
   useEffect(() => {
     if (!deepLinkId || stations.length === 0) return;
+    const key = `${deepLinkId}:${deepLinkType ?? ""}`;
+    if (consumedDeepLinkRef.current === key) return;
     const found = findDeepLinkStation(stations, deepLinkId, deepLinkType);
     if (!found) return;
+    consumedDeepLinkRef.current = key;
     setFocusStationId(found.id);
+    clearDeepLinkQuery();
   }, [deepLinkId, deepLinkType, stations]);
+
+  // Flutter → Web: { action: "open_station", id, type } после QR
+  useEffect(() => {
+    ensureOpenStationListenerInstalled();
+    const pending = peekPendingOpenStation();
+    if (pending) setNativeOpenReq(pending);
+    return subscribeOpenStation((request) => {
+      setNativeOpenReq(request);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!nativeOpenReq || stations.length === 0) return;
+    const found = findDeepLinkStation(
+      stations,
+      nativeOpenReq.id,
+      nativeOpenReq.type,
+    );
+    if (!found) return;
+    clearPendingOpenStation();
+    setNativeOpenReq(null);
+    // тот же id после закрытия: сначала null, чтобы эффект HomeMap сработал снова
+    setFocusStationId(null);
+    queueMicrotask(() => setFocusStationId(found.id));
+  }, [nativeOpenReq, stations]);
 
   useEffect(() => {
     if (kindFromQuery !== "all") {
@@ -1276,9 +1298,11 @@ function MapPageInner() {
           stations={mapStations}
           loading={loading}
           error={error}
+          onRetry={reload}
           focusStationId={focusStationId}
           onFocusConsumed={() => {
             setFocusStationId(null);
+            clearPendingOpenStation();
             clearDeepLinkQuery();
           }}
           onOpenList={() => setListOpen(true)}

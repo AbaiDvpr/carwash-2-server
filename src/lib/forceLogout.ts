@@ -7,6 +7,7 @@ import {
   collectAuthDebugSnapshot,
   isAuthDebugEnabled,
 } from "@/lib/authDebug";
+import { clearFcmToken, getFcmToken } from "@/lib/fcmToken";
 import { logout as nativeLogout } from "@/lib/navbarController";
 import { revokeAccess } from "@/lib/userSession";
 import {
@@ -24,17 +25,27 @@ function logoutApiUrl(): string {
 }
 
 /**
- * Попытка revoke на сервере. Не через apiFetch — иначе 401 на /logout
- * снова вызовет forceLogout. Токен уже может быть мёртвым: 401/сеть — ок, игнор.
+ * Revoke access token + снос FCM на сервере.
+ * Не через apiFetch — иначе 401 на /logout снова вызовет forceLogout.
+ * Токен/FCM/сеть уже могут быть мёртвыми: ошибки игнор.
  * Локальный выход от ответа сервера не зависит.
  */
-function revokeServerToken(token: string): void {
+function revokeServerToken(token: string, fcmToken: string | null): void {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+
+  const body =
+    fcmToken && fcmToken.trim() !== ""
+      ? JSON.stringify({ fcm_token: fcmToken.trim() })
+      : JSON.stringify({});
+
   void fetch(logoutApiUrl(), {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
+    body,
   })
     .then(() => {
       // 200 или 401 — не важно
@@ -143,13 +154,19 @@ export function forceLogout(options?: ForceLogoutOptions | string): void {
   store?.dispatch(clearAuthError());
 
   const token = getAccessToken();
+  const fcmToken = getFcmToken();
   clearAccessToken();
   clearUserId();
+  clearFcmToken();
   revokeAccess();
   nativeLogout();
 
   if (token) {
-    revokeServerToken(token);
+    try {
+      revokeServerToken(token, fcmToken);
+    } catch {
+      // локальный выход уже выполнен
+    }
   }
 
   window.setTimeout(() => {

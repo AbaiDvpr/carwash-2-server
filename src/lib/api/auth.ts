@@ -12,6 +12,23 @@ export type AuthUser = {
   photo_url: string | null;
   push_enabled: boolean;
   geo_id: number | null;
+  /** individual | legal */
+  person_type?: "individual" | "legal" | string;
+  partner_id?: number | null;
+  partner?: {
+    id: number;
+    phone: string;
+    name?: string | null;
+    balance: string | number;
+    person_type?: string;
+  } | null;
+  partners?: Array<{
+    id: number;
+    phone: string;
+    name?: string | null;
+    balance?: string | number;
+    person_type?: string;
+  }>;
   referral_code?: string | null;
   referred_by_user_id?: number | null;
   has_referrer?: boolean;
@@ -59,6 +76,19 @@ type UpdateSettingsResponse = {
   message: string;
   user: AuthUser;
 };
+
+export async function checkEmailAvailable(email: string): Promise<{
+  available: boolean;
+  message: string | null;
+}> {
+  return apiFetch<{ available: boolean; message: string | null }>(
+    "/api/auth/check-email",
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    },
+  );
+}
 
 export async function updateUserSettings(settings: {
   push_enabled?: boolean;

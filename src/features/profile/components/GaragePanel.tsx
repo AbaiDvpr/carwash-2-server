@@ -17,8 +17,9 @@ import {
   type Garage,
   type PlateType,
 } from "@/lib/api/garage";
-import { useLocale, useT } from "@/hooks/useT";
+import { apiFailMessage } from "@/lib/apiFail";
 import { garageApiError } from "@/lib/garageErrorI18n";
+import { useLocale, useT } from "@/hooks/useT";
 import { countryLabel } from "@/lib/countryLabels";
 import "@/features/profile/history/components/history.css";
 import "./profile.css";
@@ -285,7 +286,7 @@ export default function GaragePanel() {
       setGarages(list);
       setError(null);
     } catch {
-      setError(t("garage.load_error", "Не удалось загрузить гараж"));
+      setError(apiFailMessage(t));
     } finally {
       setLoading(false);
     }
@@ -372,8 +373,10 @@ export default function GaragePanel() {
       await deleteGarage(id);
       setGarages((prev) => prev.filter((g) => g.id !== id));
       if (editingId === id) cancelEdit();
-    } catch {
-      setError(t("garage.delete_error", "Не удалось удалить авто"));
+    } catch (err) {
+      setError(
+        garageApiError(err, t, locale, t("garage.delete_error", "Не удалось удалить авто")),
+      );
     } finally {
       setBusy(false);
     }

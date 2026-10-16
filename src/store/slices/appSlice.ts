@@ -23,6 +23,11 @@ type AppState = {
   test_ui_version: boolean;
   test_version: boolean;
   authError: AuthErrorPayload | null;
+  /**
+   * true — нижний отступ от навбара Flutter по localStorage.navbar_h.
+   * false — старое поведение, высота игнорируется.
+   */
+  navbar_source: boolean;
 };
 
 const initialState: AppState = {
@@ -31,6 +36,7 @@ const initialState: AppState = {
   test_version: false,
   authError: null,
   test_ui_version: false,
+  navbar_source: true,
 };
 
 
@@ -54,6 +60,9 @@ const appSlice = createSlice({ name: "app", initialState,
     setTestUiVersion(state, action: PayloadAction<boolean>) {
       state.test_ui_version = action.payload;
     },
+    setNavbarSource(state, action: PayloadAction<boolean>) {
+      state.navbar_source = action.payload;
+    },
   },
 });
 
@@ -64,5 +73,6 @@ export const {
   setAuthError,
   clearAuthError,
   setTestUiVersion,
+  setNavbarSource,
 } = appSlice.actions;
 export default appSlice.reducer;

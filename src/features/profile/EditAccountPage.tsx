@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import AppBackButton from "@/components/ui/AppBackButton";
-import { useT } from "@/hooks/useT";
+import { useLocale, useT } from "@/hooks/useT";
 import { useToast } from "@/hooks/useToast";
 import { deleteAccount } from "@/lib/api/auth";
+import { fetchGaragesV2 } from "@/lib/api/garageV2";
 import { ApiError } from "@/lib/api";
 import { forceLogout } from "@/lib/forceLogout";
 import { useEditProfile } from "./hooks/useEditProfile";
@@ -22,28 +23,60 @@ export default function EditAccountPage({
   onBack,
 }: EditAccountPageProps) {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const { showToast } = useToast();
   const profileEdit = useEditProfile();
+  const fieldId = useId();
+  const firstNameId = `${fieldId}-first`;
+  const lastNameId = `${fieldId}-last`;
+  const emailId = `${fieldId}-email`;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [onSiteBlock, setOnSiteBlock] = useState(false);
+  const [checkingSite, setCheckingSite] = useState(false);
+
+  const onSiteTitle = t("profile.delete_on_site_title", "Нельзя удалить аккаунт");
+  const onSiteText = t(
+    "profile.delete_on_site",
+    locale === "en"
+      ? "You can’t delete the account: you are on site now. Leave first."
+      : locale === "kz"
+        ? "Аккаунтты жоюға болмайды: сіз қазір алаңдасыз. Алдымен шығыңыз."
+        : "Вы не сможете удалить аккаунт: вы сейчас на площадке. Сначала выедьте.",
+  );
 
   useEffect(() => {
     if (!deleteOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDeleteOpen(false);
+      if (event.key === "Escape" && !deleting) setDeleteOpen(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteOpen]);
+  }, [deleteOpen, deleting]);
 
   function goBack() {
     if (onBack) onBack();
     else router.push("/profile");
   }
 
-  async function confirmDeleteAccount() {
+  async function openDeleteModal() {
     if (deleting) return;
+    setDeleteOpen(true);
+    setOnSiteBlock(false);
+    setCheckingSite(true);
+    try {
+      const cars = await fetchGaragesV2();
+      setOnSiteBlock(cars.some((car) => car.on_territory === true));
+    } catch {
+      setOnSiteBlock(false);
+    } finally {
+      setCheckingSite(false);
+    }
+  }
+
+  async function confirmDeleteAccount() {
+    if (deleting || onSiteBlock || checkingSite) return;
     setDeleting(true);
     try {
       await deleteAccount();
@@ -54,12 +87,15 @@ export default function EditAccountPage({
         source: "EditAccountPage",
       });
     } catch (err) {
-      const message =
-        err instanceof ApiError &&
-        typeof (err.body as { message?: string } | null)?.message === "string"
-          ? (err.body as { message: string }).message
-          : t("profile.delete_error", "Не удалось удалить аккаунт");
-      showToast(message);
+      const body =
+        err instanceof ApiError
+          ? (err.body as { code?: string } | null)
+          : null;
+      if (body?.code === "on_territory") {
+        setOnSiteBlock(true);
+      } else {
+        showToast(t("profile.delete_error", "Не удалось удалить аккаунт"));
+      }
       setDeleting(false);
     }
   }
@@ -75,11 +111,12 @@ export default function EditAccountPage({
 
       <div className="profile-edit__main space-y-4">
         <div className="profile-edit-fields">
-          <label className="profile-edit-row">
-            <span className="profile-edit-row__label">
+          <div className="profile-edit-row">
+            <label className="profile-edit-row__label" htmlFor={firstNameId}>
               {t("profile.first_name", "Имя")}
-            </span>
+            </label>
             <input
+              id={firstNameId}
               type="text"
               value={profileEdit.firstName}
               onChange={(e) => {
@@ -91,12 +128,13 @@ export default function EditAccountPage({
               autoComplete="given-name"
               className="profile-edit-row__value"
             />
-          </label>
-          <label className="profile-edit-row">
-            <span className="profile-edit-row__label">
+          </div>
+          <div className="profile-edit-row">
+            <label className="profile-edit-row__label" htmlFor={lastNameId}>
               {t("profile.last_name", "Фамилия")}
-            </span>
+            </label>
             <input
+              id={lastNameId}
               type="text"
               value={profileEdit.lastName}
               onChange={(e) => {
@@ -108,23 +146,38 @@ export default function EditAccountPage({
               autoComplete="family-name"
               className="profile-edit-row__value"
             />
-          </label>
-          <label className="profile-edit-row">
-            <span className="profile-edit-row__label">Email</span>
+          </div>
+          <div className="profile-edit-row">
+            <label className="profile-edit-row__label" htmlFor={emailId}>
+              Email
+            </label>
             <input
+              id={emailId}
               type="email"
               value={profileEdit.email}
               onChange={(e) => {
                 profileEdit.clearFeedback();
                 profileEdit.setEmail(e.target.value);
               }}
+              onBlur={(e) => {
+                void profileEdit.checkEmail(e.target.value, { required: false });
+              }}
               disabled={profileEdit.loading || profileEdit.saving || deleting}
               placeholder="example@mail.com"
               autoComplete="email"
               inputMode="email"
-              className="profile-edit-row__value"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              aria-invalid={Boolean(profileEdit.emailError)}
+              className={`profile-edit-row__value${profileEdit.emailError ? " is-invalid" : ""}`}
             />
-          </label>
+            {profileEdit.emailError ? (
+              <p className="profile-edit-row__error" role="alert">
+                {profileEdit.emailError}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <button
@@ -149,7 +202,7 @@ export default function EditAccountPage({
             type="button"
             className="profile-edit__delete-btn"
             disabled={deleting}
-            onClick={() => setDeleteOpen(true)}
+            onClick={() => void openDeleteModal()}
           >
             {t("profile.delete_account", "Удалить аккаунт")}
           </button>
@@ -158,7 +211,7 @@ export default function EditAccountPage({
         {profileEdit.message ? (
           <p className="profile-edit__feedback is-ok">{profileEdit.message}</p>
         ) : null}
-        {profileEdit.error ? (
+        {profileEdit.error && !profileEdit.emailError ? (
           <p className="profile-edit__feedback is-error">{profileEdit.error}</p>
         ) : null}
       </div>
@@ -197,11 +250,13 @@ export default function EditAccountPage({
                 className="text-center font-bold"
                 style={{
                   fontSize: "var(--app-text-lg)",
-                  color: "var(--app-text)",
+                  color: onSiteBlock ? "var(--app-danger)" : "var(--app-text)",
                   letterSpacing: "-0.01em",
                 }}
               >
-                {t("profile.delete_title", "Удалить аккаунт?")}
+                {onSiteBlock
+                  ? onSiteTitle
+                  : t("profile.delete_title", "Удалить аккаунт?")}
               </p>
               <p
                 className="mt-2 text-center"
@@ -210,13 +265,28 @@ export default function EditAccountPage({
                   color: "var(--app-description)",
                 }}
               >
-                {t("profile.delete_confirm", "Мы удалим ваш аккаунт.")}
+                {checkingSite
+                  ? t("common.loading", "Загрузка...")
+                  : onSiteBlock
+                    ? onSiteText
+                    : t("profile.delete_confirm", "Мы удалим ваш аккаунт.")}
               </p>
             </div>
+            {onSiteBlock ? (
+              <div className="p-4">
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(false)}
+                  className="theme-button w-full"
+                >
+                  {t("common.close", "Закрыть")}
+                </button>
+              </div>
+            ) : (
             <div className="grid grid-cols-2 gap-2 p-4">
               <button
                 type="button"
-                disabled={deleting}
+                disabled={deleting || checkingSite}
                 onClick={() => setDeleteOpen(false)}
                 className="theme-button-secondary"
               >
@@ -224,7 +294,7 @@ export default function EditAccountPage({
               </button>
               <button
                 type="button"
-                disabled={deleting}
+                disabled={deleting || checkingSite}
                 onClick={() => void confirmDeleteAccount()}
                 className="theme-button"
                 style={{ background: "var(--app-danger)" }}
@@ -234,6 +304,7 @@ export default function EditAccountPage({
                   : t("profile.delete_yes", "Да, удалить")}
               </button>
             </div>
+            )}
           </div>
         </div>
       ) : null}

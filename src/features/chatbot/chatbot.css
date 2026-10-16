@@ -198,7 +198,7 @@
 .chat-room__composer {
   flex-shrink: 0;
   padding: 0.65rem var(--app-page-pad-x)
-    max(0.75rem, env(safe-area-inset-bottom, 0px));
+    max(0.75rem, var(--app-safe-bottom));
   border-top: var(--app-border-width) solid
     color-mix(in oklab, var(--app-border) 85%, transparent);
   background: var(--app-block);

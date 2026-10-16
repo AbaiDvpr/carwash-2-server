@@ -9,6 +9,7 @@ import type { StationChargerStand, StationConnectorPort } from "@/data/stations"
 import { formatPowerKw, formatPricePerKwh } from "@/features/map/evConnectors";
 import { useT } from "@/hooks/useT";
 import { ApiError } from "@/lib/api";
+import { safeApiError } from "@/lib/apiFail";
 import { parseEvStationId } from "@/lib/api/ev";
 import { startEvSession, type EvSession } from "@/lib/api/evSessions";
 import { formatStandTitle } from "@/lib/standTitle";
@@ -387,8 +388,7 @@ export default function EvChargeFlow({
       const message =
         body?.errors?.pistol_id?.[0] ??
         body?.errors?.location_id?.[0] ??
-        body?.message ??
-        t("ev.start_error", "Не удалось запустить зарядку");
+        safeApiError(err, t);
       setStartError(message);
     } finally {
       setStarting(false);

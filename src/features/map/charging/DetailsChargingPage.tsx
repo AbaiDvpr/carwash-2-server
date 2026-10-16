@@ -12,6 +12,7 @@ import EvChargeCheckout, {
 } from "@/features/map/home/components/EvChargeCheckout";
 import type { EvChargeStep } from "@/features/map/home/components/EvChargeFlow";
 import ChargingSessionView from "@/features/map/charging/ChargingSessionView";
+import ApiFailBlock from "@/components/ui/ApiFailBlock";
 import {
   fetchEvSession,
   plannedEndAtMs,
@@ -98,12 +99,7 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
         setLoadError(null);
       } else {
         setNotFoundSession(false);
-        setLoadError(
-          body?.message ??
-            (err instanceof Error
-              ? err.message
-              : t("ev.session_load_error", "Не удалось загрузить сессию")),
-        );
+        setLoadError(t("common.api_error", "Ошибка"));
       }
     } finally {
       setReady(true);
@@ -216,7 +212,22 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
     );
   }
 
-  if (loadError || !evSession || notFound || error || !station || !stand || !port || !limits) {
+  if (loadError) {
+    return (
+      <PageLayout title={t("ev.charging_title", "Идёт зарядка")} className="page--profile-edit">
+        <div className="profile-edit details-charging">
+          <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
+            <BackButton onClick={goToMap}>
+              {t("common.back", "Назад")}
+            </BackButton>
+          </div>
+          <ApiFailBlock onRetry={() => void reloadSession()} />
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!evSession || notFound || error || !station || !stand || !port || !limits) {
     return (
       <PageLayout title={t("ev.charging_title", "Идёт зарядка")} className="page--profile-edit">
         <div className="profile-edit details-charging">
@@ -227,16 +238,17 @@ export default function DetailsChargingPage({ id }: DetailsChargingPageProps) {
           </div>
           <div className="details-charging__empty" role="alert">
             <h1 className="details-charging__empty-title">
-              {loadError ||
-                (notFound
-                  ? t("station.not_found", "Точка не найдена")
-                  : error || t("station.load_error", "Не удалось загрузить"))}
+              {notFound
+                ? t("station.not_found", "Точка не найдена")
+                : t("common.api_error", "Ошибка")}
             </h1>
             <p className="details-charging__empty-text">
-              {t(
-                "ev.session_load_hint",
-                "Попробуй открыть услугу снова с карты.",
-              )}
+              {notFound
+                ? t(
+                    "ev.session_load_hint",
+                    "Попробуй открыть услугу снова с карты.",
+                  )
+                : t("common.api_error_hint", "Обновите приложение")}
             </p>
             <button type="button" className="theme-button w-full" onClick={goToMap}>
               {t("common.to_map", "На карту")}

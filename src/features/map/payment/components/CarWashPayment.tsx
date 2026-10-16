@@ -1,18 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
 import type { Station } from "@/data/stations";
 import { ApiError } from "@/lib/api";
+import { apiFailMessage, safeApiError } from "@/lib/apiFail";
 import { parseEvStationId } from "@/lib/api/ev";
+import { fetchUserInfo } from "@/lib/api/auth";
 import { payCarWash, payEv, payFromBalance } from "@/lib/api/payments";
-import { fetchCwSession } from "@/lib/api/sessions";
+import { fetchCwSession, washLeftWithoutWash } from "@/lib/api/sessions";
 import { useT, useLocale } from "@/hooks/useT";
-import { localizeWashTariff, fetchCwCanPay } from "@/lib/api/cw";
+import {
+  localizeWashTariff,
+  fetchCwCanPay,
+  type CwCanPayCar,
+  type CwPaymentAccount,
+} from "@/lib/api/cw";
 import { washSessionPath } from "@/features/map/home/mapLiveSession";
 import {
+  partnerBalanceLabel,
+  payPhrase,
   washPayCheckMessage,
   washPayCheckTitle,
   washPayCheckCodeFromApi,
@@ -26,7 +36,11 @@ import {
 } from "@/features/profile/abonements";
 import WashPrepareTimer from "@/features/map/wash/WashPrepareTimer";
 import WashSessionView from "@/features/map/wash/WashSessionView";
-import { playWashDoneSound } from "@/features/map/wash/washSounds";
+import {
+  armWashDoneSound,
+  startWashDoneSound,
+  stopWashDoneSound,
+} from "@/features/map/wash/washSounds";
 import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
 import "@/features/profile/components/profile.css";
 import "@/features/map/charging/charging-session-variants.css";
@@ -62,6 +76,12 @@ function IconFail() {
       <path strokeLinecap="round" d="M7 7l10 10M17 7 7 17" />
     </svg>
   );
+}
+
+function limitFraction(left: number, limit: number): string {
+  const amount = (value: number) =>
+    Math.round(value).toLocaleString("ru-RU");
+  return `${amount(left)}/${amount(limit)} ₸`;
 }
 
 function RadioMark({ checked }: { checked: boolean }) {
@@ -102,10 +122,9 @@ function paymentErrorMessage(
       body?.errors?.location_id?.[0] ??
       body?.errors?.abonement_id?.[0];
     if (fieldError) return fieldError;
-    if (body?.message) return body.message;
+    return safeApiError(err, t);
   }
-  if (err instanceof Error) return err.message;
-  return fallback;
+  return apiFailMessage(t);
 }
 
 export default function CarWashPayment({
@@ -118,20 +137,46 @@ export default function CarWashPayment({
   const searchParams = useSearchParams();
   const resumeSessionParam = searchParams.get("session");
   const carIdParam = searchParams.get("car_id");
+  const payFromParam = searchParams.get("pay_from");
+  const partnerIdParam = searchParams.get("partner_id");
+  const partnerIdFromQuery = (() => {
+    if (!partnerIdParam) return null;
+    const n = Number.parseInt(partnerIdParam, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
   const carIdFromQuery = (() => {
     if (!carIdParam) return null;
     const n = Number.parseInt(carIdParam, 10);
     return Number.isFinite(n) && n > 0 ? n : null;
   })();
-  const { balance, loading: balanceLoading, refresh: refreshBalance } = useUserBalance();
   const [selectedTariffKey, setSelectedTariffKey] = useState<string | null>(
     () => tariff,
   );
   const [paySource, setPaySource] = useState<"balance" | string>("balance");
+  const [payFrom, setPayFrom] = useState<"self" | "partner">(() =>
+    payFromParam === "partner" ? "partner" : "self",
+  );
+  const [partnerId, setPartnerId] = useState<number | null>(partnerIdFromQuery);
+  const [paymentAccounts, setPaymentAccounts] = useState<CwPaymentAccount[]>([]);
+  const [spendMonth, setSpendMonth] = useState<number | null>(null);
+  const [spendLeft, setSpendLeft] = useState<number | null>(null);
+  const [spendUsed, setSpendUsed] = useState<number | null>(null);
+  const [payCars, setPayCars] = useState<CwCanPayCar[]>([]);
+  const [spendReady, setSpendReady] = useState(false);
+  const [balanceDrawerOpen, setBalanceDrawerOpen] = useState(false);
+  const [balancePicked, setBalancePicked] = useState(false);
   const [abonCards, setAbonCards] = useState<AbonementCard[]>([]);
   const [step, setStep] = useState<PayStep>(() =>
     resumeSessionParam ? "processing" : "form",
   );
+  const washBusy =
+    step === "processing" ||
+    step === "preparing" ||
+    step === "washing" ||
+    step === "success";
+  const { balance, loading: balanceLoading, refresh: refreshBalance } = useUserBalance({
+    syncOnFocus: !washBusy,
+  });
   const [payError, setPayError] = useState<string | null>(null);
   /** Код ошибки оплаты мойки — текст всегда через t()/locale при рендере */
   const [payErrorCode, setPayErrorCode] = useState<string | null>(null);
@@ -145,16 +190,53 @@ export default function CarWashPayment({
   const [washStartAt, setWashStartAt] = useState<string | null>(null);
   const [washTariffTitle, setWashTariffTitle] = useState<string | null>(null);
   const [washPrice, setWashPrice] = useState<number | null>(null);
+  const [washLeftBuilding, setWashLeftBuilding] = useState(false);
+  const [canRetryPay, setCanRetryPay] = useState(true);
   const [resumeReady, setResumeReady] = useState(() => !resumeSessionParam);
   const resumeRequestRef = useRef(0);
-  const doneSoundPlayedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const cards = await fetchAbonementCards();
-        if (!cancelled) setAbonCards(washAbonements(cards));
+        const [cards, user] = await Promise.all([
+          fetchAbonementCards(),
+          fetchUserInfo().catch(() => null),
+        ]);
+        if (cancelled) return;
+        setAbonCards(washAbonements(cards));
+        const partners =
+          user?.partners && user.partners.length > 0
+            ? user.partners
+            : user?.partner
+              ? [user.partner]
+              : [];
+        if (partners.length > 0) {
+          setPaymentAccounts((prev) => {
+            if (prev.some((a) => a.id === "partner")) return prev;
+            return [
+              {
+                id: "self",
+                label: payPhrase(t, "pay_self", locale),
+                balance: Number(user?.balance) || 0,
+              },
+              ...partners.map((partner) => ({
+                id: "partner" as const,
+                label: partnerBalanceLabel(t, locale, partner.name),
+                balance: Number(partner.balance) || 0,
+                partner_user_id: partner.id,
+                phone: partner.phone,
+                name: partner.name ?? null,
+              })),
+            ];
+          });
+          setPartnerId((current) => {
+            if (current != null && partners.some((partner) => partner.id === current)) {
+              return current;
+            }
+            return partners.length === 1 ? partners[0]!.id : current;
+          });
+        }
       } catch {
         if (!cancelled) setAbonCards([]);
       }
@@ -162,7 +244,7 @@ export default function CarWashPayment({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t, locale]);
 
   // До оплаты: на площадке ли машина / нет ли уже активной мойки.
   useEffect(() => {
@@ -173,10 +255,36 @@ export default function CarWashPayment({
     let cancelled = false;
     void (async () => {
       try {
-        const check = await fetchCwCanPay(cwId, carIdFromQuery ?? undefined);
+        const check = await fetchCwCanPay(
+          cwId,
+          carIdFromQuery ?? undefined,
+          partnerIdFromQuery ?? undefined,
+        );
         if (cancelled) return;
         if (check.car_id != null) setPayCarId(check.car_id);
         if (check.car_plate) setPayCarPlate(check.car_plate);
+        if (Array.isArray(check.payment_accounts) && check.payment_accounts.length > 0) {
+          setPaymentAccounts(check.payment_accounts);
+        }
+        setSpendMonth(
+          check.spend_month != null && Number.isFinite(Number(check.spend_month))
+            ? Number(check.spend_month)
+            : null,
+        );
+        setSpendLeft(
+          check.spend_month_left != null &&
+            Number.isFinite(Number(check.spend_month_left))
+            ? Number(check.spend_month_left)
+            : null,
+        );
+        setSpendUsed(
+          check.spend_month_used != null &&
+            Number.isFinite(Number(check.spend_month_used))
+            ? Number(check.spend_month_used)
+            : null,
+        );
+        setPayCars(Array.isArray(check.cars) ? check.cars : []);
+        setSpendReady(true);
         if (
           check.code === "active_wash" &&
           check.session_id != null &&
@@ -200,7 +308,7 @@ export default function CarWashPayment({
     return () => {
       cancelled = true;
     };
-  }, [station.id, resumeSessionParam, router, carIdFromQuery]);
+  }, [station.id, resumeSessionParam, router, carIdFromQuery, partnerIdFromQuery]);
 
   // Возврат к активной мойке (?session=id) — очередь / приглашение / мойка.
   useEffect(() => {
@@ -248,9 +356,13 @@ export default function CarWashPayment({
           setWashPrice(resumePrice);
         }
 
-        if (status === "completed") {
+        const walkedAway = washLeftWithoutWash(session);
+        setWashLeftBuilding(walkedAway);
+
+        if (walkedAway || status === "completed") {
           setStep("success");
         } else if (status === "cancelled" || status === "error") {
+          setCanRetryPay(false);
           setPayError(
             status === "error"
               ? t("wash.session_failed", "Сессия мойки завершилась с ошибкой")
@@ -268,6 +380,7 @@ export default function CarWashPayment({
         setPayError(
           t("wash.resume_failed", "Не удалось открыть активную мойку"),
         );
+        setCanRetryPay(false);
         setStep("error");
       } finally {
         if (!cancelled && requestId === resumeRequestRef.current) {
@@ -281,33 +394,155 @@ export default function CarWashPayment({
     };
   }, [resumeSessionParam, t]);
 
-  const tariffs = station.tariff.map((tariff) => localizeWashTariff(tariff, locale));
-  const selected = tariffs.find((tariff) => {
-    const key = tariff.id != null ? String(tariff.id) : tariff.title;
+  const tariffs = station.tariff.map((tariffRow) => localizeWashTariff(tariffRow, locale));
+  const hasPartnerPay = paymentAccounts.some((a) => a.id === "partner");
+  const effectivePayFrom =
+    paySource === "balance" && hasPartnerPay ? payFrom : "self";
+  const partnerAccount =
+    paymentAccounts.find(
+      (account) =>
+        account.id === "partner" &&
+        (partnerId == null || account.partner_user_id === partnerId),
+    ) ?? paymentAccounts.find((account) => account.id === "partner");
+  const selfAccount = paymentAccounts.find((a) => a.id === "self");
+  const payingFromPartner = effectivePayFrom === "partner";
+  const spendSnapshot = useMemo(() => {
+    const car =
+      payCars.find((row) => row.id === (payCarId ?? carIdFromQuery)) ??
+      payCars.find((row) => row.car_plate === payCarPlate) ??
+      null;
+    const partners = car?.partners ?? [];
+    const wantedId = partnerId ?? partnerIdFromQuery;
+    const partner =
+      partners.find((row) => row.id === wantedId) ??
+      (partners.length === 1 ? partners[0] : null) ??
+      null;
+    const source = partner
+      ? {
+          limit: partner.spend_month,
+          left: partner.spend_month_left,
+          used: partner.spend_month_used,
+        }
+      : partners.length > 0
+        ? null
+        : { limit: spendMonth, left: spendLeft, used: spendUsed };
+    if (!source || source.limit == null || source.left == null) return null;
+    const limit = Number(source.limit);
+    const left = Number(source.left);
+    if (!Number.isFinite(limit) || !Number.isFinite(left)) return null;
+    const used = source.used == null ? Math.max(0, limit - left) : Number(source.used);
+    return {
+      limit,
+      left,
+      used: Number.isFinite(used) ? used : Math.max(0, limit - left),
+    };
+  }, [
+    payCars,
+    payCarId,
+    carIdFromQuery,
+    payCarPlate,
+    partnerId,
+    partnerIdFromQuery,
+    spendMonth,
+    spendLeft,
+    spendUsed,
+  ]);
+
+  /** Месячный лимит компании только при оплате с её баланса. */
+  const applySpend = payingFromPartner;
+
+  const tariffWithinSpend = (price: number) => {
+    if (!applySpend || !spendReady) return true;
+    if (!spendSnapshot) return false;
+    return price - 0.0001 <= spendSnapshot.left;
+  };
+
+  const selected = tariffs.find((tariffRow) => {
+    const key = tariffRow.id != null ? String(tariffRow.id) : tariffRow.title;
     return key === selectedTariffKey;
   });
-  const balanceValue = balance ?? 0;
+  const balanceValue = balance ?? selfAccount?.balance ?? 0;
+  const chargeBalance =
+    effectivePayFrom === "partner"
+      ? Number(partnerAccount?.balance ?? 0)
+      : balanceValue;
   const payWithAbonement = paySource !== "balance";
+  const selectedInSpend =
+    selected != null && tariffWithinSpend(selected.price);
+  const carPartners = useMemo(() => {
+    const car =
+      payCars.find((row) => row.id === (payCarId ?? carIdFromQuery)) ??
+      payCars.find((row) => row.car_plate === payCarPlate) ??
+      null;
+    return (car?.partners ?? []).filter((partner) => partner.id > 0);
+  }, [payCars, payCarId, carIdFromQuery, payCarPlate]);
+
+  const mustChooseBalance =
+    spendReady && carPartners.length > 0 && paySource === "balance";
+  const balanceReady = !mustChooseBalance || balancePicked;
   const canAffordBalance =
-    selected != null && Number.isFinite(balanceValue) && balanceValue >= selected.price;
+    selected != null &&
+    selectedInSpend &&
+    balanceReady &&
+    Number.isFinite(chargeBalance) &&
+    chargeBalance >= selected.price;
+  const selfAvailable =
+    selected == null ||
+    (Number.isFinite(balanceValue) && balanceValue + 0.0001 >= selected.price);
   const canAfford =
-    selected != null && (payWithAbonement || canAffordBalance);
+    selected != null &&
+    selectedInSpend &&
+    balanceReady &&
+    (payWithAbonement || canAffordBalance);
   const locked =
     step === "processing" ||
     step === "preparing" ||
     step === "washing" ||
     step === "success";
 
-  const goMap = () => router.push("/");
-  const finishWash = useCallback((info?: { status?: string }) => {
+  const goMap = () => {
+    stopWashDoneSound();
+    router.push("/");
+  };
+  const finishWash = useCallback((info?: { status?: string; leftWithoutWash?: boolean }) => {
     const status = (info?.status ?? "completed").toLowerCase();
-    if (status === "completed" && !doneSoundPlayedRef.current) {
-      doneSoundPlayedRef.current = true;
-      playWashDoneSound();
+    const walkedAway = Boolean(info?.leftWithoutWash);
+    setWashLeftBuilding(walkedAway);
+    if (walkedAway || status === "completed") {
+      setStep("success");
+      return;
+    }
+    if (status === "cancelled" || status === "error") {
+      setCanRetryPay(false);
+      setPayError(
+        status === "error"
+          ? t("wash.session_failed", "Сессия мойки завершилась с ошибкой")
+          : t("wash.session_cancelled", "Мойка отменена"),
+      );
+      setStep("error");
+      return;
     }
     setStep("success");
-  }, []);
+  }, [t]);
   const startWash = useCallback(() => setStep("washing"), []);
+
+  useEffect(() => {
+    if (step === "success") {
+      startWashDoneSound();
+      return () => stopWashDoneSound();
+    }
+
+    if (
+      step === "processing" ||
+      step === "preparing" ||
+      step === "washing"
+    ) {
+      armWashDoneSound();
+      return;
+    }
+
+    stopWashDoneSound();
+  }, [step]);
 
   const handleBack = () => {
     if (step === "processing") {
@@ -332,8 +567,11 @@ export default function CarWashPayment({
 
   const handlePay = async () => {
     if (!selected || !canAfford) return;
+    armWashDoneSound();
     setPayError(null);
     setPayErrorCode(null);
+    setCanRetryPay(true);
+    setWashLeftBuilding(false);
 
     const cwId = /^\d+$/.test(station.id) ? Number.parseInt(station.id, 10) : null;
     if (cwId != null && Number.isFinite(cwId)) {
@@ -359,6 +597,12 @@ export default function CarWashPayment({
         setStep("error");
         return;
       }
+    }
+
+    if (cwId != null && !selectedInSpend) {
+      setPayErrorCode("spend_limit");
+      setStep("error");
+      return;
     }
 
     setStep("processing");
@@ -389,6 +633,18 @@ export default function CarWashPayment({
           description,
           ...(payCarId != null ? { car_id: payCarId } : {}),
           ...abonPayload,
+          ...(payWithAbonement
+            ? {}
+            : {
+                pay_from: effectivePayFrom,
+                ...(effectivePayFrom === "partner" &&
+                (partnerId ?? partnerAccount?.partner_user_id)
+                  ? {
+                      partner_id:
+                        partnerId ?? partnerAccount?.partner_user_id,
+                    }
+                  : {}),
+              }),
         });
         const sessionId = paid.session?.id ?? null;
         if (sessionId == null) {
@@ -540,8 +796,13 @@ export default function CarWashPayment({
                 </p>
               ) : null}
               <p className="ev-pay-status__text">
-                {t("payment.success", "Оплата прошла успешно")}
-                {washPrice != null || selected
+                {washLeftBuilding
+                  ? t(
+                      "wash.left_building_done",
+                      "Вы вышли из здания. Оплата уже прошла — мойка завершена.",
+                    )
+                  : t("payment.success", "Оплата прошла успешно")}
+                {!washLeftBuilding && (washPrice != null || selected)
                   ? `. ${Math.round(washPrice ?? selected?.price ?? 0)} ₸ · ${
                       washTariffTitle ?? selected?.title ?? ""
                     }`
@@ -573,26 +834,39 @@ export default function CarWashPayment({
             <h1 className="ev-pay-status__title">
               {payErrorCode
                 ? washPayCheckTitle(t, payErrorCode, locale)
-                : t("ev.pay_error_title", "Ошибка оплаты")}
+                : canRetryPay
+                  ? t("ev.pay_error_title", "Ошибка оплаты")
+                  : payError || t("wash.session_cancelled", "Мойка отменена")}
             </h1>
             <p className="ev-pay-status__text">
               {payErrorCode
                 ? washPayCheckMessage(t, payErrorCode, locale)
-                : payError ||
-                  t(
-                    "ev.pay_error_text",
-                    "Процесс оплаты был прерван по техническим причинам.",
-                  )}
+                : canRetryPay
+                  ? payError ||
+                    t(
+                      "ev.pay_error_text",
+                      "Процесс оплаты был прерван по техническим причинам.",
+                    )
+                  : t(
+                      "wash.session_ended_text",
+                      "Сессия уже закрыта. Повторно списывать оплату не нужно.",
+                    )}
             </p>
             <div className="ev-pay-status__footer">
               <div className="ev-pay-status__actions">
-                <button
-                  type="button"
-                  className="theme-button w-full"
-                  onClick={() => void handlePay()}
-                >
-                  {t("common.retry", "Повторить")}
-                </button>
+                {canRetryPay ? (
+                  <button
+                    type="button"
+                    className="theme-button w-full"
+                    onClick={() => void handlePay()}
+                  >
+                    {t("common.retry", "Повторить")}
+                  </button>
+                ) : (
+                  <button type="button" className="theme-button w-full" onClick={goMap}>
+                    {t("common.done", "Готово")}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="theme-button-secondary w-full"
@@ -635,112 +909,168 @@ export default function CarWashPayment({
                     </p>
                   </div>
                 ) : null}
-                <div className="profile-card__balance-item">
-                  <p className="profile-card__balance-label">
-                    {t("home.balance", "Баланс")}
-                  </p>
-                  <p className="profile-card__balance-value">
-                    {balanceLoading && balance == null
-                      ? "…"
-                      : formatBalance(balanceValue)}
-                  </p>
-                </div>
+                {!spendReady ? (
+                  <div className="profile-card__balance-item">
+                    <p className="profile-card__balance-label">
+                      {t("home.balance", "Баланс")}
+                    </p>
+                    <p className="profile-card__balance-value">…</p>
+                  </div>
+                ) : carPartners.length > 0 ? (
+                  <button
+                    type="button"
+                    className="profile-card__balance-item cw-pay__balance-pick"
+                    onClick={() => setBalanceDrawerOpen(true)}
+                  >
+                    <p className="profile-card__balance-label">
+                      {!balancePicked
+                        ? payPhrase(t, "pick_balance", locale)
+                        : payingFromPartner
+                          ? partnerAccount?.name?.trim() ||
+                            partnerAccount?.phone ||
+                            payPhrase(t, "pay_company", locale)
+                          : payPhrase(t, "pay_self", locale)}
+                    </p>
+                    <p className="profile-card__balance-value">
+                      {!balancePicked
+                        ? payPhrase(t, "not_chosen", locale)
+                        : payingFromPartner && spendSnapshot
+                          ? limitFraction(spendSnapshot.left, spendSnapshot.limit)
+                          : balanceLoading && balance == null
+                            ? "…"
+                            : formatBalance(balanceValue)}
+                    </p>
+                  </button>
+                ) : (
+                  <div className="profile-card__balance-item">
+                    <p className="profile-card__balance-label">
+                      {t("home.balance", "Баланс")}
+                    </p>
+                    <p className="profile-card__balance-value">
+                      {balanceLoading && balance == null
+                        ? "…"
+                        : formatBalance(balanceValue)}
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
-            <section className="profile-card">
-              <div className="profile-card__balance">
-                <p className="cw-pay__title">{t("payment.pay_method", "Способ оплаты")}</p>
-                <div
-                  className="cw-pay__tariffs"
-                  role="radiogroup"
-                  aria-label={t("payment.pay_method", "Способ оплаты")}
-                >
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={paySource === "balance"}
-                    className={`cw-pay__tariff${paySource === "balance" ? " is-on" : ""}`}
-                    disabled={locked}
-                    onClick={() => setPaySource("balance")}
+            {abonCards.length > 0 ? (
+              <section className="profile-card">
+                <div className="profile-card__balance">
+                  <p className="cw-pay__title">{t("payment.pay_method", "Способ оплаты")}</p>
+                  <div
+                    className="cw-pay__tariffs"
+                    role="radiogroup"
+                    aria-label={t("payment.pay_method", "Способ оплаты")}
                   >
-                    <RadioMark checked={paySource === "balance"} />
-                    <span className="cw-pay__tariff-body">
-                      <span className="cw-pay__tariff-title">
-                        {t("home.balance", "Баланс")}
-                      </span>
-                      <span className="cw-pay__tariff-desc">
-                        {balanceLoading && balance == null
-                          ? "…"
-                          : formatBalance(balanceValue)}
-                      </span>
-                    </span>
-                  </button>
-                  {abonCards.map((card) => {
-                    const checked = paySource === card.id;
-                    return (
-                      <button
-                        key={card.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={checked}
-                        className={`cw-pay__tariff${checked ? " is-on" : ""}`}
-                        disabled={locked}
-                        onClick={() => setPaySource(card.id)}
-                      >
-                        <RadioMark checked={checked} />
-                        <span className="cw-pay__tariff-body">
-                          <span className="cw-pay__tariff-title">{card.title}</span>
-                          <span className="cw-pay__tariff-desc">
-                            {t("profile.abonement_subtitle_wash", "{n} моек").replace(
-                              "{n}",
-                              String(card.remainingWashes ?? 0),
-                            )}
-                          </span>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={paySource === "balance"}
+                      className={`cw-pay__tariff${paySource === "balance" ? " is-on" : ""}`}
+                      disabled={locked}
+                      onClick={() => setPaySource("balance")}
+                    >
+                      <RadioMark checked={paySource === "balance"} />
+                      <span className="cw-pay__tariff-body">
+                        <span className="cw-pay__tariff-title">
+                          {t("home.balance", "Баланс")}
                         </span>
-                      </button>
-                    );
-                  })}
+                        {payFrom === "partner" && hasPartnerPay ? null : (
+                          <span className="cw-pay__tariff-desc">
+                            {balanceLoading && balance == null
+                              ? "…"
+                              : formatBalance(balanceValue)}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                    {abonCards.map((card) => {
+                      const checked = paySource === card.id;
+                      return (
+                        <button
+                          key={card.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={checked}
+                          className={`cw-pay__tariff${checked ? " is-on" : ""}`}
+                          disabled={locked}
+                          onClick={() => setPaySource(card.id)}
+                        >
+                          <RadioMark checked={checked} />
+                          <span className="cw-pay__tariff-body">
+                            <span className="cw-pay__tariff-title">{card.title}</span>
+                            <span className="cw-pay__tariff-desc">
+                              {t("profile.abonement_subtitle_wash", "{n} моек").replace(
+                                "{n}",
+                                String(card.remainingWashes ?? 0),
+                              )}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            ) : null}
 
             <section className="profile-card">
               <div className="profile-card__balance">
                 <p className="cw-pay__title">{t("payment.tariffs", "Тарифы")}</p>
+                {applySpend && spendReady && !spendSnapshot ? (
+                  <p className="cw-pay__tariff-desc">
+                    {payPhrase(t, "no_month_limit", locale)}
+                  </p>
+                ) : null}
                 <div
                   className="cw-pay__tariffs"
                   role="radiogroup"
                   aria-label={t("payment.tariffs", "Тарифы")}
                 >
-                  {tariffs.map((tariff) => {
-                    const key = tariff.id != null ? String(tariff.id) : tariff.title;
+                  {tariffs.map((tariffRow) => {
+                    const key =
+                      tariffRow.id != null ? String(tariffRow.id) : tariffRow.title;
                     const isSelected = selectedTariffKey === key;
+                    const inSpend = tariffWithinSpend(tariffRow.price);
                     return (
                       <button
                         key={key}
                         type="button"
                         role="radio"
                         aria-checked={isSelected}
-                        className={`cw-pay__tariff${isSelected ? " is-on" : ""}`}
-                        disabled={locked}
+                        className={`cw-pay__tariff${isSelected ? " is-on" : ""}${
+                          !inSpend ? " is-disabled" : ""
+                        }`}
+                        disabled={locked || !inSpend}
                         onClick={() => setSelectedTariffKey(key)}
                       >
                         <RadioMark checked={isSelected} />
                         <span className="cw-pay__tariff-body">
-                          <span className="cw-pay__tariff-title">{tariff.title}</span>
-                          {tariff.description ? (
-                            <span className="cw-pay__tariff-desc">{tariff.description}</span>
+                          <span className="cw-pay__tariff-title">{tariffRow.title}</span>
+                          {tariffRow.description ? (
+                            <span className="cw-pay__tariff-desc">
+                              {tariffRow.description}
+                            </span>
                           ) : null}
-                          {tariff.items && tariff.items.length > 0 ? (
+                          {!inSpend ? (
+                            <span className="cw-pay__tariff-desc">
+                              {payPhrase(t, "out_of_spend", locale)}
+                            </span>
+                          ) : null}
+                          {tariffRow.items && tariffRow.items.length > 0 ? (
                             <ul className="cw-pay__tariff-items">
-                              {tariff.items.map((item) => (
+                              {tariffRow.items.map((item) => (
                                 <li key={item}>· {item}</li>
                               ))}
                             </ul>
                           ) : null}
                         </span>
-                        <span className="cw-pay__tariff-price">{tariff.price} ₸</span>
+                        <span className="cw-pay__tariff-price">
+                          {formatBalance(tariffRow.price)}
+                        </span>
                       </button>
                     );
                   })}
@@ -801,6 +1131,156 @@ export default function CarWashPayment({
                 </button>
               </div>
             ) : null}
+            {balanceDrawerOpen && carPartners.length > 0
+              ? createPortal(
+                  <div className="cw-pay-sheet" role="presentation">
+                    <button
+                      type="button"
+                      className="cw-pay-sheet__backdrop"
+                      aria-label={t("common.close", "Закрыть")}
+                      onClick={() => setBalanceDrawerOpen(false)}
+                    />
+                    <div
+                      className="cw-pay-sheet__panel"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label={payPhrase(t, "which_balance", locale)}
+                    >
+                      <div className="cw-pay-sheet__head">
+                        <p className="cw-pay-sheet__title">
+                          {payPhrase(t, "which_balance", locale)}
+                        </p>
+                        <button
+                          type="button"
+                          className="cw-pay-sheet__close"
+                          onClick={() => setBalanceDrawerOpen(false)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div
+                        className="cw-pay-sheet__list"
+                        role="radiogroup"
+                        aria-label={payPhrase(t, "which_balance", locale)}
+                      >
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={balancePicked && payFrom !== "partner"}
+                          aria-disabled={!selfAvailable}
+                          disabled={!selfAvailable}
+                          className={`cw-pay-sheet__option${
+                            balancePicked && payFrom !== "partner" ? " is-on" : ""
+                          }`}
+                          onClick={() => {
+                            if (!selfAvailable) return;
+                            setPayFrom("self");
+                            setBalancePicked(true);
+                            setBalanceDrawerOpen(false);
+                          }}
+                        >
+                          <RadioMark checked={balancePicked && payFrom !== "partner"} />
+                          <span className="cw-pay-sheet__option-body">
+                            <span className="cw-pay-sheet__option-title">
+                              {payPhrase(t, "pay_self", locale)}
+                            </span>
+                            <span className="cw-pay-sheet__option-desc">
+                              {formatBalance(balanceValue)}
+                            </span>
+                          </span>
+                          <span
+                            className={`cw-pay-sheet__badge${
+                              selfAvailable ? " is-ok" : ""
+                            }`}
+                          >
+                            {selfAvailable
+                              ? payPhrase(t, "available", locale)
+                              : payPhrase(t, "not_available", locale)}
+                          </span>
+                        </button>
+                        {carPartners.map((partner) => {
+                          const account = paymentAccounts.find(
+                            (row) =>
+                              row.id === "partner" &&
+                              row.partner_user_id === partner.id,
+                          );
+                          const title =
+                            partner.name?.trim() ||
+                            account?.name?.trim() ||
+                            partner.phone ||
+                            account?.phone ||
+                            `#${partner.id}`;
+                          const left =
+                            partner.spend_month_left != null &&
+                            Number.isFinite(Number(partner.spend_month_left))
+                              ? Number(partner.spend_month_left)
+                              : null;
+                          const limit =
+                            partner.spend_month != null &&
+                            Number.isFinite(Number(partner.spend_month))
+                              ? Number(partner.spend_month)
+                              : null;
+                          const price = selected?.price;
+                          const wallet = Number(account?.balance ?? 0);
+                          const walletCovers =
+                            price == null ||
+                            (Number.isFinite(wallet) && wallet + 0.0001 >= price);
+                          const available =
+                            left != null &&
+                            (price == null || price - 0.0001 <= left) &&
+                            walletCovers;
+                          const checked =
+                            balancePicked &&
+                            payFrom === "partner" &&
+                            partnerId === partner.id;
+                          const limitLine =
+                            left != null && limit != null
+                              ? limitFraction(left, limit)
+                              : payPhrase(t, "no_month_limit", locale);
+                          return (
+                            <button
+                              key={partner.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={checked}
+                              aria-disabled={!available}
+                              disabled={!available}
+                              className={`cw-pay-sheet__option${checked ? " is-on" : ""}`}
+                              onClick={() => {
+                                if (!available) return;
+                                setPayFrom("partner");
+                                setPartnerId(partner.id);
+                                setBalancePicked(true);
+                                setBalanceDrawerOpen(false);
+                              }}
+                            >
+                              <RadioMark checked={checked} />
+                              <span className="cw-pay-sheet__option-body">
+                                <span className="cw-pay-sheet__option-title">
+                                  {title}
+                                </span>
+                                <span className="cw-pay-sheet__option-desc">
+                                  {limitLine}
+                                </span>
+                              </span>
+                              <span
+                                className={`cw-pay-sheet__badge${
+                                  available ? " is-ok" : ""
+                                }`}
+                              >
+                                {available
+                                  ? payPhrase(t, "available", locale)
+                                  : payPhrase(t, "not_available", locale)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>,
+                  document.body,
+                )
+              : null}
           </div>
         ) : null}
       </div>

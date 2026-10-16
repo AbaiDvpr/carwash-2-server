@@ -255,6 +255,7 @@ export function toEvStation(location: EvLocation): Station {
       const typeLabel = pistol.type ? `${pistol.type} · ` : "";
       return {
         id: pistol.id,
+        number: pistol.id,
         status: display.status,
         statusLabel: `${typeLabel}${display.statusLabel}`,
       };

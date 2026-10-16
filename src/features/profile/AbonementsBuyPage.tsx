@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
+import ApiFailBlock from "@/components/ui/ApiFailBlock";
 import { ApiError } from "@/lib/api";
 import { useT } from "@/hooks/useT";
 import {
@@ -181,9 +182,7 @@ export default function AbonementsBuyPage() {
         }
       } catch {
         if (!cancelled) {
-          setError(
-            t("profile.abonements_load_error", "Не удалось загрузить абонементы"),
-          );
+          setError(t("common.api_error", "Ошибка"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -329,6 +328,10 @@ export default function AbonementsBuyPage() {
             <p className="profile-garage-empty">
               {t("common.loading", "Загрузка…")}
             </p>
+          </section>
+        ) : error && offers.length === 0 ? (
+          <section className="profile-card">
+            <ApiFailBlock onRetry={() => window.location.reload()} />
           </section>
         ) : error ? (
           <section className="profile-card">

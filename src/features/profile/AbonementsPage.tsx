@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
+import ApiFailBlock from "@/components/ui/ApiFailBlock";
 import { useT } from "@/hooks/useT";
 import { fetchAbonementCards, type AbonementCard } from "./abonements";
 import AbonementPlasticCard from "./AbonementPlasticCard";
@@ -27,9 +28,7 @@ export default function AbonementsPage() {
         }
       } catch {
         if (!cancelled) {
-          setError(
-            t("profile.abonements_load_error", "Не удалось загрузить абонементы"),
-          );
+          setError(t("common.api_error", "Ошибка"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -58,7 +57,7 @@ export default function AbonementsPage() {
           </section>
         ) : error ? (
           <section className="profile-card">
-            <p className="profile-garage-empty">{error}</p>
+            <ApiFailBlock onRetry={() => window.location.reload()} />
           </section>
         ) : cards.length === 0 ? (
           <section className="profile-card">

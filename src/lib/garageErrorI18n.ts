@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api";
+import { safeApiError } from "@/lib/apiFail";
 import type { AppLocale } from "@/lib/i18n/storage";
 
 type LocaleText = { ru: string; en: string; kk: string };
@@ -25,6 +26,12 @@ const POWER_REQUIRED: LocaleText = {
   ru: "Выберите тип питания.",
   en: "Choose a power type.",
   kk: "Қорек түрін таңдаңыз.",
+};
+
+const ON_TERRITORY: LocaleText = {
+  ru: "Нельзя удалить номер, пока машина на площадке.",
+  en: "You can’t delete a plate while the car is on site.",
+  kk: "Көлік алаңда тұрғанда нөмірді өшіруге болмайды.",
 };
 
 function pick(text: LocaleText, locale: AppLocale): string {
@@ -55,7 +62,8 @@ export function garageErrorCodeFromApi(body: {
     body?.code === "plate_taken" ||
     body?.code === "plate_own" ||
     body?.code === "plate_regex" ||
-    body?.code === "power_required"
+    body?.code === "power_required" ||
+    body?.code === "on_territory"
   ) {
     return body.code;
   }
@@ -84,6 +92,13 @@ export function garageErrorCodeFromApi(body: {
   if (/тип питания|power type|қорек түрін/i.test(msg)) {
     return "power_required";
   }
+  if (
+    /нельзя удалить номер, пока машина на площадке|can’t delete a plate while|can't delete a plate while|көлік алаңда тұрғанда нөмірді өшіруге болмайды/i.test(
+      msg,
+    )
+  ) {
+    return "on_territory";
+  }
 
   return null;
 }
@@ -102,6 +117,8 @@ export function garageErrorMessage(
       return localized(t, "garage.plate_regex", PLATE_REGEX, locale);
     case "power_required":
       return localized(t, "garage.power_required", POWER_REQUIRED, locale);
+    case "on_territory":
+      return localized(t, "garage.delete_on_site", ON_TERRITORY, locale);
     default:
       return null;
   }
@@ -130,12 +147,5 @@ export function garageApiError(
   );
   if (translated) return translated;
 
-  return (
-    body?.errors?.pistol_type_id?.[0] ??
-    body?.errors?.fuel_type_id?.[0] ??
-    body?.errors?.car_plate?.[0] ??
-    body?.errors?.power_type?.[0] ??
-    body?.message ??
-    fallback
-  );
+  return safeApiError(err, t);
 }

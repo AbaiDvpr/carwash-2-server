@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import Supercluster from "supercluster";
 import type { Station, StationKind } from "@/data/stations";
 import Toast from "@/components/ui/Toast";
+import ApiFailBlock from "@/components/ui/ApiFailBlock";
 import PreloaderOverlay from "@/components/layout/PreloaderOverlay";
 import StationMapDrawer from "@/features/map/home/components/StationMapDrawer";
 import MyServicesIcon from "@/features/map/home/components/MyServicesIcon";
@@ -21,6 +22,7 @@ import {
 import { fetchActiveEvSessions } from "@/lib/api/evSessions";
 import { fetchActiveCwSessions } from "@/lib/api/sessions";
 import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
+import { armWashDoneSound } from "@/features/map/wash/washSounds";
 import { useToast } from "@/hooks/useToast";
 import { useT } from "@/hooks/useT";
 import { useUserCity } from "@/hooks/useUserCity";
@@ -59,6 +61,7 @@ type HomeMapProps = {
   stations: Station[];
   loading: boolean;
   error: string | null;
+  onRetry?: () => void;
   focusStationId?: string | null;
   onFocusConsumed?: () => void;
   /** Открыть список точек снизу */
@@ -207,30 +210,7 @@ function groupOverlappingStations(
 
 
 function MapError({ onRetry }: { onRetry: () => void }) {
-  const t = useT();
-  return (
-    <div className="map-error">
-      <p className="map-error__title">{t("map.unavailable", "Карта недоступна")}</p>
-      <p className="map-error__text">
-        {t("map.check_internet", "Проверьте интернет и обновите страницу")}
-      </p>
-      <button
-        type="button"
-        className="map-error__retry"
-        onClick={onRetry}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M4.5 12a7.5 7.5 0 0 1 12.9-5.2M19.5 12a7.5 7.5 0 0 1-12.9 5.2"
-          />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17.5 4.5v4h-4M6.5 19.5v-4h4" />
-        </svg>
-        {t("common.refresh", "Обновить")}
-      </button>
-    </div>
-  );
+  return <ApiFailBlock variant="fill" onRetry={onRetry} />;
 }
 
 /** Сплошная капля — заливается целиком, не только контур */
@@ -449,8 +429,9 @@ async function createMapView() {
       kind: "wash" | "charging" | "idle";
       active: boolean;
       label: string;
-      /** Одна мойка — капля; несколько услуг — корзина */
+      /** Одна мойка — капля; несколько моек — 2–3 капли; иначе корзина */
       icon: "wash" | "cart";
+      washCount: number;
       onOpen: () => void;
     };
     onStatusChange?: (status: MapStatus) => void;
@@ -695,14 +676,22 @@ async function createMapView() {
                 aria-label={sessionFab.label}
                 title={sessionFab.label}
               >
-                <span className="map-session-fab__icon" aria-hidden>
-                  {sessionFab.icon === "wash" ? (
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2.2C12 2.2 5.5 9.4 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 9.4 12 2.2 12 2.2Z" />
-                    </svg>
-                  ) : (
+                <span
+                  className={`map-session-fab__icon${
+                    sessionFab.icon === "wash"
+                      ? ` map-session-fab__icon--wash map-session-fab__icon--wash-${Math.min(Math.max(sessionFab.washCount, 1), 3)}`
+                      : ""
+                  }`}
+                  aria-hidden
+                >
+                  {sessionFab.icon === "wash"
+                    ? Array.from(
+                        { length: Math.min(Math.max(sessionFab.washCount, 1), 3) },
+                        (_, index) => <WashIcon key={index} />,
+                      )
+                    : (
                     <MyServicesIcon />
-                  )}
+                    )}
                 </span>
               </button>
             ) : null}
@@ -939,9 +928,7 @@ function MapServicesDrawer({
         if (cancelled) return;
         setItems([]);
         onSessionsLoaded([]);
-        setError(
-          t("map.services_load_error", "Не удалось загрузить активные услуги"),
-        );
+        setError(t("common.api_error", "Ошибка"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -1003,18 +990,7 @@ function MapServicesDrawer({
 
         <div className="map-list-sheet__scroll">
           {error ? (
-            <div className="map-services-empty" role="alert">
-              <span className="map-services-empty__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v4M12 17h.01M10.3 4.3 2.6 18a1.8 1.8 0 0 0 1.6 2.7h15.6a1.8 1.8 0 0 0 1.6-2.7L13.7 4.3a1.8 1.8 0 0 0-3.4 0Z"
-                  />
-                </svg>
-              </span>
-              <p className="map-services-empty__title">{error}</p>
-            </div>
+            <ApiFailBlock />
           ) : !loading && items.length === 0 ? (
             <div className="map-services-empty" role="status">
               <span className="map-services-empty__icon" aria-hidden>
@@ -1117,6 +1093,7 @@ export default function HomeMap({
   stations,
   loading,
   error,
+  onRetry,
   focusStationId = null,
   onFocusConsumed,
   onOpenList,
@@ -1237,23 +1214,46 @@ export default function HomeMap({
     ? t("map.locating", "Определяем геолокацию…")
     : t("map.loading", "Загрузка карты…");
 
+  /**
+   * Открывать drawer только при смене focusStationId.
+   * Иначе любой refresh `stations` даёт новый объект и снова поднимает шторку.
+   * При уходе на QR шторку не закрываем — случайный тап, вернётся как было.
+   */
+  const appliedFocusIdRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!focusStationId) {
+      appliedFocusIdRef.current = null;
+      return;
+    }
     if (!focusStation) return;
+    if (appliedFocusIdRef.current === focusStationId) {
+      setSelectedStation((prev) =>
+        prev?.id === focusStation.id ? focusStation : prev,
+      );
+      return;
+    }
+    appliedFocusIdRef.current = focusStationId;
     setSelectedStation(focusStation);
     setResumeOpen(false);
     setResumeSession(null);
-  }, [focusStation]);
+  }, [focusStation, focusStationId]);
 
   const hasLiveSession = activeSessions.length > 0;
-  const fabKind =
-    activeSessions.find((s) => s.kind === "charging")?.kind ??
-    activeSessions[0]?.kind ??
-    "idle";
+  const washCount = activeSessions.filter((s) => s.kind === "wash").length;
+  const chargingCount = activeSessions.filter((s) => s.kind === "charging").length;
+  const washOnly = washCount > 0 && chargingCount === 0;
+  const fabKind = washOnly
+    ? "wash"
+    : chargingCount > 0
+      ? "charging"
+      : activeSessions[0]?.kind ?? "idle";
 
   function openServicesFab() {
     setSelectedStation(null);
     setResumeOpen(false);
     setResumeSession(null);
+    appliedFocusIdRef.current = null;
+    onFocusConsumed?.();
     // Обычно одна активная услуга — сразу в сессию, без лишнего списка
     if (activeSessions.length === 1) {
       openServiceFromDrawer(activeSessions[0]);
@@ -1274,6 +1274,7 @@ export default function HomeMap({
     setSelectedStation(null);
     setResumeOpen(false);
     setResumeSession(null);
+    armWashDoneSound();
     router.push(washSessionPath(session.stationId, session.dbSessionId));
   }
 
@@ -1324,12 +1325,8 @@ export default function HomeMap({
                   kind: fabKind,
                   active: hasLiveSession,
                   label: sessionFabLabel,
-                  icon:
-                    hasLiveSession &&
-                    activeSessions.length === 1 &&
-                    activeSessions[0]?.kind === "wash"
-                      ? "wash"
-                      : "cart",
+                  icon: washOnly ? "wash" : "cart",
+                  washCount,
                   onOpen: openServicesFab,
                 }}
                 onSelectStation={(station) => {
@@ -1342,12 +1339,7 @@ export default function HomeMap({
                 onStatusChange={(status) => setMapViewBusy(status !== "ready")}
               />
             ) : error ? (
-              <div className="map-error">
-                <p className="map-error__title">
-                  {t("map.load_error", "Не удалось загрузить точки")}
-                </p>
-                <p className="map-error__text">{error}</p>
-              </div>
+              <ApiFailBlock variant="fill" onRetry={onRetry} />
             ) : null}
 
             {mapBusy && !error ? (

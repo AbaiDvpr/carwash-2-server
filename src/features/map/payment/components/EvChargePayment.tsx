@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
+import ApiFailBlock from "@/components/ui/ApiFailBlock";
 import { useT } from "@/hooks/useT";
 import { formatBalance, useUserBalance } from "@/features/profile/hooks/useUserBalance";
 import {
@@ -13,6 +14,7 @@ import {
   type AbonementCard,
 } from "@/features/profile/abonements";
 import { ApiError } from "@/lib/api";
+import { apiFailMessage, safeApiError } from "@/lib/apiFail";
 import { payEv } from "@/lib/api/payments";
 import {
   detailsChargingPath,
@@ -146,10 +148,7 @@ export default function EvChargePayment() {
           setLoadError(null);
         } else {
           setNotFoundSession(false);
-          setLoadError(
-            body?.message ??
-              t("ev.pay_draft_missing_title", "Сессия оплаты не найдена"),
-          );
+          setLoadError(apiFailMessage(t));
         }
       } finally {
         if (!cancelled) setReady(true);
@@ -288,8 +287,7 @@ export default function EvChargePayment() {
         body?.errors?.session_id?.[0] ??
         body?.errors?.abonement_id?.[0] ??
         body?.errors?.use_balance?.[0] ??
-        body?.message ??
-        t("ev.pay_failed", "Не удалось оплатить");
+        safeApiError(err, t);
       setPayError(message);
       setPayResult("error");
     } finally {
@@ -313,7 +311,20 @@ export default function EvChargePayment() {
     );
   }
 
-  if (!session || loadError || notFoundSession) {
+  if (loadError && !notFoundSession) {
+    return (
+      <PageLayout title={t("payment.title", "Оплата")} className="page--profile-edit">
+        <div className="profile-edit">
+          <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
+            <PayBack />
+          </div>
+          <ApiFailBlock onRetry={() => window.location.reload()} />
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!session || notFoundSession) {
     return (
       <PageLayout title={t("payment.title", "Оплата")} className="page--profile-edit">
         <div className="profile-edit">
@@ -329,20 +340,13 @@ export default function EvChargePayment() {
               </svg>
             </span>
             <h1 className="ev-pay-status__title">
-              {notFoundSession
-                ? t("common.nothing_found", "Ничего не нашли")
-                : loadError ?? t("common.nothing_found", "Ничего не нашли")}
+              {t("common.nothing_found", "Ничего не нашли")}
             </h1>
             <p className="ev-pay-status__text">
-              {notFoundSession || !session
-                ? t(
-                    "ev.session_not_found_text",
-                    "Сессия зарядки не найдена или больше недоступна.",
-                  )
-                : t(
-                    "ev.pay_draft_missing_text",
-                    "Вернись на карту и пройди зарядку заново.",
-                  )}
+              {t(
+                "ev.session_not_found_text",
+                "Сессия зарядки не найдена или больше недоступна.",
+              )}
             </p>
             <div className="ev-pay-status__footer">
               <button type="button" className="theme-button w-full" onClick={goHome}>

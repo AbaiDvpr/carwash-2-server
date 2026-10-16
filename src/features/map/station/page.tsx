@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useT } from "@/hooks/useT";
 import { useStation } from "@/hooks/useStation";
+import ApiFailBlock from "@/components/ui/ApiFailBlock";
 import StationDetail from "./components/StationDetail";
 
 type StationPageProps = {
@@ -44,19 +45,8 @@ export default function StationPage({ id }: StationPageProps) {
 
   if (error || !station) {
     return (
-      <div className="page-content text-center">
-        <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-          {t("station.load_error", "Не удалось загрузить")}
-        </h1>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {error || "Проверьте авторизацию и попробуйте снова."}
-        </p>
-        <Link
-          href="/"
-          className="mt-4 inline-flex rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white"
-        >
-          {t("common.nav_map", "Карта")}
-        </Link>
+      <div className="page-content">
+        <ApiFailBlock onRetry={() => window.location.reload()} />
       </div>
     );
   }

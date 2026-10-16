@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
+import { safeApiError } from "@/lib/apiFail";
 import {
   createGarage,
   deleteGarage,
@@ -26,10 +27,8 @@ function errorMessage(err: unknown): string {
       const first = Object.values(body.errors)[0];
       if (first?.[0]) return first[0];
     }
-    if (body?.message) return body.message;
   }
-  if (err instanceof Error) return err.message;
-  return "Что-то пошло не так";
+  return safeApiError(err);
 }
 
 export default function GarageSection() {

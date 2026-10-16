@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
 import { ApiError } from "@/lib/api";
+import { safeApiError } from "@/lib/apiFail";
 import { useT } from "@/hooks/useT";
 import {
   abonementKindClass,
@@ -118,8 +119,7 @@ export default function AbonementBuyOfferPage() {
       setError(
         body?.errors?.amount?.[0] ??
           body?.errors?.offer_id?.[0] ??
-          body?.message ??
-          t("payment.failed", "Не удалось оплатить"),
+          safeApiError(err, t),
       );
     } finally {
       setBuying(false);

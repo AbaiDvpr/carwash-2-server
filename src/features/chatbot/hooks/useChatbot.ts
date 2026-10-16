@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
+import { apiFailMessage, safeApiError } from "@/lib/apiFail";
 import {
   fetchChatbotBootstrap,
   sendChatbotMessage,
@@ -146,12 +147,9 @@ export function useChatbot() {
           },
         ]);
       } catch (err) {
-        let replyText = errorFallback;
-        if (err instanceof ApiError) {
-          const body = err.body as { message?: string } | null;
-          if (body?.message) replyText = body.message;
-        } else if (err instanceof Error && err.message) {
-          replyText = err.message;
+        let replyText = apiFailMessage(t);
+        if (err instanceof ApiError && err.status === 422) {
+          replyText = safeApiError(err, t);
         }
         setMessages((prev) => [
           ...prev,

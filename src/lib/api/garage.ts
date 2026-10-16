@@ -19,6 +19,7 @@ export type Garage = {
   plate_type_id: number | null;
   pistol_type_id: number | null;
   plate_type?: PlateType | null;
+  on_territory?: boolean;
   created_at?: string;
   updated_at?: string;
 };

@@ -62,7 +62,7 @@ export default function CitySelectPanel({
                     try {
                       await updateUserSettings({ geo_id: city.id });
                     } catch {
-                      setError("Не удалось сохранить город");
+                      setError("Ошибка. Обновите приложение");
                     } finally {
                       setSavingId(null);
                     }

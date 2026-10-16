@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchUserInfo, type AuthUser } from "@/lib/api/auth";
 import { fetchGeos, formatCityName, type GeoCity } from "@/lib/api/geos";
-import { ApiError } from "@/lib/api";
+import { ApiError, API_FAIL_MESSAGE } from "@/lib/api";
 import { useLocale } from "@/hooks/useT";
 
 type UseUserCityState = {
@@ -41,7 +41,7 @@ export function useUserCity(): UseUserCityState {
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           return;
         }
-        setError(err instanceof Error ? err.message : "Не удалось загрузить города");
+        setError(API_FAIL_MESSAGE);
       } finally {
         if (!cancelled) setLoading(false);
       }

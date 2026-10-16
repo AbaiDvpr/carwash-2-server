@@ -1,4 +1,5 @@
 import { apiFetch, ApiError } from "@/lib/api";
+import { safeApiError } from "@/lib/apiFail";
 import type { AuthUser } from "@/lib/api/auth";
 import { cacheUserProfile } from "@/lib/userSession";
 
@@ -46,8 +47,6 @@ export function referralErrorMessage(error: unknown, fallback: string): string {
       | null;
     const field = body?.errors?.code?.[0];
     if (field) return field;
-    if (body?.message) return body.message;
   }
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
+  return safeApiError(error) || fallback;
 }

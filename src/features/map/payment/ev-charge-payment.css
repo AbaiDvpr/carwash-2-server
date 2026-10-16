@@ -1,5 +1,18 @@
 /* Оплата ЭЗС — как блоки баланса в профиле */
 
+/*
+ * page--profile-edit обнуляет padding-bottom у .page-content,
+ * из‑за этого navbar_h (--app-navbar-h) не учитывался.
+ * Форма/статусы оплаты — восстанавливаем; процесс (details-charging) —
+ * отступ на .details-charging__stage.
+ */
+.page--profile-edit:has(.cw-payment, .ev-pay, .ev-pay-status, .ev-pay-skeleton):not(
+    :has(.details-charging)
+  )
+  .page-content {
+  padding-bottom: var(--app-navbar-h);
+}
+
 /* Единая шапка «Назад» — оплата / зарядка / мойка */
 .app-back-bar.ev-pay__toolbar {
   position: sticky;

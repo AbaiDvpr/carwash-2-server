@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout";
 import BackButton from "@/components/ui/BackButton";
 import type { Station } from "@/data/stations";
-import { ApiError } from "@/lib/api";
+import { ApiError, API_FAIL_MESSAGE } from "@/lib/api";
 import { fetchCwStation } from "@/lib/api/cw";
 import { fetchEvStation, parseEvStationId } from "@/lib/api/ev";
 import PaymentPage from "./page";
+import ApiFailBlock from "@/components/ui/ApiFailBlock";
 import "@/features/profile/components/profile.css";
 import "./ev-charge-payment.css";
 
@@ -48,7 +49,7 @@ export default function PaymentRoute({ slug, tariff = null }: PaymentRouteProps)
           setNotFound(true);
           return;
         }
-        setError(err instanceof Error ? err.message : "Не удалось загрузить точку");
+        setError(API_FAIL_MESSAGE);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -77,6 +78,19 @@ export default function PaymentRoute({ slug, tariff = null }: PaymentRouteProps)
     );
   }
 
+  if (error) {
+    return (
+      <PageLayout title="Оплата" className="page--profile-edit">
+        <div className="profile-edit">
+          <div className="app-back-bar app-back-bar--overlay ev-pay__toolbar">
+            <BackButton onClick={goHome}>Назад</BackButton>
+          </div>
+          <ApiFailBlock onRetry={() => window.location.reload()} />
+        </div>
+      </PageLayout>
+    );
+  }
+
   if (notFound || !station) {
     return (
       <PageLayout title="Оплата" className="page--profile-edit">
@@ -86,9 +100,7 @@ export default function PaymentRoute({ slug, tariff = null }: PaymentRouteProps)
           </div>
           <div className="profile-edit__main ev-pay-status ev-pay-status--center">
             <h1 className="ev-pay-status__title">Точка не найдена</h1>
-            <p className="ev-pay-status__text">
-              {error ?? "Такой точки для оплаты нет."}
-            </p>
+            <p className="ev-pay-status__text">Такой точки для оплаты нет.</p>
             <div className="ev-pay-status__footer">
               <button type="button" className="theme-button w-full" onClick={goHome}>
                 На главную

@@ -5,6 +5,8 @@ import I18nBoot from "@/components/i18n/I18nBoot";
 import AuthErrorBlock from "./AuthErrorBlock";
 import Header from "./Header/header";
 import MobileAccessGate from "./MobileAccessGate";
+import KeyboardInsetBoot from "./KeyboardInsetBoot";
+import NavbarInsetBoot from "./NavbarInsetBoot";
 import PagePreloader from "./PagePreloader";
 import WebViewGuard from "./WebViewGuard";
 
@@ -18,6 +20,8 @@ export default function AppShell({ children }: AppShellProps) {
       <WebViewGuard />
       {/* До gate: debug успеет включиться, модалка видна даже на preloader */}
       <AuthDebugBoot />
+      <NavbarInsetBoot />
+      <KeyboardInsetBoot />
       <MobileAccessGate>
         <I18nBoot />
         <div className="app-layout">

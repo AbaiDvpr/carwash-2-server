@@ -43,6 +43,9 @@ export async function payCarWash(input: {
   description?: string;
   car_id?: number;
   abonement_id?: number;
+  /** self = свой баланс, partner = баланс юрлица-партнёра */
+  pay_from?: "self" | "partner";
+  partner_id?: number;
 }): Promise<BalancePaymentResponse> {
   const data = await apiFetch<BalancePaymentResponse>("/api/payments/car-wash", {
     method: "POST",

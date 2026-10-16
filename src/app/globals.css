@@ -37,6 +37,15 @@
   --app-page-pad-x: 1rem;
   --app-page-pad-top: 0.25rem;
   --app-page-pad-bottom: 2rem;
+  /* Flutter: localStorage.navbar_h → --app-navbar-native-h (NavbarInsetBoot) */
+  --app-navbar-native-h: 0px;
+  --app-navbar-h: var(--app-navbar-native-h);
+  /* Клавиатура: visualViewport → --app-keyboard-h (KeyboardInsetBoot) */
+  --app-keyboard-h: 0px;
+  /* Навбар и клавиатура обычно не складываются: берём больший отступ */
+  --app-safe-bottom: calc(
+    env(safe-area-inset-bottom, 0px) + max(var(--app-navbar-h), var(--app-keyboard-h))
+  );
   --app-section-radius: 1rem;
   --app-section-radius-sm: 0.75rem;
   --app-row-pad-x: 1rem;
@@ -223,6 +232,11 @@ html.fullscreen .app-header {
   display: none;
 }
 
+html.fullscreen,
+html.map-fullscreen {
+  --app-navbar-h: 0px;
+}
+
 .app-shell {
   flex: 1;
   min-height: 0;
@@ -251,7 +265,8 @@ html.fullscreen .app-header {
   width: 100%;
   max-width: 500px  !important;
   margin-inline: auto;
-  padding: var(--app-page-pad-top) var(--app-page-pad-x) var(--app-page-pad-bottom);
+  padding: var(--app-page-pad-top) var(--app-page-pad-x)
+    calc(var(--app-page-pad-bottom) + max(var(--app-navbar-h), var(--app-keyboard-h)));
 }
 
 .page__title {
@@ -638,6 +653,11 @@ html.fullscreen .app-header {
   overscroll-behavior: contain;
 }
 
+/* Без footer — учитываем navbar_h / safe-area снизу (drawer флага и т.п.) */
+.app-bottom-sheet:not(:has(> .app-bottom-sheet__footer)) .app-bottom-sheet__body {
+  padding-bottom: calc(0.75rem + var(--app-safe-bottom));
+}
+
 .app-bottom-sheet__title {
   margin: 0;
   font-size: var(--app-text-xl);
@@ -674,7 +694,7 @@ html.fullscreen .app-header {
   flex-shrink: 0;
   flex-direction: column;
   gap: 0.45rem;
-  padding: 0.75rem var(--app-page-pad-x) calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.75rem var(--app-page-pad-x) calc(0.85rem + var(--app-safe-bottom));
   border-top: 1px solid var(--app-border);
   background: var(--app-block);
 }

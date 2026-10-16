@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import PreloaderStage from "@/features/profile/components/PreloaderStage";
 import { usePreloaderVariant } from "@/hooks/usePreloaderVariant";
 import { useT } from "@/hooks/useT";
-import { fetchCwSession } from "@/lib/api/sessions";
+import { fetchCwSession, washLeftWithoutWash } from "@/lib/api/sessions";
 import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
+import { armWashDoneSound, playQueueBeep, stopQueueBeep } from "@/features/map/wash/washSounds";
+import { vibrate } from "@/lib/vibrateController";
 import "@/features/map/charging/charging-session-variants.css";
 import "@/features/profile/components/preloader-preview.css";
 import "./wash-session.css";
@@ -13,8 +15,10 @@ import "./wash-prepare-timer.css";
 
 /** Как часто спрашиваем статус сессии в очереди / invite. */
 export const WASH_STATUS_POLL_MS = 3_000;
-
-const QUEUE_SOUND_SRC = "/mp3/queue.mp3";
+/** Интервал повторной вибрации на экране «Вас ждут». */
+const INVITE_VIBRATE_INTERVAL_MS = 10_000;
+/** Сколько раз максимум вибрируем, пока статус invited. */
+const INVITE_VIBRATE_MAX = 3;
 
 type WashPrepareTimerProps = {
   sessionId: number;
@@ -30,7 +34,7 @@ type WashPrepareTimerProps = {
     status: string;
   }) => void;
   /** Сессия уже completed / cancelled / error. */
-  onFinished?: (info?: { status: string }) => void;
+  onFinished?: (info?: { status: string; leftWithoutWash?: boolean }) => void;
 };
 
 function WashIcon() {
@@ -79,7 +83,6 @@ export default function WashPrepareTimer({
   const onFinishedRef = useRef(onFinished);
   const onCarPlateRef = useRef(onCarPlate);
   const advancedRef = useRef(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -94,38 +97,12 @@ export default function WashPrepareTimer({
   useEffect(() => {
     const invited = status === "invited";
     if (!invited) {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
+      stopQueueBeep();
       return;
-    }
-
-    let audio = audioRef.current;
-    if (!audio) {
-      audio = new Audio(QUEUE_SOUND_SRC);
-      audio.loop = false;
-      audio.preload = "auto";
-      audioRef.current = audio;
-    } else {
-      audio.loop = false;
     }
 
     let cancelled = false;
     let gapTimer: number | null = null;
-
-    const playOnce = () => {
-      if (cancelled || !audio) return;
-      try {
-        audio.currentTime = 0;
-      } catch {
-        /* ignore seek errors before ready */
-      }
-      void audio.play().catch(() => {
-        /* автоплей может быть заблокирован */
-      });
-    };
 
     const scheduleNext = () => {
       if (cancelled) return;
@@ -135,37 +112,54 @@ export default function WashPrepareTimer({
       }, 2_500);
     };
 
-    const onEnded = () => scheduleNext();
-    audio.addEventListener("ended", onEnded);
-
-    playOnce();
-    const unlock = () => {
-      if (cancelled || !audio) return;
-      if (!audio.paused) return;
-      playOnce();
+    const playOnce = () => {
+      if (cancelled) return;
+      playQueueBeep(scheduleNext);
     };
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("keydown", unlock);
+
+    armWashDoneSound();
+    playOnce();
+    const resumeAudio = () => {
+      if (cancelled) return;
+      armWashDoneSound();
+    };
+    window.addEventListener("pointerdown", resumeAudio);
+    window.addEventListener("touchstart", resumeAudio, { passive: true });
 
     return () => {
       cancelled = true;
       if (gapTimer != null) window.clearTimeout(gapTimer);
-      audio.removeEventListener("ended", onEnded);
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-      audio.pause();
+      window.removeEventListener("pointerdown", resumeAudio);
+      window.removeEventListener("touchstart", resumeAudio);
+      stopQueueBeep();
+      armWashDoneSound();
     };
   }, [status]);
 
+  /** invited → Web→Flutter { action: "vibrate", pattern: "invite" }, макс. 3 раза / 10 сек */
   useEffect(() => {
-    return () => {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.pause();
-        audioRef.current = null;
+    if (status !== "invited") return;
+
+    let cancelled = false;
+    let count = 0;
+    let timer: number | null = null;
+
+    const pulse = () => {
+      if (cancelled || count >= INVITE_VIBRATE_MAX) return;
+      count += 1;
+      vibrate("invite");
+      if (count < INVITE_VIBRATE_MAX) {
+        timer = window.setTimeout(pulse, INVITE_VIBRATE_INTERVAL_MS);
       }
     };
-  }, []);
+
+    pulse();
+
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +170,7 @@ export default function WashPrepareTimer({
       nextWasherId: number | null,
       nextBayNumber: number | null,
       nextPlate: string | null,
+      leftWithoutWash = false,
     ) => {
       if (cancelled) return;
       setStatus(next);
@@ -188,7 +183,16 @@ export default function WashPrepareTimer({
 
       if (advancedRef.current) return;
 
-      if (next === "completed" || next === "cancelled" || next === "error") {
+      if (leftWithoutWash || next === "completed") {
+        advancedRef.current = true;
+        onFinishedRef.current?.({
+          status: leftWithoutWash ? next || "cancelled" : "completed",
+          leftWithoutWash,
+        });
+        return;
+      }
+
+      if (next === "cancelled" || next === "error") {
         advancedRef.current = true;
         onFinishedRef.current?.({ status: next });
         return;
@@ -214,6 +218,7 @@ export default function WashPrepareTimer({
           session.washer_id ?? null,
           session.bay_number ?? null,
           session.car_plate ?? null,
+          washLeftWithoutWash(session),
         );
       } catch {
         if (!cancelled) {
@@ -242,10 +247,10 @@ export default function WashPrepareTimer({
 
   const invited = status === "invited";
   const boxLabel =
-    washerId != null
-      ? String(washerId)
-      : bayNumber != null
-        ? String(bayNumber)
+    bayNumber != null
+      ? String(bayNumber)
+      : washerId != null
+        ? String(washerId)
         : null;
   const boxTag = boxLabel ? `#${boxLabel}` : null;
   const plateLabel = formatCarPlate(carPlate);

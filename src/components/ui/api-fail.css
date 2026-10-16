@@ -1,0 +1,49 @@
+.api-fail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1.25rem 1.1rem;
+  text-align: center;
+}
+
+.api-fail--fill {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--background, #f4f4f5);
+}
+
+.api-fail--inline {
+  min-height: 8rem;
+}
+
+.api-fail__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--app-text, #18181b);
+}
+
+.api-fail__text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--app-description, #8a8a8a);
+}
+
+.api-fail__retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.65rem;
+  min-height: 2.5rem;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--app-button, #2f6bff);
+  color: var(--app-button-text, #fff);
+  font-size: 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+}

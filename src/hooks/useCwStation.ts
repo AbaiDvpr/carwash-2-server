@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError } from "@/lib/api";
+import { ApiError, API_FAIL_MESSAGE } from "@/lib/api";
 import { fetchCwStation } from "@/lib/api/cw";
 import type { Station } from "@/data/stations";
 
@@ -45,7 +45,7 @@ export function useCwStation(id: string): UseCwStationState {
         }
 
         setNotFound(false);
-        setError(err instanceof Error ? err.message : "Не удалось загрузить мойку");
+        setError(API_FAIL_MESSAGE);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

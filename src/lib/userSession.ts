@@ -76,6 +76,7 @@ export function revokeAccess(): void {
   localStorage.removeItem("access_token");
   localStorage.removeItem("user_id");
   localStorage.removeItem("profile_complete");
+  localStorage.removeItem("fcm_token");
 }
 
 export function formatUserDisplayName(user: {

@@ -3,12 +3,23 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchUserInfo, updateUserSettings } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
+import { apiFailMessage } from "@/lib/apiFail";
 import { hasAccessToken } from "@/lib/authToken";
+import { emailTakenFromApiError } from "@/lib/emailCheck";
 import { getUserEmail } from "@/lib/userSession";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { useT } from "@/hooks/useT";
+import { useUniqueEmail } from "./useUniqueEmail";
 
 export function useEditProfile() {
+  const t = useT();
+  const {
+    emailError,
+    taken: emailTaken,
+    checking: checkingEmail,
+    check: checkEmail,
+    clear: clearEmailError,
+    markTaken,
+  } = useUniqueEmail();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState(() => getUserEmail() ?? "");
@@ -20,7 +31,8 @@ export function useEditProfile() {
   const clearFeedback = useCallback(() => {
     setMessage(null);
     setError(null);
-  }, []);
+    clearEmailError();
+  }, [clearEmailError]);
 
   const sync = useCallback(async () => {
     if (!hasAccessToken()) {
@@ -38,12 +50,13 @@ export function useEditProfile() {
       const nextEmail = user.email?.trim() || getUserEmail() || "";
       setEmail(nextEmail);
       setError(null);
+      clearEmailError();
     } catch {
-      setError("Не удалось загрузить профиль");
+      setError(apiFailMessage());
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearEmailError]);
 
   useEffect(() => {
     void sync();
@@ -66,19 +79,14 @@ export function useEditProfile() {
     const emailValue = email.trim();
 
     if (!name) {
-      setError("Укажите имя");
+      setError(t("profile.gate_name_required", "Укажите имя"));
       setMessage(null);
       return false;
     }
 
-    if (!emailValue) {
-      setError("Укажите email");
-      setMessage(null);
-      return false;
-    }
-
-    if (!EMAIL_PATTERN.test(emailValue)) {
-      setError("Укажите корректный email");
+    const emailOk = await checkEmail(emailValue);
+    if (!emailOk) {
+      setError(null);
       setMessage(null);
       return false;
     }
@@ -96,29 +104,31 @@ export function useEditProfile() {
       setFirstName(user.name ?? name);
       setLastName(user.last_name ?? last_name ?? "");
       setEmail(user.email?.trim() || emailValue);
-      setMessage("Сохранено");
+      setMessage(t("common.saved", "Сохранено"));
       return true;
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : null;
-      const body = apiErr?.body as {
-        message?: string;
-        errors?: Record<string, string[]>;
-      } | null;
-      const emailErr = body?.errors?.email?.[0];
-      if (emailErr) {
-        setError(
-          /taken|unique|уже/i.test(emailErr)
-            ? "Этот email уже занят"
-            : emailErr,
-        );
+      if (emailTakenFromApiError(err)) {
+        markTaken();
+        setError(null);
       } else {
-        setError(body?.message || "Не удалось сохранить");
+        const body = apiErr?.body as {
+          message?: string;
+          errors?: Record<string, string[]>;
+        } | null;
+        const emailErr = body?.errors?.email?.[0];
+        if (emailErr) {
+          clearEmailError();
+          setError(emailErr);
+        } else {
+          setError(apiFailMessage());
+        }
       }
       return false;
     } finally {
       setSaving(false);
     }
-  }, [email, firstName, lastName]);
+  }, [checkEmail, clearEmailError, email, firstName, lastName, markTaken, t]);
 
   return {
     firstName,
@@ -131,11 +141,18 @@ export function useEditProfile() {
     saving,
     message,
     error,
+    emailError,
+    emailTaken,
+    checkingEmail,
+    checkEmail,
+    clearEmailError,
     clearFeedback,
     save,
     canSave:
       firstName.trim().length > 0 &&
       email.trim().length > 0 &&
+      !emailTaken &&
+      !checkingEmail &&
       !saving &&
       !loading,
   };

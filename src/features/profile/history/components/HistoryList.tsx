@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useT, useLocale } from "@/hooks/useT";
 import AppBackButton from "@/components/ui/AppBackButton";
+import ApiFailBlock from "@/components/ui/ApiFailBlock";
 import { ApiError } from "@/lib/api";
-import { fetchAllSessions, type HistorySession } from "@/lib/api/sessions";
+import { apiFailMessage } from "@/lib/apiFail";
+import { fetchAllSessions, washLeftWithoutWash, type HistorySession } from "@/lib/api/sessions";
 import HistoryFilterDrawer, {
   countHistoryFilters,
   DEFAULT_HISTORY_FILTERS,
@@ -69,6 +71,18 @@ function sessionKey(session: HistorySession): string {
   return `${session.kind ?? "wash"}-${session.id}`;
 }
 
+function sameHistoryFilters(
+  a: HistoryFiltersState,
+  b: HistoryFiltersState,
+): boolean {
+  return (
+    a.wash.period === b.wash.period &&
+    a.charging.period === b.charging.period &&
+    a.wash.statuses.join() === b.wash.statuses.join() &&
+    a.charging.statuses.join() === b.charging.statuses.join()
+  );
+}
+
 function FilterSlidersIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
@@ -77,6 +91,16 @@ function FilterSlidersIcon({ className }: { className?: string }) {
       <circle cx="12" cy="10" r="2" />
       <circle cx="20" cy="14" r="2" />
     </svg>
+  );
+}
+
+function HistorySkeleton() {
+  return (
+    <div className="history-skeleton" aria-hidden>
+      {[1, 2, 3].map((key) => (
+        <div key={key} className="history-skeleton__card" />
+      ))}
+    </div>
   );
 }
 
@@ -143,15 +167,7 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
           return;
         }
         setSessions([]);
-        let message = t("history.load_error", "Не удалось загрузить историю");
-        if (err instanceof ApiError) {
-          const body = err.body as { message?: string } | null;
-          if (body?.message) message = body.message;
-          else if (err.message) message = err.message;
-        } else if (err instanceof Error && err.message) {
-          message = err.message;
-        }
-        setError(message);
+        setError(apiFailMessage(t));
       } finally {
         if (id !== requestId.current) return;
         booted.current = true;
@@ -161,8 +177,10 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
     })();
   }, [filters, filtersReady, kind, t]);
 
+  const searching = initialLoading || refreshing;
+
   return (
-    <div className="history-page">
+    <div className="history-page" aria-busy={searching}>
       <div className="app-back-bar app-back-bar--stack history-toolbar">
         <div className="history-toolbar__row">
           {onBack ? (
@@ -188,27 +206,29 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
         </div>
       </div>
 
-      {initialLoading ? (
-        <div className="history-skeleton" aria-hidden>
-          {[1, 2, 3].map((key) => (
-            <div key={key} className="history-skeleton__card" />
-          ))}
-        </div>
+      {searching ? (
+        <HistorySkeleton />
       ) : error && !filtersActive && sessions.length === 0 ? (
-        <div className="history-card">
-          <p className="history-card__error">{error}</p>
-        </div>
+        <ApiFailBlock onRetry={() => window.location.reload()} />
       ) : (
         <>
           {error ? (
-            <div className="history-card">
-              <p className="history-card__error">{error}</p>
-            </div>
+            <ApiFailBlock onRetry={() => window.location.reload()} />
           ) : null}
 
           {sessions.length === 0 ? (
-            <div className="history-card">
-              <p className="history-card__empty">
+            <div className="history-empty">
+              <img
+                className="history-empty__illust"
+                src={
+                  filtersActive
+                    ? "/img/illustrations/history_ev_cw_ff.png"
+                    : "/img/illustrations/history_ev_cw.png"
+                }
+                alt=""
+                aria-hidden
+              />
+              <p className="history-empty__text">
                 {filtersActive
                   ? t("history.empty_filtered", "Ничего не найдено по фильтрам")
                   : kind === "wash"
@@ -219,7 +239,7 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
               </p>
             </div>
           ) : (
-            <div className={`history-list${refreshing ? " is-dim" : ""}`}>
+            <div className="history-list">
               {sessions.map((session) => {
                 const isCharging = session.kind === "charging";
                 const kindLabel = isCharging
@@ -229,10 +249,15 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
                   session.duration_minutes == null
                     ? "—"
                     : `${session.duration_minutes} ${t("history.min", "мин")}`;
-                const statusCode = resolveHistoryStatus(session.status);
-                const statusLabel = statusCode
-                  ? historyStatusLabel(statusCode, t)
-                  : (session.status ?? "—");
+                const walkedAway = washLeftWithoutWash(session);
+                const statusCode = walkedAway
+                  ? "completed"
+                  : resolveHistoryStatus(session.status);
+                const statusLabel = walkedAway
+                  ? t("wash.done_title", "Мойка завершена")
+                  : statusCode
+                    ? historyStatusLabel(statusCode, t)
+                    : (session.status ?? "—");
 
                 return (
                   <article key={sessionKey(session)} className="history-session">
@@ -245,7 +270,9 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
                           </span>
                         </div>
                         <span
-                          className={`history-session__status ${statusClass(session.status)}`}
+                          className={`history-session__status ${statusClass(
+                            walkedAway ? "completed" : session.status,
+                          )}`}
                         >
                           {statusLabel}
                         </span>
@@ -296,7 +323,11 @@ export default function HistoryList({ title, kind, onBack }: HistoryListProps) {
         <HistoryFilterDrawer
           value={filters}
           kind={kind}
-          onApply={setFilters}
+          onApply={(next) => {
+            if (sameHistoryFilters(next, filters)) return;
+            setRefreshing(true);
+            setFilters(next);
+          }}
           onClose={() => setDrawerOpen(false)}
         />
       ) : null}

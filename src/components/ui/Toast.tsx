@@ -9,7 +9,8 @@ export default function Toast({ message }: ToastProps) {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 z-[60] flex justify-center px-4"
+      style={{ bottom: "calc(5rem + var(--app-navbar-h, 0px))" }}
       role="status"
       aria-live="polite"
     >

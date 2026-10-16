@@ -14,8 +14,10 @@ type TranslationsResponse = {
   translations: Translation[];
 };
 
-/** Все строки перевода (ru / en / kk). */
+/** Все строки перевода (ru / en / kk). Без токена. */
 export async function fetchTranslations(): Promise<Translation[]> {
-  const data = await apiFetch<TranslationsResponse>("/api/translations");
+  const data = await apiFetch<TranslationsResponse>("/api/translations", {
+    requireAuth: false,
+  });
   return data.translations;
 }

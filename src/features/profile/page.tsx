@@ -53,6 +53,7 @@ import IconActionButton, {
 import ProfileNavRow from "./components/ProfileNavRow";
 import FaqSection from "./components/FaqSection";
 import { resolveMediaUrl, uploadUserPhoto } from "@/lib/api/photo";
+import { apiFailMessage } from "@/lib/apiFail";
 import { pickImage } from "@/lib/pickImage";
 import { forceLogout } from "@/lib/forceLogout";
 import PreloaderPreview from "./components/PreloaderPreview";
@@ -713,7 +714,7 @@ export default function ProfilePage() {
       setCropSrc(null);
       showToast("Фото сохранено");
     } catch {
-      showToast("Не удалось загрузить фото");
+      showToast(apiFailMessage());
     } finally {
       setPhotoBusy(false);
     }

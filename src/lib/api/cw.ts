@@ -5,6 +5,7 @@ import { formatOpenHoursLabel } from "@/lib/openHours";
 
 export type CwWasher = {
   id: number;
+  number?: number | null;
   status_id: number;
   status: string | null;
   status_ru: string | null;
@@ -100,6 +101,7 @@ export function toStation(location: CwLocation): Station {
     const display = toDisplayWasherStatus(washer.status);
     return {
       id: washer.id,
+      number: washer.number ?? washer.id,
       status: display.status,
       statusLabel: display.statusLabel,
     };
@@ -247,11 +249,37 @@ export type CwLocationLoad = {
   weekdays: Record<string, CwLoadWeekday>;
 };
 
+export type CwCarPartner = {
+  id: number;
+  name?: string | null;
+  phone?: string | null;
+  spend_month?: number | null;
+  spend_month_used?: number | null;
+  spend_month_left?: number | null;
+};
+
 export type CwCanPayCar = {
   id: number;
   car_plate: string;
   on_territory: boolean;
   active_wash?: boolean;
+  /** Лимит выбранной (или первой) компании на мойку за календарный месяц, ₸ */
+  spend_month?: number | null;
+  spend_month_used?: number | null;
+  spend_month_left?: number | null;
+  /** Номер есть в гараже хотя бы одной компании-партнёра. */
+  company_car?: boolean;
+  /** Компании, у которых этот номер в гараже. */
+  partners?: CwCarPartner[];
+};
+
+export type CwPaymentAccount = {
+  id: "self" | "partner" | string;
+  label: string;
+  balance: number;
+  partner_user_id?: number;
+  phone?: string;
+  name?: string | null;
 };
 
 /** Проверка перед оплатой: на площадке + нет активной мойки. */
@@ -265,15 +293,28 @@ export type CwCanPayResult = {
   car_id?: number | null;
   car_plate?: string | null;
   on_territory?: boolean;
+  spend_month?: number | null;
+  spend_month_used?: number | null;
+  spend_month_left?: number | null;
+  partner_id?: number | null;
+  payment_accounts?: CwPaymentAccount[];
   cars?: CwCanPayCar[];
 };
 
 export async function fetchCwCanPay(
   id: number | string,
   carId?: number,
+  partnerId?: number,
 ): Promise<CwCanPayResult> {
-  const qs =
-    carId != null && Number.isFinite(carId) ? `?car_id=${carId}` : "";
+  const params = new URLSearchParams();
+  if (carId != null && Number.isFinite(carId)) {
+    params.set("car_id", String(carId));
+  }
+  if (partnerId != null && Number.isFinite(partnerId) && partnerId > 0) {
+    params.set("partner_id", String(partnerId));
+  }
+  const query = params.toString();
+  const qs = query ? `?${query}` : "";
   try {
     return await apiFetch<CwCanPayResult>(
       `/api/cw/locations/${id}/can-pay${qs}`,
@@ -292,6 +333,12 @@ export async function fetchCwCanPay(
           car_id: body.car_id ?? null,
           car_plate: body.car_plate ?? null,
           on_territory: Boolean(body.on_territory),
+          spend_month: body.spend_month ?? null,
+          spend_month_used: body.spend_month_used ?? null,
+          spend_month_left: body.spend_month_left ?? null,
+          payment_accounts: Array.isArray(body.payment_accounts)
+            ? body.payment_accounts
+            : [],
           cars: Array.isArray(body.cars) ? body.cars : [],
         };
       }

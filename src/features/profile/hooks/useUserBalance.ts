@@ -13,7 +13,8 @@ export function formatBalance(value: string | number | null | undefined): string
 }
 
 /** Баланс из /api/auth/user_info */
-export function useUserBalance() {
+export function useUserBalance(options?: { syncOnFocus?: boolean }) {
+  const syncOnFocus = options?.syncOnFocus ?? true;
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,19 +41,23 @@ export function useUserBalance() {
 
   useEffect(() => {
     void sync();
+  }, [sync]);
 
+  useEffect(() => {
     const onSync = () => {
       void sync();
     };
 
-    window.addEventListener("focus", onSync);
+    if (syncOnFocus) {
+      window.addEventListener("focus", onSync);
+    }
     window.addEventListener("user-profile-updated", onSync);
 
     return () => {
       window.removeEventListener("focus", onSync);
       window.removeEventListener("user-profile-updated", onSync);
     };
-  }, [sync]);
+  }, [sync, syncOnFocus]);
 
   return { balance, loading, refresh: sync, formatted: formatBalance(balance ?? 0) };
 }

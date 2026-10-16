@@ -118,6 +118,35 @@
   color: var(--app-description);
 }
 
+.history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  min-height: 16rem;
+  padding: 1.5rem var(--app-row-pad-x) 2rem;
+  text-align: center;
+}
+
+.history-empty__illust {
+  display: block;
+  width: min(14.5rem, 72vw);
+  height: auto;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.history-empty__text {
+  margin: 0;
+  max-width: 18rem;
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--app-description);
+}
+
 .history-card__error {
   color: var(--app-danger);
   font-weight: 600;
@@ -151,10 +180,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
-}
-
-.history-list.is-dim {
-  opacity: 0.65;
 }
 
 .history-session {
@@ -496,6 +521,11 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Country drawer без reset-wrap — отступ под navbar_h */
+.history-drawer:not(:has(.history-drawer__reset-wrap)) .history-drawer__body {
+  padding-bottom: calc(0.75rem + var(--app-safe-bottom));
+}
+
 .history-drawer--filter .history-drawer__body {
   flex: 0 1 auto;
   gap: 0;
@@ -521,7 +551,7 @@
   flex-shrink: 0;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(0.75rem + var(--app-safe-bottom));
   border-top: 1px solid var(--app-border);
 }
 

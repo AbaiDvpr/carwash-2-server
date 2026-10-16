@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchCwStations } from "@/lib/api/cw";
+import { API_FAIL_MESSAGE } from "@/lib/api";
 import type { Station } from "@/data/stations";
 
 type UseCwStationsState = {
@@ -27,7 +28,7 @@ export function useCwStations(): UseCwStationsState {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Не удалось загрузить мойки");
+          setError(API_FAIL_MESSAGE);
           setStations([]);
         }
       })

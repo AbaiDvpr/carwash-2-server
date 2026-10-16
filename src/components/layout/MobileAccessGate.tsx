@@ -8,6 +8,7 @@ import { isAuthDebugEnabled } from "@/lib/authDebug";
 import { hasAccessToken } from "@/lib/authToken";
 import { forceLogout } from "@/lib/forceLogout";
 import { grantAccess, isAccessGranted } from "@/lib/userSession";
+import { ensureOpenStationListenerInstalled } from "@/lib/openStationController";
 import { useAppDispatch } from "@/store/hooks";
 import { setTestVersion } from "@/store/slices/appSlice";
 import { useT } from "@/hooks/useT";
@@ -77,6 +78,10 @@ export default function MobileAccessGate({ children }: MobileAccessGateProps) {
   const { isMobileApp, mounted } = useAppEnvironment();
   const openDashboard = isOpenDashboardPath(pathname);
   const [status, setStatus] = useState<"checking" | "granted" | "denied">("checking");
+
+  useEffect(() => {
+    ensureOpenStationListenerInstalled();
+  }, []);
 
   useEffect(() => {
     dispatch(setTestVersion(isAuthDebugEnabled()));

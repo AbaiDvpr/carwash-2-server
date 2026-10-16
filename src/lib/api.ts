@@ -23,18 +23,30 @@ export function apiUrl(path: string): string {
   return `${getApiBaseUrl()}${normalized}`;
 }
 
+/** Текст для клиента. URL и код в message не попадают. */
+export const API_FAIL_MESSAGE = "Ошибка. Обновите приложение";
+
 export class ApiError extends Error {
   status: number;
+  path: string;
   body: unknown;
 
   constructor(status: number, path: string, body: unknown) {
-    super(`API ${status}: ${path}`);
+    super(API_FAIL_MESSAGE);
+    this.name = "ApiError";
     this.status = status;
+    this.path = path;
     this.body = body;
   }
 }
 
-const PUBLIC_API_PATHS = ["/api/auth/login", "/api/auth/register"];
+const PUBLIC_API_PATHS = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/translations",
+  "/api/auth/otp/send",
+  "/api/auth/otp/verify",
+];
 
 function isPublicApiPath(path: string): boolean {
   return PUBLIC_API_PATHS.some(
@@ -70,11 +82,16 @@ export async function apiFetch<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(apiUrl(path), {
-    cache: "no-store",
-    ...fetchInit,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), {
+      cache: "no-store",
+      ...fetchInit,
+      headers,
+    });
+  } catch {
+    throw new ApiError(0, path, { message: "network" });
+  }
 
   if (!response.ok) {
     let body: unknown = null;

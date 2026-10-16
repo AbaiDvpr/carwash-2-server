@@ -9,7 +9,7 @@
 
 .profile-home__logout {
   margin-top: 0.15rem;
-  padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(0.35rem, var(--app-safe-bottom));
 }
 
 .profile-home__logout .profile-nav-row {
@@ -28,7 +28,7 @@
 .profile-gate-page__top {
   display: flex;
   justify-content: flex-end;
-  padding-top: 52px;
+  padding-top: 0.75rem;
   padding-bottom: 0.65rem;
 }
 
@@ -65,7 +65,7 @@
   flex: 1 1 auto;
   flex-direction: column;
   min-height: calc(
-    100dvh - var(--app-page-pad-top) - 3.25rem
+    100lvh - var(--app-page-pad-top) - 3.25rem
   );
   font-family: inherit;
   font-size: var(--app-font-size);
@@ -75,7 +75,11 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* Анкета: приклеить к видимой области — iOS/Flutter иначе сдвигает форму вниз */
+/* Анкета: navbar скрыт через fullscreen, отступ статус-бара — top: 52px */
+html.profile-gate-open .app-header {
+  display: none !important;
+}
+
 html.profile-gate-open,
 html.profile-gate-open body,
 html.profile-gate-open .app-root,
@@ -83,29 +87,38 @@ html.profile-gate-open .app-layout,
 html.profile-gate-open .app-shell {
   overflow: hidden !important;
   overscroll-behavior: none;
+  overflow-anchor: none;
+  -webkit-overflow-scrolling: auto;
 }
 
 html.profile-gate-open .page--profile-edit.page--profile-gate {
   position: fixed;
-  top: var(--gate-vv-top, 0px);
+  top: 0;
   left: 0;
+  right: 0;
   width: 100%;
-  height: var(--gate-vv-height, 100%);
-  max-height: var(--gate-vv-height, 100%);
+  height: var(--gate-lock-height, 100lvh);
+  min-height: var(--gate-lock-height, 100lvh);
+  padding-top: 52px;
   overflow: hidden;
   transform: none;
 }
 
+html.profile-gate-open .profile-edit-row__value {
+  position: static;
+  font-size: 16px;
+}
+
 html.profile-gate-open .page--profile-edit.page--profile-gate .page-content {
   height: 100%;
-  min-height: 0;
+  min-height: var(--gate-lock-height, 500px);
   overflow: hidden;
   padding-top: 0;
   padding-bottom: 0.75rem;
 }
 
 html.profile-gate-open .profile-edit.profile-gate-page {
-  min-height: 0;
+  min-height: var(--gate-lock-height, 500px);
   height: 100%;
   overflow: hidden;
 }
@@ -114,10 +127,15 @@ html.profile-gate-open .profile-edit.profile-gate-page {
   flex: 0 0 auto;
 }
 
+/* При открытой клавиатуре — запас снизу на формах профиля */
+html[data-keyboard-open="true"] .profile-edit {
+  padding-bottom: calc(0.75rem + var(--app-keyboard-h));
+}
+
 .profile-edit__logout {
   margin-top: auto;
   padding-top: 1.25rem;
-  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(1rem, var(--app-safe-bottom));
   background: transparent;
   display: flex;
   flex-direction: column;
@@ -222,8 +240,21 @@ html.profile-gate-open .profile-edit.profile-gate-page {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-button) 22%, transparent);
 }
 
-.profile-edit-row__value:disabled {
-  opacity: 0.6;
+.profile-edit-row__value.is-invalid {
+  border-color: var(--app-danger);
+}
+
+.profile-edit-row__value.is-invalid:focus {
+  border-color: var(--app-danger);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-danger) 22%, transparent);
+}
+
+.profile-edit-row__error {
+  margin: 0.4rem 0 0;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--app-danger);
 }
 
 /* Промо / рефералка — как /profile/edit */
@@ -540,6 +571,18 @@ html.profile-gate-open .profile-edit.profile-gate-page {
 .garage2__form {
   display: flex;
   flex-direction: column;
+  /* Место под клавиатуру, чтобы поля не уезжали под неё */
+  padding-bottom: max(0.5rem, var(--app-keyboard-h));
+  scroll-margin-bottom: var(--app-keyboard-h);
+}
+
+.garage2 .profile-edit-row__value,
+.garage2__plate-input {
+  scroll-margin-bottom: calc(1.25rem + var(--app-keyboard-h));
+}
+
+html[data-keyboard-open="true"] .garage2__form {
+  padding-bottom: calc(1rem + var(--app-keyboard-h));
 }
 
 .garage2__plate {
@@ -623,19 +666,54 @@ html.profile-gate-open .profile-edit.profile-gate-page {
   border: 0;
   background: transparent;
   color: var(--app-text);
+  -webkit-text-fill-color: var(--app-text);
+  caret-color: var(--app-text);
   font-family: inherit;
-  font-size: var(--app-text-lg);
+  /* ≥16px — иначе WebView/iOS прячет текст при фокусе / зумит */
+  font-size: max(16px, var(--app-text-lg));
   font-weight: 700;
   letter-spacing: normal;
   word-spacing: 0.12em;
   font-variant-numeric: tabular-nums;
   outline: none;
+  opacity: 1;
+}
+
+.garage2__plate-input:focus {
+  color: var(--app-text);
+  -webkit-text-fill-color: var(--app-text);
+  caret-color: var(--app-text);
+  background: transparent;
+  opacity: 1;
 }
 
 .garage2__plate-input::placeholder {
   color: var(--app-description);
+  -webkit-text-fill-color: var(--app-description);
   font-weight: 600;
   letter-spacing: normal;
+}
+
+/* Лимиты трат / текстовые поля гаража — тот же WebView-фикс */
+.garage2 .profile-edit-row__value {
+  color: var(--app-text);
+  -webkit-text-fill-color: var(--app-text);
+  caret-color: var(--app-text);
+  font-size: max(16px, var(--app-text-lg));
+  opacity: 1;
+}
+
+.garage2 .profile-edit-row__value:focus {
+  color: var(--app-text);
+  -webkit-text-fill-color: var(--app-text);
+  caret-color: var(--app-text);
+  background: var(--app-block);
+  opacity: 1;
+}
+
+.garage2 .profile-edit-row__value::placeholder {
+  color: var(--app-description);
+  -webkit-text-fill-color: var(--app-description);
 }
 
 .garage2__empty {
@@ -840,6 +918,16 @@ html.profile-gate-open .profile-edit.profile-gate-page {
   color: var(--app-danger);
 }
 
+.garage2__list-actions .profile-icon-btn:disabled,
+.garage2__list-actions .profile-icon-btn:disabled:hover,
+.garage2__list-actions .profile-icon-btn:disabled:active,
+.garage2__list-actions .profile-icon-btn--danger:disabled:hover {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent;
+  transform: none;
+}
+
 .garage2__power {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -937,6 +1025,11 @@ html.profile-gate-open .profile-edit.profile-gate-page {
 .garage2__fuel-chip.is-active {
   border-color: var(--app-button);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--app-button) 22%, transparent);
+}
+
+.garage2__fuel-chip:disabled {
+  cursor: default;
+  opacity: 0.38;
 }
 
 .garage2__conns {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import AppPreloader from "@/components/layout/AppPreloader";
 import { PageLayout } from "@/components/layout";
 import { fetchUserInfo, updateUserSettings } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
 import { hasAccessToken } from "@/lib/authToken";
+import { emailTakenFromApiError } from "@/lib/emailCheck";
 import { forceLogout } from "@/lib/forceLogout";
 import { enterFullscreen, exitFullscreen } from "@/lib/fullscreenController";
 import {
@@ -16,9 +17,8 @@ import {
 } from "@/lib/profileComplete";
 import { useT } from "@/hooks/useT";
 import { cacheUserProfile } from "@/lib/userSession";
+import { useUniqueEmail } from "@/features/profile/hooks/useUniqueEmail";
 import "@/features/profile/components/profile.css";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isHomePath(pathname: string | null): boolean {
   return pathname === "/" || pathname === "";
@@ -33,6 +33,18 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
   const pathname = usePathname();
   const onHome = isHomePath(pathname);
   const savedRef = useRef(false);
+  const fieldId = useId();
+  const firstNameId = `${fieldId}-first`;
+  const lastNameId = `${fieldId}-last`;
+  const emailId = `${fieldId}-email`;
+  const {
+    emailError,
+    taken: emailTaken,
+    checking: checkingEmail,
+    check: checkEmail,
+    clear: clearEmailError,
+    markTaken,
+  } = useUniqueEmail();
 
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -105,37 +117,21 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
       enterFullscreen();
       const root = document.documentElement;
       const body = document.body;
-      const prev = {
-        position: body.style.position,
-        top: body.style.top,
-        left: body.style.left,
-        right: body.style.right,
-        overflow: body.style.overflow,
-      };
+      const prevOverflow = body.style.overflow;
       root.classList.add("profile-gate-open");
-      body.style.position = "fixed";
-      body.style.top = "0";
-      body.style.left = "0";
-      body.style.right = "0";
       body.style.overflow = "hidden";
+      const lockHeight = Math.max(window.innerHeight, 500);
+      root.style.setProperty("--gate-lock-height", `${lockHeight}px`);
 
-      const pin = () => {
-        const vv = window.visualViewport;
-        const height = vv?.height ?? window.innerHeight;
-        root.style.setProperty("--gate-vv-top", "0px");
-        root.style.setProperty("--gate-vv-height", `${Math.round(height)}px`);
+      const pinScroll = () => {
         window.scrollTo(0, 0);
         root.scrollTop = 0;
         body.scrollTop = 0;
         const shell = document.querySelector(".app-shell");
         if (shell instanceof HTMLElement) shell.scrollTop = 0;
       };
-      pin();
-
-      const vv = window.visualViewport;
-      vv?.addEventListener("resize", pin);
-      vv?.addEventListener("scroll", pin);
-      window.addEventListener("scroll", pin, true);
+      pinScroll();
+      window.addEventListener("scroll", pinScroll, true);
 
       const onKeyDown = (event: KeyboardEvent) => {
         if (event.key === "Escape") {
@@ -150,22 +146,16 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
       window.addEventListener("keydown", onKeyDown);
       return () => {
         root.classList.remove("profile-gate-open");
-        root.style.removeProperty("--gate-vv-top");
-        root.style.removeProperty("--gate-vv-height");
-        body.style.position = prev.position;
-        body.style.top = prev.top;
-        body.style.left = prev.left;
-        body.style.right = prev.right;
-        body.style.overflow = prev.overflow;
-        vv?.removeEventListener("resize", pin);
-        vv?.removeEventListener("scroll", pin);
-        window.removeEventListener("scroll", pin, true);
-        exitFullscreen();
+        root.style.removeProperty("--gate-lock-height");
+        body.style.overflow = prevOverflow;
+        window.removeEventListener("scroll", pinScroll, true);
         window.removeEventListener("keydown", onKeyDown);
+        exitFullscreen();
       };
     }
 
     document.documentElement.classList.remove("profile-gate-open");
+    document.documentElement.style.removeProperty("--gate-lock-height");
     exitFullscreen();
   }, [open, onHome]);
 
@@ -186,12 +176,10 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
       setError(t("profile.gate_name_required", "Укажите имя"));
       return;
     }
-    if (!emailValue) {
-      setError(t("profile.gate_email_required", "Укажите email"));
-      return;
-    }
-    if (!EMAIL_PATTERN.test(emailValue)) {
-      setError(t("profile.gate_email_invalid", "Укажите корректный email"));
+
+    const emailOk = await checkEmail(emailValue);
+    if (!emailOk) {
+      setError(null);
       return;
     }
 
@@ -230,20 +218,21 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
       setChecking(false);
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : null;
-      const body = apiErr?.body as
-        | { message?: string; errors?: Record<string, string[]> }
-        | null;
-      const emailErr = body?.errors?.email?.[0];
-      if (emailErr) {
-        setError(
-          /taken|unique|уже/i.test(emailErr)
-            ? t("profile.gate_email_taken", "Этот email уже занят")
-            : emailErr,
-        );
+      if (emailTakenFromApiError(err)) {
+        markTaken();
+        setError(null);
       } else {
-        setError(
-          t("profile.gate_save_error", "Не удалось сохранить. Попробуйте ещё раз."),
-        );
+        const body = apiErr?.body as
+          | { message?: string; errors?: Record<string, string[]> }
+          | null;
+        const field = body?.errors?.email?.[0];
+        if (field) {
+          setError(field);
+        } else {
+          setError(
+            t("profile.gate_save_error", "Не удалось сохранить. Попробуйте ещё раз."),
+          );
+        }
       }
     } finally {
       setSaving(false);
@@ -259,7 +248,11 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
   if (!open) return children;
 
   const canSubmit =
-    firstName.trim().length > 0 && email.trim().length > 0 && !saving;
+    firstName.trim().length > 0 &&
+    email.trim().length > 0 &&
+    !emailTaken &&
+    !checkingEmail &&
+    !saving;
 
   return (
     <PageLayout
@@ -286,14 +279,15 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
           </h1>
 
           <div className="profile-edit-fields">
-            <label className="profile-edit-row">
-              <span className="profile-edit-row__label">
+            <div className="profile-edit-row">
+              <label className="profile-edit-row__label" htmlFor={firstNameId}>
                 {t("profile.first_name", "Имя")}{" "}
                 <span className="profile-gate-page__req" aria-hidden>
                   *
                 </span>
-              </span>
+              </label>
               <input
+                id={firstNameId}
                 type="text"
                 value={firstName}
                 onChange={(e) => {
@@ -304,17 +298,17 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
                 placeholder={t("profile.first_name", "Имя")}
                 autoComplete="given-name"
                 className="profile-edit-row__value"
-                onFocus={() => window.scrollTo(0, 0)}
               />
-            </label>
-            <label className="profile-edit-row">
-              <span className="profile-edit-row__label">
+            </div>
+            <div className="profile-edit-row">
+              <label className="profile-edit-row__label" htmlFor={lastNameId}>
                 {t("profile.last_name", "Фамилия")}{" "}
                 <span style={{ fontWeight: 500, color: "var(--app-description)" }}>
                   ({t("common.optional", "необязательно")})
                 </span>
-              </span>
+              </label>
               <input
+                id={lastNameId}
                 type="text"
                 value={lastName}
                 onChange={(e) => {
@@ -325,34 +319,44 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
                 placeholder={t("profile.last_name", "Фамилия")}
                 autoComplete="family-name"
                 className="profile-edit-row__value"
-                onFocus={() => window.scrollTo(0, 0)}
               />
-            </label>
-            <label className="profile-edit-row">
-              <span className="profile-edit-row__label">
+            </div>
+            <div className="profile-edit-row">
+              <label className="profile-edit-row__label" htmlFor={emailId}>
                 Email{" "}
                 <span className="profile-gate-page__req" aria-hidden>
                   *
                 </span>
-              </span>
+              </label>
               <input
-                type="text"
+                id={emailId}
+                type="email"
                 value={email}
                 onChange={(e) => {
                   setError(null);
+                  clearEmailError();
                   setEmail(e.target.value);
+                }}
+                onBlur={(e) => {
+                  void checkEmail(e.target.value, { required: false });
                 }}
                 disabled={saving}
                 placeholder="example@mail.com"
                 autoComplete="email"
                 inputMode="email"
+                enterKeyHint="done"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                className="profile-edit-row__value"
-                onFocus={() => window.scrollTo(0, 0)}
+                aria-invalid={Boolean(emailError)}
+                className={`profile-edit-row__value${emailError ? " is-invalid" : ""}`}
               />
-            </label>
+              {emailError ? (
+                <p className="profile-edit-row__error" role="alert">
+                  {emailError}
+                </p>
+              ) : null}
+            </div>
           </div>
 
           <button
@@ -366,7 +370,7 @@ export default function ProfileCompleteGate({ children }: { children: ReactNode 
               : t("profile.gate_continue", "Продолжить")}
           </button>
 
-          {error ? (
+          {error && !emailError ? (
             <p className="profile-edit__feedback is-error">{error}</p>
           ) : null}
         </div>

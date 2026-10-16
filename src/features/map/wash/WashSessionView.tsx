@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ServiceFillProgress from "@/features/map/charging/ServiceFillProgress";
 import { useT } from "@/hooks/useT";
-import { fetchCwSession } from "@/lib/api/sessions";
+import { fetchCwSession, washLeftWithoutWash } from "@/lib/api/sessions";
 import { WASH_STATUS_POLL_MS } from "@/features/map/wash/WashPrepareTimer";
 import { formatCarPlate } from "@/features/map/wash/formatCarPlate";
 import "@/features/map/charging/charging-session-variants.css";
@@ -33,7 +33,7 @@ type WashSessionViewProps = {
   /** ISO start_at с бэка — длительность от него, не с момента открытия страницы */
   startAt?: string | null;
   carPlate?: string | null;
-  onDone: (info?: { status: string }) => void;
+  onDone: (info?: { status: string; leftWithoutWash?: boolean }) => void;
 };
 
 /**
@@ -118,8 +118,8 @@ export default function WashSessionView({
         if (cancelled || doneRef.current) return;
 
         const status = (session.status ?? "").toLowerCase();
-        if (session.washer_id != null) setBoxNumber(session.washer_id);
-        else if (session.bay_number != null) setBoxNumber(session.bay_number);
+        if (session.bay_number != null) setBoxNumber(session.bay_number);
+        else if (session.washer_id != null) setBoxNumber(session.washer_id);
 
         const startMs = parseStartMs(session.start_at);
         if (startMs != null) startMsRef.current = startMs;
@@ -137,10 +137,13 @@ export default function WashSessionView({
           setDisplayPlate(session.car_plate);
         }
 
-        if (status === "completed") {
+        if (washLeftWithoutWash(session) || status === "completed") {
           doneRef.current = true;
           setStatusLabel(t("wash.done_title", "Мойка завершена"));
-          onDoneRef.current({ status: "completed" });
+          onDoneRef.current({
+            status: washLeftWithoutWash(session) ? status || "cancelled" : "completed",
+            leftWithoutWash: washLeftWithoutWash(session),
+          });
           return;
         }
 

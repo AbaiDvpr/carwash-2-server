@@ -6,6 +6,7 @@ import {
   type CwLoadHour,
   type CwLocationLoad,
 } from "@/lib/api/cw";
+import { apiFailMessage } from "@/lib/apiFail";
 import { useT } from "@/hooks/useT";
 
 const AXIS_HOURS = [0, 6, 12, 18, 23] as const;
@@ -91,9 +92,7 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
       })
       .catch(() => {
         if (!cancelled) {
-          setError(
-            t("map.wash_load_error", "Не удалось загрузить нагрузку"),
-          );
+          setError(apiFailMessage(t));
         }
       })
       .finally(() => {
@@ -117,6 +116,7 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
     const m = now.getMinutes();
     return ((h * 60 + m) / (24 * 60)) * 100;
   }, [now]);
+  const nowAlign = nowPct <= 10 ? "start" : nowPct >= 90 ? "end" : "center";
 
   const nowLabel = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   const chartStyle = { "--wash-load-h": `${CHART_H}px` } as CSSProperties;
@@ -139,7 +139,7 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
       <p className="wash-load__subtitle">
         {t(
           "map.wash_load_avg_30d",
-          "Среднее число стартов мойки за 30 дней",
+          "Средние старты в этот час. Дни без моек не считаем.",
         )}
       </p>
 
@@ -237,12 +237,11 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
 
             {!loading && isToday ? (
               <div
-                className="wash-load__now"
+                className={`wash-load__now wash-load__now--${nowAlign}`}
                 style={{ left: `${nowPct}%` }}
                 aria-hidden
               >
                 <span className="wash-load__now-line" />
-                <span className="wash-load__now-badge">{nowLabel}</span>
               </div>
             ) : null}
           </div>
@@ -253,6 +252,14 @@ export default function WashLoadChart({ locationId }: WashLoadChartProps) {
             {AXIS_HOURS.map((h) => (
               <span key={h}>{formatHourLabel(h)}</span>
             ))}
+            {!loading && isToday ? (
+              <span
+                className={`wash-load__now-badge wash-load__now-badge--${nowAlign}`}
+                style={{ left: `${nowPct}%` }}
+              >
+                {nowLabel}
+              </span>
+            ) : null}
           </div>
         </div>
 

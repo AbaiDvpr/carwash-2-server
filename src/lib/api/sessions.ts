@@ -6,7 +6,7 @@ export type HistorySession = {
   location_id: number;
   address: string | null;
   washer_id?: number | null;
-  /** Номер бокса = washer_id (как в админке) */
+  /** Номер бокса в здании (не PK поста в базе) */
   bay_number?: number | null;
   car_id: number | null;
   car_plate: string | null;
@@ -36,6 +36,10 @@ export type HistorySession = {
   entered_at: string | null;
   exited_at: string | null;
   entrance_duration_minutes: number | null;
+  /** Выехал из здания, не помывшись (оплата уже была). */
+  left_without_wash?: boolean | null;
+  building_entered_at?: string | null;
+  building_exited_at?: string | null;
 };
 
 /** @deprecated используй HistorySession */
@@ -75,6 +79,16 @@ export function fetchCwSessions(
 /** Статус одной сессии мойки (поллинг после оплаты). */
 export function fetchCwSession(id: number): Promise<{ session: HistorySession }> {
   return apiFetch<{ session: HistorySession }>(`/api/cw/sessions/${id}`);
+}
+
+/** Оплатил, заехал в здание и сам вышел — для клиента это завершение, не ошибка оплаты. */
+export function washLeftWithoutWash(session: {
+  status?: string | null;
+  left_without_wash?: boolean | null;
+}): boolean {
+  if (!session.left_without_wash) return false;
+  const status = (session.status ?? "").toLowerCase();
+  return status === "cancelled" || status === "completed" || status === "error";
 }
 
 /**

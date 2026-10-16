@@ -4,7 +4,7 @@ import {
   plannedEndAtMs,
   type EvSession,
 } from "@/lib/api/evSessions";
-import type { HistorySession } from "@/lib/api/sessions";
+import { washLeftWithoutWash, type HistorySession } from "@/lib/api/sessions";
 
 export type MapLiveSession = {
   kind: "wash" | "charging";
@@ -78,7 +78,8 @@ export function mapCwSessionToLive(session: HistorySession): MapLiveSession | nu
   if (!session?.id || session.location_id == null) return null;
 
   const status = (session.status ?? "").toLowerCase();
-  if (status === "completed") return null;
+  if (status === "completed" || washLeftWithoutWash(session)) return null;
+  if (status === "cancelled" && session.end_at) return null;
 
   // «Активная» мойка — всё, что ещё не закрыто.
   const active =

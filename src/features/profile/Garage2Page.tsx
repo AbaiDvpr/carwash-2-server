@@ -16,7 +16,7 @@ import { fetchPlateTypes, type PlateType } from "@/lib/api/garage";
 import {
   createGarageV2,
   deleteGarageV2,
-  fetchGaragesV2,
+  fetchGaragesV2Detailed,
   fetchGarageV2FuelTypes,
   fetchGarageV2PistolTypes,
   updateGarageV2,
@@ -104,6 +104,27 @@ function normalizePlate(value: string): string {
 
 function plateForApi(value: string): string {
   return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+/** 11111 → «11 111» */
+function formatAmountDigits(digits: string): string {
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+function amountDigits(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function formatSpendInput(raw: string): string {
+  return formatAmountDigits(amountDigits(raw).slice(0, 9));
+}
+
+function spendToNumber(value: string): number | null {
+  const digits = amountDigits(value);
+  if (digits === "") return null;
+  const n = Number(digits);
+  return Number.isFinite(n) ? n : null;
 }
 
 function countriesFromTypes(types: PlateType[]): CountryOption[] {
@@ -313,12 +334,15 @@ export default function Garage2Page({
   const [countryCode, setCountryCode] = useState("kz");
   const [powerType, setPowerType] = useState<GarageV2PowerType | null>(null);
   const [pistolTypeId, setPistolTypeId] = useState<number | null>(null);
-  const [fuelTypeId, setFuelTypeId] = useState<number | null>(null);
+  const [fuelTypeIds, setFuelTypeIds] = useState<number[]>([]);
+  const [spendMonth, setSpendMonth] = useState("");
+  const [isLegalEntity, setIsLegalEntity] = useState(false);
 
   const isEdit = editing != null;
 
   const needsFuel = powerType === "fuel" || powerType === "hybrid";
-  const needsElectric = powerType === "electric" || powerType === "hybrid";
+  const showConnector = powerType === "electric" || powerType === "hybrid";
+  const connectorRequired = powerType === "electric";
 
   const activeCountry = useMemo(
     () =>
@@ -328,20 +352,45 @@ export default function Garage2Page({
     [countries, countryCode],
   );
 
+  const spendMonthNum = spendToNumber(spendMonth);
+  const spendLimitsOk =
+    !isLegalEntity ||
+    (spendMonthNum != null &&
+      Number.isFinite(spendMonthNum) &&
+      spendMonthNum >= 0);
+
   const canSubmit = useMemo(() => {
     const clean = plateForApi(plate);
     if (clean.length < 3 || powerType == null || saving) return false;
-    if (needsElectric && pistolTypeId == null) return false;
-    if (needsFuel && fuelTypeId == null) return false;
+    if (connectorRequired && pistolTypeId == null) return false;
+    if (powerType === "hybrid") {
+      const picked =
+        fuelTypeIds.length + (pistolTypeId != null ? 1 : 0);
+      if (fuelTypeIds.length < 1 || fuelTypeIds.length > 2 || picked < 2) {
+        return false;
+      }
+    } else if (needsFuel && fuelTypeIds.length !== 1) {
+      return false;
+    }
+    if (!spendLimitsOk) return false;
     return true;
-  }, [plate, powerType, needsFuel, needsElectric, pistolTypeId, fuelTypeId, saving]);
+  }, [
+    plate,
+    powerType,
+    needsFuel,
+    connectorRequired,
+    pistolTypeId,
+    fuelTypeIds,
+    saving,
+    spendLimitsOk,
+  ]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [list, types, fuels, plateTypes] = await Promise.all([
-        fetchGaragesV2(),
+      const [garageData, types, fuels, plateTypes] = await Promise.all([
+        fetchGaragesV2Detailed(),
         fetchGarageV2PistolTypes(),
         fetchGarageV2FuelTypes(),
         fetchPlateTypes().catch(() => [] as PlateType[]),
@@ -353,9 +402,12 @@ export default function Garage2Page({
           ? prev
           : (nextCountries[0]?.code ?? "kz"),
       );
-      setGarages(list);
+      setGarages(garageData.garages);
       setPistolTypes(types);
       setFuelTypes(fuels);
+      setIsLegalEntity(
+        garageData.requiresSpendLimits || garageData.personType === "legal",
+      );
     } catch (err) {
       setError(
         garageApiError(
@@ -379,7 +431,8 @@ export default function Garage2Page({
     setCountryCode(countries[0]?.code ?? "kz");
     setPowerType(null);
     setPistolTypeId(null);
-    setFuelTypeId(null);
+    setFuelTypeIds([]);
+    setSpendMonth("");
     setEditing(null);
     setError(null);
     setFlagDrawerOpen(false);
@@ -397,7 +450,16 @@ export default function Garage2Page({
     setCountryCode(country.code);
     setPowerType(garage.power_type);
     setPistolTypeId(garage.pistol_type_id);
-    setFuelTypeId(garage.fuel_type_id);
+    setFuelTypeIds(
+      (garage.fuel_types ?? [garage.fuel_type, garage.fuel_type_2])
+        .filter((type): type is NonNullable<typeof type> => type != null)
+        .map((type) => type.id),
+    );
+    setSpendMonth(
+      garage.spend_month != null && Number.isFinite(Number(garage.spend_month))
+        ? formatAmountDigits(String(Math.round(Number(garage.spend_month))))
+        : "",
+    );
     setError(null);
     setFlagDrawerOpen(false);
     setScreen("form");
@@ -405,8 +467,30 @@ export default function Garage2Page({
 
   function selectPowerType(next: GarageV2PowerType) {
     setPowerType(next);
-    if (next === "fuel") setPistolTypeId(null);
-    if (next === "electric") setFuelTypeId(null);
+    if (next === "fuel") {
+      setPistolTypeId(null);
+      setFuelTypeIds((ids) => ids.slice(0, 1));
+    }
+    if (next === "electric") setFuelTypeIds([]);
+  }
+
+  function toggleFuel(id: number) {
+    const row = (fuelId: number) => fuelTypes.find((item) => item.id === fuelId);
+    const gasoline = (fuelId: number) => row(fuelId)?.group === "gasoline";
+    const diesel = (fuelId: number) => row(fuelId)?.code.toLowerCase() === "diesel";
+    if (powerType !== "hybrid") {
+      setFuelTypeIds((prev) => (prev.length === 1 && prev[0] === id ? [] : [id]));
+      return;
+    }
+    setFuelTypeIds((prev) => {
+      if (prev.includes(id)) return prev.filter((item) => item !== id);
+      let next = prev;
+      if (gasoline(id) || diesel(id)) {
+        next = next.filter((item) => !gasoline(item) && !diesel(item));
+      }
+      next = [...next, id];
+      return next.length > 2 ? next.slice(next.length - 2) : next;
+    });
   }
 
   function goProfile() {
@@ -444,9 +528,14 @@ export default function Garage2Page({
       const input = {
         car_plate: plateForApi(plate),
         power_type: powerType,
-        pistol_type_id: needsElectric ? pistolTypeId : null,
-        fuel_type_id: needsFuel ? fuelTypeId : null,
+        pistol_type_id: showConnector ? pistolTypeId : null,
+        fuel_type_ids: needsFuel ? fuelTypeIds : [],
         plate_type_id: activeCountry.plateTypeId,
+        ...(isLegalEntity
+          ? {
+              spend_month: spendMonthNum,
+            }
+          : {}),
       };
 
       if (isEdit && editing) {
@@ -573,14 +662,21 @@ export default function Garage2Page({
                             <span className="garage2__list-meta">
                               {item.power_type === "hybrid"
                                 ? [
-                                    fuelTypeLabel(item.fuel_type, t),
-                                    item.pistol_type?.type ??
-                                      t("garage2.electric", "Электро"),
-                                  ].join(" · ")
+                                    (item.fuel_types ?? [item.fuel_type, item.fuel_type_2])
+                                      .filter((type): type is NonNullable<typeof type> => type != null)
+                                      .map((type) => fuelTypeLabel(type, t))
+                                      .join(" + "),
+                                    item.pistol_type?.type,
+                                  ]
+                                    .filter((part) => part)
+                                    .join(" · ")
                                 : item.power_type === "electric"
                                   ? item.pistol_type?.type ??
                                     t("garage2.electric", "Электро")
                                   : fuelTypeLabel(item.fuel_type, t)}
+                              {isLegalEntity && item.spend_month != null
+                                ? ` · ${t("garage2.spend_month", "Лимит на месяц")} ${formatAmountDigits(String(Math.round(Number(item.spend_month))))} ₸`
+                                : ""}
                             </span>
                           </span>
                         </span>
@@ -729,29 +825,34 @@ export default function Garage2Page({
                       {t("garage2.no_fuels", "Типы топлива пока не загружены")}
                     </p>
                   ) : (
-                    <div
-                      className="garage2__fuels"
-                      role="listbox"
-                      aria-label={t("garage2.fuel_title", "Тип топлива")}
-                    >
-                      {fuelTypes.map((type) => (
-                        <button
-                          key={type.id}
-                          type="button"
-                          role="option"
-                          aria-selected={fuelTypeId === type.id}
-                          className={`garage2__fuel-chip${fuelTypeId === type.id ? " is-active" : ""}`}
-                          onClick={() => setFuelTypeId(type.id)}
-                        >
-                          {fuelTypeLabel(type, t)}
-                        </button>
-                      ))}
-                    </div>
+                      <div
+                        className="garage2__fuels"
+                        role={powerType === "hybrid" ? "group" : "listbox"}
+                        aria-label={t("garage2.fuel_title", "Тип топлива")}
+                      >
+                        {fuelTypes.map((type) => {
+                          const selected = fuelTypeIds.includes(type.id);
+                          const hybrid = powerType === "hybrid";
+                          return (
+                            <button
+                              key={type.id}
+                              type="button"
+                              role={hybrid ? "checkbox" : "option"}
+                              aria-checked={hybrid ? selected : undefined}
+                              aria-selected={hybrid ? undefined : selected}
+                              className={`garage2__fuel-chip${selected ? " is-active" : ""}`}
+                              onClick={() => toggleFuel(type.id)}
+                            >
+                              {fuelTypeLabel(type, t)}
+                            </button>
+                          );
+                        })}
+                      </div>
                   )}
                 </div>
               ) : null}
 
-              {needsElectric ? (
+              {showConnector ? (
                 <div className="profile-edit-row">
                   <p className="profile-edit-row__label">
                     {t("garage2.connector_title", "Тип зарядки")}
@@ -771,12 +872,42 @@ export default function Garage2Page({
                           key={type.id}
                           type={type}
                           selected={pistolTypeId === type.id}
-                          onSelect={() => setPistolTypeId(type.id)}
+                          onSelect={() =>
+                            setPistolTypeId((current) =>
+                              current === type.id ? null : type.id,
+                            )
+                          }
                         />
                       ))}
                     </div>
                   )}
                 </div>
+              ) : null}
+
+              {isLegalEntity ? (
+                <>
+                  <label className="profile-edit-row">
+                    <span className="profile-edit-row__label">
+                      {t("garage2.spend_month", "Лимит на месяц, ₸")}
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={spendMonth}
+                      onChange={(e) => setSpendMonth(formatSpendInput(e.target.value))}
+                      placeholder="0"
+                      className="profile-edit-row__value"
+                      autoComplete="off"
+                      required
+                    />
+                  </label>
+                  <p className="garage2__empty">
+                    {t(
+                      "garage2.spend_hint",
+                      "Один лимит на мойку этой машины за календарный месяц. С 1-го числа отсчёт начинается заново.",
+                    )}
+                  </p>
+                </>
               ) : null}
             </div>
 

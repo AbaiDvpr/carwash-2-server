@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
+import { safeApiError } from "@/lib/apiFail";
 import { topUpBalance, type TopUpMethod } from "@/lib/api/payments";
 import { useT } from "@/hooks/useT";
 import { formatBalance } from "../hooks/useUserBalance";
@@ -36,10 +37,8 @@ function topUpErrorMessage(
     } | null;
     const amountError = body?.errors?.amount?.[0];
     if (amountError) return amountError;
-    if (body?.message) return body.message;
   }
-  if (err instanceof Error) return err.message;
-  return fallback;
+  return safeApiError(err);
 }
 
 function RadioMark({ checked }: { checked: boolean }) {

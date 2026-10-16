@@ -26,23 +26,43 @@ export type GarageV2 = {
   pistol_type_id: number | null;
   pistol_type: GarageV2PistolType | null;
   fuel_type_id: number | null;
+  fuel_type_2_id?: number | null;
   fuel_type: GarageV2FuelType | null;
+  fuel_type_2?: GarageV2FuelType | null;
+  fuel_types?: GarageV2FuelType[];
   plate_type?: PlateType | null;
+  /** Лимит на мойку за календарный месяц (юрлицо), ₸ */
+  spend_month?: number | null;
+  on_territory?: boolean;
   created_at?: string;
   updated_at?: string;
 };
 
-type GaragesResponse = { garages: GarageV2[] };
+type GaragesResponse = {
+  garages: GarageV2[];
+  requires_spend_limits?: boolean;
+  person_type?: string;
+};
 type GarageResponse = { garage: GarageV2; message?: string };
 type PistolTypesResponse = { pistol_types: GarageV2PistolType[] };
 type FuelTypesResponse = { fuel_types: GarageV2FuelType[] };
+
+export type GaragesV2Result = {
+  garages: GarageV2[];
+  requiresSpendLimits: boolean;
+  personType: string;
+};
 
 export type GarageV2Input = {
   car_plate: string;
   power_type: GarageV2PowerType;
   pistol_type_id?: number | null;
   fuel_type_id?: number | null;
+  /** До двух типов. У гибрида: газ + бензин (80–100) или газ + дизель. */
+  fuel_type_ids?: number[];
   plate_type_id?: number | null;
+  /** Обязателен для юрлица: лимит на мойку за календарный месяц */
+  spend_month?: number | null;
 };
 
 export function fetchGarageV2PistolTypes(): Promise<GarageV2PistolType[]> {
@@ -58,7 +78,15 @@ export function fetchGarageV2FuelTypes(): Promise<GarageV2FuelType[]> {
 }
 
 export function fetchGaragesV2(): Promise<GarageV2[]> {
-  return apiFetch<GaragesResponse>("/api/garage/v2/").then((r) => r.garages);
+  return fetchGaragesV2Detailed().then((r) => r.garages);
+}
+
+export function fetchGaragesV2Detailed(): Promise<GaragesV2Result> {
+  return apiFetch<GaragesResponse>("/api/garage/v2/").then((r) => ({
+    garages: r.garages,
+    requiresSpendLimits: Boolean(r.requires_spend_limits),
+    personType: r.person_type ?? "individual",
+  }));
 }
 
 export function createGarageV2(input: GarageV2Input): Promise<GarageV2> {

@@ -1,0 +1,32 @@
+.wash-month-limit {
+  margin: 0.7rem 0 0;
+  padding: 0.85rem 0.95rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--app-description) 16%, transparent);
+  background: var(--app-block);
+}
+
+.wash-month-limit__kicker {
+  margin: 0;
+  color: var(--app-description);
+  font-size: var(--app-text-xs, 0.75rem);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.wash-month-limit__left {
+  margin: 0.2rem 0 0;
+  color: var(--app-text);
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.wash-month-limit__meta {
+  margin: 0.3rem 0 0;
+  color: var(--app-description);
+  font-size: var(--app-text-sm, 0.85rem);
+  font-weight: 600;
+  line-height: 1.35;
+}

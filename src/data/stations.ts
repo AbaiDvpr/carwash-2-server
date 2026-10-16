@@ -2,6 +2,8 @@ export type StationKind = "wash" | "charging";
 
 export type StationWasher = {
   id: number;
+  /** Номер поста в здании */
+  number: number;
   status: string | null;
   statusLabel: string;
 };
@@ -107,12 +109,20 @@ export function getPaymentPath(
   station: Station,
   tariffKey?: string | null,
   carId?: number | null,
+  payFrom?: "self" | "partner" | null,
+  partnerId?: number | null,
 ): string {
   const path = `/payment/car-wash/${station.paymentSlug}`;
   const params = new URLSearchParams();
   if (tariffKey) params.set("tariff", tariffKey);
   if (carId != null && Number.isFinite(carId) && carId > 0) {
     params.set("car_id", String(carId));
+  }
+  if (payFrom === "self" || payFrom === "partner") {
+    params.set("pay_from", payFrom);
+  }
+  if (payFrom === "partner" && partnerId != null && partnerId > 0) {
+    params.set("partner_id", String(partnerId));
   }
   const qs = params.toString();
   return qs ? `${path}?${qs}` : path;

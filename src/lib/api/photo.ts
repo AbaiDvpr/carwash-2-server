@@ -41,14 +41,19 @@ export async function uploadUserPhoto(file: Blob, filename = "avatar.jpg"): Prom
   const form = new FormData();
   form.append("photo", file, filename);
 
-  const response = await fetch(apiUrl("/api/auth/photo"), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: form,
-  });
+  let response: Response;
+  try {
+    response = await fetch(apiUrl("/api/auth/photo"), {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+    });
+  } catch {
+    throw new ApiError(0, "/api/auth/photo", { message: "network" });
+  }
 
   const data = await parseJson(response, "/api/auth/photo");
   cacheUserProfile(data.user);
@@ -64,13 +69,18 @@ export async function deleteUserPhoto(): Promise<AuthUser> {
     throw new ApiError(401, "/api/auth/photo", { message: "Unauthenticated." });
   }
 
-  const response = await fetch(apiUrl("/api/auth/photo"), {
-    method: "DELETE",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(apiUrl("/api/auth/photo"), {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new ApiError(0, "/api/auth/photo", { message: "network" });
+  }
 
   const data = await parseJson(response, "/api/auth/photo");
   cacheUserProfile(data.user);

@@ -7,7 +7,7 @@
 
 .details-charging__stage.is-charging:has(.wash-prep) {
   overflow: hidden;
-  padding-bottom: 0.85rem;
+  padding-bottom: calc(0.85rem + var(--app-navbar-h));
 }
 
 .details-charging__stage.is-charging .csv.wash-prep {

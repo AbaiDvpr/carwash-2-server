@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Station } from "@/data/stations";
-import { ApiError } from "@/lib/api";
+import { ApiError, API_FAIL_MESSAGE } from "@/lib/api";
 import { fetchCwStations } from "@/lib/api/cw";
 import { fetchEvStations } from "@/lib/api/ev";
 
@@ -50,7 +50,7 @@ export function useStations(): UseStationsState {
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           return;
         }
-        setError(err instanceof Error ? err.message : "Не удалось загрузить точки");
+        setError(API_FAIL_MESSAGE);
         if (!hasDataRef.current) setStations([]);
       } finally {
         if (!cancelled) {
